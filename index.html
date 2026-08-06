@@ -1,0 +1,60 @@
+﻿<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>SP-F001A7 - Suivi production</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #0d1117; }
+      button, input, select, textarea { font: inherit; }
+      @media print {
+        body { background: #fff !important; }
+        .sticky-tabs, .sticky-of-header { position: static !important; top: auto !important; }
+        button { display: none !important; }
+        input, select, textarea { border-color: #777 !important; color: #111 !important; background: #fff !important; }
+        * { color-adjust: exact; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.storage = {
+        _store(persistent) {
+          return persistent ? window.localStorage : window.sessionStorage;
+        },
+        _key(key, persistent) {
+          return `${persistent ? "p" : "s"}:${key}`;
+        },
+        async get(key, persistent = true) {
+          const value = this._store(persistent).getItem(this._key(key, persistent));
+          if (value === null) throw new Error("not found");
+          return { value };
+        },
+        async set(key, value, persistent = true) {
+          this._store(persistent).setItem(this._key(key, persistent), value);
+        },
+        async delete(key, persistent = true) {
+          this._store(persistent).removeItem(this._key(key, persistent));
+        }
+      };
+    </script>
+    <script src="./vendor/react.development.js"></script>
+    <script src="./vendor/react-dom.development.js"></script>
+    <script src="./vendor/babel.min.js"></script>
+    <script type="text/babel" data-presets="env" data-plugins="transform-react-jsx" src="./src/App.browser.jsx?v=16"></script>
+  </body>
+</html>
+
+
+
+
+
+
+
+
+
