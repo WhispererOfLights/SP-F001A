@@ -609,12 +609,18 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const REQUIRED = [
     {key:"repere", label:"Repère TOPO"},
     {key:"qty",    label:"QTÉ"},
-    {key:"lot",    label:"LOT"},
-    {key:"dc",     label:"DC"},
     {key:"fiche",  label:"Fiche Suiveuse"},
     {key:"etape",  label:"N° Étape"},
   ];
-  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis manquants : "+miss.join(", ")); } else { upd(id,"validError",""); upd(id,"validated",true); } };
+  const validateRow=id=>{
+    const r=rows.find(x=>x.id===id);
+    const required = r?.action1==="S"
+      ? [...REQUIRED,{key:"lot",label:"LOT"},{key:"dc",label:"DC"}]
+      : REQUIRED;
+    const miss=checkRequired(r,required);
+    if(miss.length) { upd(id,"validError","Champs requis manquants : "+miss.join(", ")); }
+    else { upd(id,"validError",""); upd(id,"validated",true); }
+  };
   const unlockRow=id=>upd(id,"validated",false);
   return (
     <div>
