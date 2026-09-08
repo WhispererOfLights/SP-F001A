@@ -684,6 +684,27 @@ const rowMatchesSn = (row, snRow, snRows=[]) => {
   const scope=snScope(row,snRows);
   return scope.mode==="all" || scope.ids.includes(snRow.id);
 };
+const rowMatchesSnFilter = (row, filter, header) => {
+  if(!filter||filter==="all") return true;
+  const rows=snRowsFromHeader(header);
+  const scope=snScope(row,rows);
+  if(filter==="scope-all") return scope.mode==="all";
+  return scope.mode==="all" || scope.ids.includes(filter);
+};
+const SnFilter = ({value,onChange,header,title="Filtrer SN cible"}) => {
+  const rows=snRowsFromHeader(header);
+  if(!rows.length) return null;
+  return (
+    <select value={value||"all"} onChange={e=>onChange(e.target.value)} title={title}
+      style={{background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,
+        color:value&&value!=="all"?C.blue:C.text,padding:"4px 6px",fontSize:10,
+        fontFamily:"monospace",outline:"none",minWidth:95}}>
+      <option value="all">Tous SN</option>
+      <option value="scope-all">Cible Tous</option>
+      {rows.map(s=><option key={s.id} value={s.id}>{snTitle(s)}</option>)}
+    </select>
+  );
+};
 
 const SnScopePicker = ({row,header,onChange,disabled=false}) => {
   const rows=snRowsFromHeader(header);
@@ -739,7 +760,6 @@ const TrackedSNs = ({data,onChange,header,user,activeUnitId,onActiveUnitChange})
   const rows=data?.rows||[];
   const mode=data?.mode||((rows.filter(r=>!r.deleted).length>1)?"multi":"single");
   const visible=rows.filter(r=>!r.deleted);
-  const selectable=visible.filter(r=>cleanSn(r.sn));
   const emit=next=>onChange({...data,mode,...next});
   const add=()=>{
     if(mode==="single"&&visible.length>=1) return;
@@ -792,13 +812,6 @@ const TrackedSNs = ({data,onChange,header,user,activeUnitId,onActiveUnitChange})
               padding:"5px 8px",fontSize:11,fontFamily:"monospace",outline:"none"}}>
             <option value="single">1 OF / 1 SN</option>
             <option value="multi">1 OF / multi SN</option>
-          </select>
-          <span style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:.8}}>Contexte</span>
-          <select value={selectable.some(r=>r.id===activeUnitId)?activeUnitId:"all"} onChange={e=>onActiveUnitChange(e.target.value)}
-            style={{background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,color:C.text,
-              padding:"5px 8px",fontSize:11,fontFamily:"monospace",outline:"none",minWidth:220}}>
-            <option value="all">Tous les SN de l'OF</option>
-            {selectable.map(u=><option key={u.id} value={u.id}>{snTitle(u)}</option>)}
           </select>
           <Btn onClick={add} small disabled={mode==="single"&&visible.length>=1}>+ SN</Btn>
         </div>
@@ -1097,7 +1110,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const [hideAchevees,setHideAchevees] = useState(true);
-  const [filters,setFilters] = useState({repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"});
+  const [filters,setFilters] = useState({snTarget:"all", repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"});
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
   const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const updRepere=(id,v)=>onChange({rows:rows.map(r=>{
@@ -1129,6 +1142,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
     if(r.deleted&&!showDeleted&&!forceShowDeleted) return false;
     if(!r.deleted&&hideAchevees&&!forceShowDeleted&&isAchevee(r)) return false;
     const txt = key => String(r[key]||"").toUpperCase();
+    if(!rowMatchesSnFilter(r,filters.snTarget,header)) return false;
     if(filters.repere&& !txt("repere").includes(filters.repere.toUpperCase())) return false;
     if(filters.action1&& r.action1!==filters.action1) return false;
     if(filters.codeERP&& !txt("codeERP").includes(filters.codeERP.toUpperCase())) return false;
@@ -1142,7 +1156,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
     if(filters.adjust==="no"&&isAdjustRow(r)) return false;
     return true;
   });
-  const hasFilters = Object.entries(filters).some(([k,v])=>k==="adjust"?v!=="all":!!v);
+  const hasFilters = Object.entries(filters).some(([k,v])=>k==="adjust"||k==="snTarget"?v!=="all":!!v);
   const fset = (k,v) => setFilters(s=>({...s,[k]:v}));
   const stampTraca=id=>onChange({rows:rows.map(r=>r.id===id?{...r,tracaOk:true,visaTraca:user.trigram,dateTraca:nowDT()}:r)});
   const clearTraca=id=>onChange({rows:rows.map(r=>r.id===id?{...r,tracaOk:false,visaTraca:"",dateTraca:""}:r)});
@@ -1247,7 +1261,8 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
               <TH w={68}></TH>
             </tr>
             <tr>
-              <th></th><th></th><th></th>
+              <th></th><th></th>
+              <th style={{padding:"3px 4px"}}><SnFilter value={filters.snTarget} onChange={v=>fset("snTarget",v)} header={header}/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.repere} onChange={v=>fset("repere",v)} small title="Filtrer repère topo"/></th>
               <th style={{padding:"3px 4px"}}>
                 <select value={filters.adjust} onChange={e=>fset("adjust",e.target.value)}
@@ -1280,7 +1295,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
               </th>
               <th></th><th></th><th></th>
               <th style={{padding:"3px 4px",textAlign:"center"}}>
-                {hasFilters&&<button onClick={()=>setFilters({repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"})}
+                {hasFilters&&<button onClick={()=>setFilters({snTarget:"all", repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"})}
                   title="Effacer les filtres"
                   style={{background:C.border,border:"none",borderRadius:4,color:C.text,width:26,height:22,cursor:"pointer",fontWeight:800}}>×</button>}
               </th>
@@ -1728,16 +1743,20 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
   const [restoreOpTarget, setRestoreOpTarget] = useState(null);
   const [restoreItemTarget,setRestoreItemTarget] = useState(null); // {oid, iid}
   const [showDeleted, setShowDeleted] = useState(false);
+  const [filters,setFilters] = useState({snTarget:"all", fiche:"", op:""});
 
   const cats     = [...new Set(consommables.map(i=>i.cat||"Autre"))];
   const getConso = id => consommables.find(c=>c.id===id);
 
   // ── Opérations ──────────────────────────────────────────────
   const addOp = () => {
-    const last = ops.length>0?ops[ops.length-1]:null;
+    const scope=defaultSnScope(header);
+    const activeSn=scope.snIds?.[0]||"";
+    const candidates=[...ops].reverse().filter(o=>!o.deleted);
+    const last = candidates.find(o=>activeSn ? rowMatchesSnFilter(o,activeSn,header) : snScope(o,snRowsFromHeader(header)).mode==="all") || candidates[0] || null;
     onChange({ops:[...ops,{
       id:uid(), createdDT:nowDT(), createdVisa:user.trigram,
-      ...defaultSnScope(header),
+      ...scope,
       fiche:last?.fiche||"", op:"",
       validated:false, connError:"", deleted:false,
       deletedReason:"",deletedVisa:"",deletedDate:"",
@@ -1844,6 +1863,14 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
   const toggleCollapse = oid => setCollapsed(s=>({...s,[oid]:!isCollapsed(oid)}));
 
   const totalDelOps = ops.filter(o=>o.deleted).length;
+  const visibleOps=[...ops].filter(o=>{
+    if(o.deleted&&!showDeleted&&!forceShowDeleted) return false;
+    if(!rowMatchesSnFilter(o,filters.snTarget,header)) return false;
+    if(filters.fiche&& !String(o.fiche||"").toUpperCase().includes(filters.fiche.toUpperCase())) return false;
+    if(filters.op&& !String(o.op||"").toUpperCase().includes(filters.op.toUpperCase())) return false;
+    return true;
+  }).reverse();
+  const hasFilters=filters.snTarget!=="all"||!!filters.fiche||!!filters.op;
 
   return (
     <div>
@@ -1864,10 +1891,19 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
         </div>
       </div>
 
+      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,flexWrap:"wrap",
+        background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 10px"}}>
+        <span style={{color:C.muted,fontSize:10,textTransform:"uppercase",letterSpacing:.8}}>Filtres</span>
+        <SnFilter value={filters.snTarget} onChange={v=>setFilters(f=>({...f,snTarget:v}))} header={header}/>
+        <Input value={filters.fiche} onChange={v=>setFilters(f=>({...f,fiche:v}))} small placeholder="Fiche" style={{width:120,fontFamily:"monospace"}}/>
+        <Input value={filters.op} onChange={v=>setFilters(f=>({...f,op:v}))} small placeholder="Opération" style={{width:90,fontFamily:"monospace"}}/>
+        {hasFilters&&<IconBtn onClick={()=>setFilters({snTarget:"all",fiche:"",op:""})} color={C.border} title="Effacer les filtres">×</IconBtn>}
+      </div>
+
       {ops.length===0&&<div style={{textAlign:"center",color:C.muted,padding:32}}>Cliquez <strong>+ Opération</strong> pour commencer</div>}
 
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        {[...ops].filter(o=>!o.deleted||showDeleted||forceShowDeleted).reverse().map(o=>(
+        {visibleOps.map(o=>(
           <div key={o.id} style={{border:`1px solid ${o.deleted?"#da3633":C.border}`,borderRadius:8,overflow:"hidden",opacity:o.deleted?.65:1}}>
 
             {/* ── Header opération ── */}
@@ -2115,6 +2151,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
+  const [snFilter,setSnFilter] = useState("all");
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
   const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
@@ -2134,6 +2171,9 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:rows.map(x=>x.id===id?withEditHistory(x,user,TEST_EQUIP_EDIT_FIELDS):x)}); } };
   const unlockRow=id=>onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,editBase:snapshotFields(r,TEST_EQUIP_EDIT_FIELDS)}:r)});
   const horsCalib=rows.filter(r=>!r.deleted&&(()=>{const s=calibStatus(r.dateExpiration);return s&&s.color===C.red;})());
+  const visibleRows=[...rows].reverse().filter(r=>
+    (!r.deleted||showDeleted||forceShowDeleted) && rowMatchesSnFilter(r,snFilter,header)
+  );
   return (
     <div>
       {horsCalib.length>0&&(
@@ -2146,6 +2186,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
         </div>
       )}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:12}}>
+        <SnFilter value={snFilter} onChange={setSnFilter} header={header}/>
         {deletedCount>0&&<Btn onClick={()=>setShowDeleted(s=>!s)} color={showDeleted?"#da3633":C.border} small>
           {showDeleted?"▲ Masquer annulées":"▼ Voir annulées ("+deletedCount+")"}
         </Btn>}
@@ -2168,8 +2209,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
             </tr>
           </thead>
           <tbody>
-            {[...rows].reverse().flatMap((r,i)=>{
-              if(r.deleted&&!showDeleted&&!forceShowDeleted) return [];
+            {visibleRows.flatMap((r,i)=>{
               const st=calibStatus(r.dateExpiration);
               const invalid=r.dateExpiration&&!isValidCalibDate(r.dateExpiration);
               return [
@@ -2373,6 +2413,7 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const [copiedLien,setCopiedLien]     = useState(null);
+  const [snFilter,setSnFilter] = useState("all");
   const del   = id => setDeleteTarget(id);
   const restore=reason=>{ onChange({rows:rows.map(r=>r.id===restoreTarget?{...r,deleted:false,restoredReason:reason,restoredVisa:user.trigram,restoredDate:nowDT()}:r)}); setRestoreTarget(null); };
   const confirmDel=reason=>{ onChange({rows:rows.map(r=>r.id===deleteTarget?{...r,deleted:true,deletedReason:reason,deletedVisa:user.trigram,deletedDate:nowDT()}:r)}); setDeleteTarget(null); };
@@ -2394,6 +2435,9 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
 
   // Compteurs par type
   const typeCounts = types.map(t=>({...t, n:rows.filter(r=>r.type===t.id).length}));
+  const visibleRows=[...rows].reverse().filter(r=>
+    (!r.deleted||showDeleted||forceShowDeleted) && rowMatchesSnFilter(r,snFilter,header)
+  );
 
   return (
     <div>
@@ -2411,6 +2455,7 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
           <Badge label={`${closed} clôturé${closed>1?"s":""}`} color={C.green}/>
         </div>
         <div style={{display:"flex",gap:8}}>
+          <SnFilter value={snFilter} onChange={setSnFilter} header={header}/>
           <Btn onClick={onEditTypes} color={C.border} small>⚙ Types</Btn>
           {deletedCount>0&&<Btn onClick={()=>setShowDeleted(s=>!s)} color={showDeleted?"#da3633":C.border} small>
             {showDeleted?"▲ Masquer annulées":"▼ Voir annulées ("+deletedCount+")"}
@@ -2437,8 +2482,7 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
           </tr>
         </thead>
         <tbody>
-          {[...rows].reverse().flatMap((r,i)=>{
-            if(r.deleted&&!showDeleted&&!forceShowDeleted) return [];
+          {visibleRows.flatMap((r,i)=>{
             const typeColor = getFaitColor(r.type, types);
             const closed_r  = isClosed(r);
             return [
@@ -2640,6 +2684,7 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
+  const [snFilter,setSnFilter] = useState("all");
   const add=()=>onChange({rows:[...rows,{id:uid(),...defaultSnScope(header),createdVisa:user?.trigram||"",createdDT:nowDT(),fourN:"",duree:"",temp:"",entreeVisa:"",entreeDT:"",sortieVisa:"",sortieDT:"",comments:[]}]});
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
   const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
@@ -2679,6 +2724,9 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
     onChange({rows:rows.map(r=>r.id===id?{...r,[field]:nowDT(),...extra}:r)});
   };
   const nei = nextEtuvageInfo(allRows||rows);
+  const visibleRows=[...rows].reverse().filter(r=>
+    (!r.deleted||showDeleted||forceShowDeleted) && rowMatchesSnFilter(r,snFilter,header)
+  );
   return (
     <div>
       {/* Prochain étuvage */}
@@ -2699,6 +2747,7 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
         </div>}
       </div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:12}}>
+        <SnFilter value={snFilter} onChange={setSnFilter} header={header}/>
         {deletedCount>0&&<Btn onClick={()=>setShowDeleted(s=>!s)} color={showDeleted?"#da3633":C.border} small>
           {showDeleted?"▲ Masquer annulées":"▼ Voir annulées ("+deletedCount+")"}
         </Btn>}
@@ -2718,8 +2767,7 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
             </tr>
           </thead>
           <tbody>
-            {[...rows].reverse().flatMap((r,i)=>{
-              if(r.deleted&&!showDeleted&&!forceShowDeleted) return [];
+            {visibleRows.flatMap((r,i)=>{
               const inFour=!!r.entreeDT,outFour=!!r.sortieDT;
               const fourVal=r.fourN.trim().toLowerCase();
               const fourOk=!r.fourN||fours.some(t=>
@@ -2848,6 +2896,7 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const [restoreConnTarget, setRestoreConnTarget] = useState(null); // cid
   const [showDeleted, setShowDeleted] = useState(false);
   const [historyConnector,setHistoryConnector] = useState("all");
+  const [snFilter,setSnFilter] = useState("all");
 
   // ── Connecteurs ─────────────────────────────────────────────
   const addC = () => onChange({connectors:[...connectors,{
@@ -2945,12 +2994,15 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
   };
 
   const totalDeleted = connectors.filter(c=>c.deleted).length;
-  const visibleConnectors = connectors.filter(c=>!c.deleted||showDeleted||forceShowDeleted);
+  const visibleConnectors = connectors.filter(c=>
+    (!c.deleted||showDeleted||forceShowDeleted) && rowMatchesSnFilter(c,snFilter,header)
+  );
   const historyRows = connectors.flatMap(c=>(c.events||[]).map((ev,idx)=>({
     c, ev, cycle:(idx+1)/2
   }))).filter(x=>
     (!x.c.deleted||showDeleted||forceShowDeleted) &&
     (!x.ev.deleted||showDeleted||forceShowDeleted) &&
+    rowMatchesSnFilter(x.c,snFilter,header) &&
     (historyConnector==="all" || x.c.id===historyConnector)
   ).reverse();
 
@@ -2961,6 +3013,7 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
           {visibleConnectors.length} connecteur{visibleConnectors.length>1?"s":""} affiché{visibleConnectors.length>1?"s":""}
         </div>
         <div style={{display:"flex",gap:8}}>
+          <SnFilter value={snFilter} onChange={setSnFilter} header={header}/>
           {totalDeleted>0&&<Btn onClick={()=>setShowDeleted(s=>!s)} color={showDeleted?"#da3633":C.border} small>
             {showDeleted?"▲ Masquer annulés":"▼ Voir annulés"}
           </Btn>}
@@ -3142,6 +3195,7 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
+  const [snFilter,setSnFilter] = useState("all");
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
   const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
@@ -3163,6 +3217,9 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const isClosed=r=>!!r.closedDate;
   const open=rows.filter(r=>!r.deleted&&!isClosed(r)).length;
   const closed=rows.filter(r=>!r.deleted&&isClosed(r)).length;
+  const visibleRows=[...rows].reverse().filter(r=>
+    (!r.deleted||showDeleted||forceShowDeleted) && rowMatchesSnFilter(r,snFilter,header)
+  );
   return (
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -3171,6 +3228,7 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
           <Badge label={`${closed} CLÔTURÉ${closed>1?"S":""}`}  color={C.green}/>
         </div>
         <div style={{display:"flex",gap:8}}>
+          <SnFilter value={snFilter} onChange={setSnFilter} header={header}/>
           {deletedCount>0&&<Btn onClick={()=>setShowDeleted(s=>!s)} color={showDeleted?"#da3633":C.border} small>
             {showDeleted?"▲ Masquer annulées":"▼ Voir annulées ("+deletedCount+")"}
           </Btn>}
@@ -3192,8 +3250,7 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
           </tr>
         </thead>
         <tbody>
-          {[...rows].reverse().flatMap((r,i)=>{
-            if(r.deleted&&!showDeleted&&!forceShowDeleted) return [];
+          {visibleRows.flatMap((r,i)=>{
             return [
             <tr key={r.id} style={{background:r.deleted?"#da363318":isClosed(r)?"#23863612":i%2===0?"transparent":"#ffffff06",
               textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:isClosed(r)?.8:1,
@@ -3927,6 +3984,7 @@ function App(){
   const [showAdminUsers,setShowAdminUsers] = useState(false);
   const [printAll,setPrintAll]       = useState(false);
   const [activeUnitId,setActiveUnitId] = useState("all");
+  const [headerPanel,setHeaderPanel] = useState("dossier");
 
   useEffect(()=>{
     (async()=>{
@@ -4137,6 +4195,7 @@ function App(){
   const h    = ofData.header;
   const unitRows = ofData.units?.rows||[];
   const snRows = unitRows.filter(u=>!u.deleted&&cleanSn(u.sn));
+  const activeUnitChoice = snRows.some(u=>u.id===activeUnitId) ? activeUnitId : "all";
   const activeUnit = snRows.find(u=>u.id===activeUnitId) || null;
   const snSummary = snRows.length ? `${snRows.length} SN` : (h.sn ? `SN ${h.sn}` : "aucun SN");
   const workHeader = {
@@ -4301,15 +4360,44 @@ function App(){
       {/* Content */}
       <div style={{padding:20}}>
         <div className="sticky-of-header" style={{position:"sticky",top:94,zIndex:90,background:C.bg,paddingTop:4,paddingBottom:2}}>
-          <Header of={h} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={status=>{
-            const updated={...ofData,header:{...ofData.header,status}};
-            const newList=ofList.map(o=>o.id===currentId?{...o,status}:o);
-            setOfList(newList);
-            try{window.storage.set("of-list",JSON.stringify(newList),true);}catch{}
-            setOfData(updated);save(updated);
-          }}/>
-          <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
-            header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
+          <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",
+            marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+              {[
+                ["dossier","Dossier"],
+                ["sn","SN"]
+              ].map(([id,label])=>(
+                <button key={id} onClick={()=>setHeaderPanel(id)}
+                  style={{background:headerPanel===id?C.accent+"22":"transparent",
+                    border:`1px solid ${headerPanel===id?C.accent:C.border}`,borderRadius:4,
+                    color:headerPanel===id?C.accent:C.muted,padding:"4px 10px",
+                    fontSize:11,fontWeight:800,cursor:"pointer",textTransform:"uppercase",letterSpacing:.6}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+              <span style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:.8}}>Travail</span>
+              <select value={activeUnitChoice} onChange={e=>setActiveUnitId(e.target.value)}
+                style={{background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,color:C.text,
+                  padding:"5px 8px",fontSize:11,fontFamily:"monospace",outline:"none",minWidth:220}}>
+                <option value="all">Tous les SN de l'OF</option>
+                {snRows.map(u=><option key={u.id} value={u.id}>{snTitle(u)}</option>)}
+              </select>
+            </div>
+          </div>
+          {headerPanel==="dossier" ? (
+            <Header of={h} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={status=>{
+              const updated={...ofData,header:{...ofData.header,status}};
+              const newList=ofList.map(o=>o.id===currentId?{...o,status}:o);
+              setOfList(newList);
+              try{window.storage.set("of-list",JSON.stringify(newList),true);}catch{}
+              setOfData(updated);save(updated);
+            }}/>
+          ) : (
+            <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
+              header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
+          )}
         </div>
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:16}}>
           <ReportTitle/>
