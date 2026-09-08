@@ -3,6 +3,8 @@
 *.tmp
 *.sqlite
 *.db
+tmp/
+output/
 
 # Python
 __pycache__/
@@ -14,4 +16,3 @@ venv/
 Thumbs.db
 .vscode/
 .idea/
-

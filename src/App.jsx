@@ -1,10 +1,22 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 const C = {
   bg:"#0d1117", surface:"#161b22", border:"#30363d",
   accent:"#e05c00", blue:"#1f6feb", green:"#238636",
   red:"#da3633", yellow:"#d29922", text:"#e6edf3", muted:"#8b949e",
   purple:"#8957e5",
+};
+
+const OF_TYPES = {
+  production:{label:"Production"},
+  reprise:{label:"Reprise / Rework"},
+};
+
+const UNIT_STATUTS = {
+  a_faire:{label:"À faire",color:"#8b949e"},
+  en_cours:{label:"En cours",color:"#1f6feb"},
+  bloque:{label:"Bloqué",color:"#d29922"},
+  termine:{label:"Terminé",color:"#238636"},
 };
 
 const now   = () => new Date().toLocaleDateString("fr-FR");
@@ -38,16 +50,17 @@ const Input = ({value,onChange,placeholder,title,style={},small,type="text",read
       cursor:readOnly?"default":"text",borderColor:borderCol}}/>
   );
 };
-const Select = ({value,onChange,options}) => (
-  <select value={value||""} onChange={e=>onChange(e.target.value)}
+const Select = ({value,onChange,options,disabled}) => (
+  <select value={value||""} disabled={disabled} onChange={e=>onChange(e.target.value)}
     style={{background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,
-      color:C.text,padding:"4px 6px",fontSize:11,fontFamily:"monospace",outline:"none"}}>
+      color:disabled?C.muted:C.text,padding:"4px 6px",fontSize:11,fontFamily:"monospace",outline:"none",
+      cursor:disabled?"default":"pointer",opacity:disabled?.7:1}}>
     <option value="">-</option>
     {options.map(o=><option key={o} value={o}>{o}</option>)}
   </select>
 );
 const Btn = ({onClick,children,color=C.accent,small,disabled,full}) => (
-  <button onClick={onClick} disabled={disabled} style={{
+  <button className="no-print" onClick={onClick} disabled={disabled} style={{
     background:disabled?C.border:color,color:"#fff",border:"none",borderRadius:4,
     padding:small?"4px 10px":"7px 16px",fontSize:small?11:13,cursor:disabled?"default":"pointer",
     fontWeight:600,letterSpacing:.5,opacity:disabled?.5:1,whiteSpace:"nowrap",
@@ -56,7 +69,7 @@ const Btn = ({onClick,children,color=C.accent,small,disabled,full}) => (
   </button>
 );
 const IconBtn = ({onClick,title,children,color=C.accent,disabled}) => (
-  <button onClick={onClick} disabled={disabled} title={title} style={{
+  <button className="no-print" onClick={onClick} disabled={disabled} title={title} style={{
     width:26,height:26,display:"inline-flex",alignItems:"center",justifyContent:"center",
     background:disabled?C.border:color,color:"#fff",border:"none",borderRadius:4,
     cursor:disabled?"default":"pointer",fontSize:13,fontWeight:800,opacity:disabled?.45:1,
@@ -65,7 +78,7 @@ const IconBtn = ({onClick,title,children,color=C.accent,disabled}) => (
   </button>
 );
 const ActionGroup = ({children}) => (
-  <div style={{display:"inline-flex",gap:4,alignItems:"center",justifyContent:"center",pointerEvents:"all"}}>
+  <div className="no-print" style={{display:"inline-flex",gap:4,alignItems:"center",justifyContent:"center",pointerEvents:"all"}}>
     {children}
   </div>
 );
@@ -168,9 +181,264 @@ const duplicateRow = (row, user, extra={}) => ({
   deletedReason: "",
   deletedVisa: "",
   deletedDate: "",
+  editBase: undefined,
+  editHistory: [],
   comments: row.comments ? [...row.comments] : [],
   ...extra,
 });
+
+const snapshotFields = (row, fields) =>
+  fields.reduce((a,f)=>({...a,[f.key]:row?.[f.key]??""}),{});
+
+const changedFields = (before, after, fields) =>
+  fields
+    .map(f=>({label:f.label,from:String(before?.[f.key]??""),to:String(after?.[f.key]??"")}))
+    .filter(c=>c.from!==c.to);
+
+const withEditHistory = (row, user, fields) => {
+  const changes = row.editBase ? changedFields(row.editBase,row,fields) : [];
+  return {
+    ...row,
+    validated:true,
+    validError:"",
+    editBase:undefined,
+    editHistory:changes.length
+      ? [...(row.editHistory||[]),{id:uid(),dt:nowDT(),visa:user?.trigram||"?",changes}]
+      : (row.editHistory||[])
+  };
+};
+
+const HistoryNote = ({row,open=false}) => (row?.editHistory||[]).length>0&&(
+  <details className="edit-history" open={open} style={{color:C.blue,fontSize:10,fontFamily:"monospace"}}>
+    <summary style={{cursor:"pointer",fontWeight:800,listStyle:"none"}}>
+      ✎ Historique modifs ({(row.editHistory||[]).length})
+    </summary>
+    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:4}}>
+      {[...(row.editHistory||[])].slice(-3).reverse().map(h=>(
+        <span key={h.id} style={{color:C.muted}}>
+          le <strong>{h.dt}</strong> par <strong>{h.visa}</strong> — {(h.changes||[]).map(c=>`${c.label} "${c.from||"—"}" → "${c.to||"—"}"`).join(" ; ")}
+        </span>
+      ))}
+    </div>
+  </details>
+);
+
+const HistoryTrail = ({row,open=false}) => (row?.editHistory||[]).length>0&&(
+  <tr key={row.id+"_hist"}>
+    <td colSpan={99} style={{padding:"4px 10px 6px",background:C.blue+"10",borderBottom:`1px solid ${C.border}`}}>
+      <HistoryNote row={row} open={open}/>
+    </td>
+  </tr>
+);
+
+const pdfAscii = v => String(v??"")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .replace(/[^\x20-\x7E\n]/g," ")
+  .replace(/\s+/g," ")
+  .trim() || "-";
+const pdfEsc = v => pdfAscii(v).replace(/\\/g,"\\\\").replace(/\(/g,"\\(").replace(/\)/g,"\\)");
+const pdfSafeName = v => pdfAscii(v).replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"") || "rapport";
+
+const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy}) => {
+  const h = ofData?.header||{};
+  const W=841.89,H=595.28,M=28;
+  const usable=W-M*2;
+  const pages=[];
+  const newPage=()=>{const p={ops:[],y:H-M,context:""};pages.push(p);return p;};
+  let page=newPage();
+  const color={ink:"0.07 0.09 0.13",muted:"0.31 0.35 0.41",line:"0.78 0.82 0.87",head:"0.90 0.92 0.95",soft:"0.96 0.97 0.98",orange:"0.88 0.36 0.00",blue:"0.12 0.43 0.92",green:"0.14 0.45 0.21",red:"0.85 0.21 0.20"};
+  const setFill=c=>`${c} rg`;
+  const setStroke=c=>`${c} RG`;
+  const text=(txt,x,y,size=7,bold=false,c=color.ink)=>{
+    page.ops.push(`BT /${bold?"F2":"F1"} ${size} Tf ${setFill(c)} 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfEsc(txt)}) Tj ET`);
+  };
+  const line=(x1,y1,x2,y2,c=color.line,w=.35)=>page.ops.push(`q ${setStroke(c)} ${w} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S Q`);
+  const rect=(x,y,w,h,fill=null,stroke=color.line)=>{
+    page.ops.push(`q ${stroke?setStroke(stroke):""} ${fill?setFill(fill):""} ${x.toFixed(2)} ${y.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re ${fill&&stroke?"B":fill?"f":"S"} Q`);
+  };
+  const wrap=(txt,w,size=7)=>{
+    const max=Math.max(3,Math.floor(w/(size*.48)));
+    const words=pdfAscii(txt).split(" ");
+    const lines=[]; let cur="";
+    words.forEach(word=>{
+      if((cur+" "+word).trim().length>max){ if(cur) lines.push(cur); cur=word; }
+      else cur=(cur+" "+word).trim();
+    });
+    if(cur) lines.push(cur);
+    return lines.length?lines:["-"];
+  };
+  const wrapped=(txt,x,y,w,size=6.4,maxLines=4,c=color.ink)=>{
+    wrap(txt,w,size).slice(0,maxLines).forEach((ln,i)=>text(ln,x,y-i*(size+1.3),size,false,c));
+  };
+  const statusLabel=s=>STATUTS?.[s]?.label||UNIT_STATUTS?.[s]?.label||s||"-";
+  const ofTypeLabel=t=>OF_TYPES?.[t]?.label||t||"Production";
+  const unitLabel = u => snTitle(u);
+  const activeUnits=(ofData?.units?.rows||[]).filter(u=>!u.deleted&&cleanSn(u.sn));
+  const fallbackUnit={
+    id:"of-global",
+    sn:h.sn||h.snProduitFini||"",
+    lot:h.lot||"",
+    status:"en_cours",
+    remarque:"",
+  };
+  const packUnits=activeUnits.length?activeUnits:[fallbackUnit];
+  const unitMatches=(row,unit)=>!unit||unit.id==="of-global" ? true : rowMatchesSn(row,unit,activeUnits);
+  const trace = r => {
+    const hist=(r?.editHistory||[]).flatMap(e=>(e.changes||[]).map(c=>`Modifie ${e.dt} ${e.visa}: ${c.label} "${c.from||"-"}" -> "${c.to||"-"}"`));
+    if(r?.deleted) hist.push(`Annule ${r.deletedDate||""} ${r.deletedVisa||""}: ${r.deletedReason||""}`);
+    if(r?.restoredReason) hist.push(`Reactive ${r.restoredDate||""} ${r.restoredVisa||""}: ${r.restoredReason||""}`);
+    return hist.join(" | ");
+  };
+  const visaStamp = (visa,dt) => [visa,dt].filter(Boolean).join(" - ");
+  const headerBlock=(title,unit=null)=>{
+    page.context=unit?unitLabel(unit):"Pack OF";
+    text("SP-F001A - Rapport de production",M,page.y,7,true,color.muted);
+    text(title,W-M-280,page.y,13,true,color.orange);
+    page.y-=10;
+    line(M,page.y,W-M,page.y,color.orange,1.2); page.y-=8;
+    const article=h.codeArticle||h.description||"-";
+    const snLot=unit?`${unit.sn||"-"} / ${unit.lot||"-"}`:`${h.sn||h.snProduitFini||"-"} / ${h.lot||"-"}`;
+    const meta=[
+      ["OF",h.of],
+      ["Statut OF",statusLabel(h.status||"en_cours")],
+      ["Type OF",ofTypeLabel(h.typeOF||"production")],
+      ["Projet",h.projet||h.otp],
+      ["Article",article],
+      ["SN / LOT",snLot],
+      ["Edite",`${exportedAt} - ${exportedBy}`],
+    ];
+    const cw=usable/meta.length;
+    meta.forEach((m,i)=>{
+      const x=M+i*cw;
+      text(m[0],x,page.y,5.4,false,color.muted);
+      wrapped(m[1],x,page.y-8,cw-7,6.3,2,color.ink);
+    });
+    page.y-=27;
+  };
+  const table=(headers,rows,widths,sectionTitle,unit=null)=>{
+    const sum=widths.reduce((a,b)=>a+b,0);
+    widths=widths.map(w=>w/sum*usable);
+    const drawHead=()=>{
+      let x=M; rect(x,page.y-13,usable,13,color.head,color.line);
+      headers.forEach((hd,i)=>{wrapped(hd,x+2,page.y-9,widths[i]-4,5.8,2,color.ink); x+=widths[i]; if(i) line(x-widths[i],page.y,x-widths[i],page.y-13);});
+      page.y-=13;
+    };
+    drawHead();
+    rows.forEach(row=>{
+      const cells=headers.map((_,i)=>row[i]??"");
+      const lineCounts=cells.map((cell,i)=>wrap(cell,widths[i]-4,6.1).slice(0,5).length);
+      const rh=Math.max(13,Math.max(...lineCounts)*7.5+5);
+      if(page.y-rh<M+16){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit); drawHead(); }
+      let x=M; rect(x,page.y-rh,usable,rh,null,color.line);
+      cells.forEach((cell,i)=>{wrapped(cell,x+2,page.y-8,widths[i]-4,6.1,5); x+=widths[i]; if(i) line(x-widths[i],page.y,x-widths[i],page.y-rh);});
+      page.y-=rh;
+    });
+  };
+  const section=(title,headers,rows,widths,unit)=> {
+    page=newPage();
+    headerBlock(title,unit);
+    const body=rows.length?rows:[headers.map((_,i)=>i===0?"Aucune ligne":"")];
+    table(headers,body,widths,title,unit);
+  };
+  const infoBlock=(pairs,x,y,w)=>{
+    const col=w/2;
+    pairs.forEach((m,i)=>{
+      const px=x+(i%2)*col;
+      const py=y-Math.floor(i/2)*22;
+      text(m[0],px,py,6,false,color.muted);
+      wrapped(m[1],px,py-8,col-12,7.2,2,color.ink);
+    });
+  };
+
+  text("Pack SP-F001A par OF / SN",M,page.y,22,true,color.ink);
+  page.y-=18; line(M,page.y,W-M,page.y,color.orange,1.4); page.y-=18;
+  rect(M,page.y-114,usable,114,color.soft,color.line);
+  infoBlock([
+    ["OF",h.of],
+    ["Statut OF",statusLabel(h.status||"en_cours")],
+    ["Type OF",ofTypeLabel(h.typeOF||"production")],
+    ["Projet",h.projet||h.otp],
+    ["SN initial / LOT initial",`${h.sn||"-"} / ${h.lot||"-"}`],
+    ["SN produit fini",h.snProduitFini],
+    ["Article OF",h.codeArticle],
+    ["Description",h.description],
+    ["Export",`${exportedAt} - ${exportedBy}`],
+  ],M+12,page.y-14,usable-24);
+  page.y-=132;
+  text(`Contenu du pack : ${packUnits.length} fiche${packUnits.length>1?"s":""} SN`,M,page.y,10,true,color.orange);
+  page.y-=10;
+  table(
+    ["SN","LOT","Statut SN","Remarque"],
+    packUnits.map(u=>[u.sn||"-",u.lot||"-",statusLabel(u.status||"en_cours"),u.remarque||""]),
+    [28,24,24,70],
+    "SN suivis"
+  );
+
+  const consoMap=Object.fromEntries((lists?.consommables||[]).map(c=>[c.id,`${c.sap||""} ${c.label||""}`]));
+  packUnits.forEach((unit,idx)=>{
+    page=newPage();
+    headerBlock(`Fiche SN ${idx+1}/${packUnits.length}`,unit);
+    rect(M,page.y-72,usable,72,color.soft,color.line);
+    infoBlock([
+      ["Article",h.codeArticle],
+      ["Designation",h.description],
+      ["SN",unit.sn||h.sn],
+      ["LOT",unit.lot||h.lot],
+      ["Statut SN",statusLabel(unit.status||"en_cours")],
+      ["Remarque",unit.remarque],
+    ],M+12,page.y-14,usable-24);
+    page.y-=88;
+
+    const rework=(ofData?.rework?.rows||[])
+      .filter(r=>unitMatches(r,unit))
+      .map(r=>[r.createdDT,r.createdVisa,snScopeLabel(r,activeUnits),r.repere,r.isAdjust?"Oui":"Non",r.action1,r.codeERP,r.valeur,r.lot,r.dc,r.sn,r.fiche,r.etape,visaStamp(r.visaCtrl,r.dateCtrl),visaStamp(r.visaTraca,r.dateTraca),trace(r)]);
+    section("Adjust / Rework",["Date","Visa","SN cible","Repere","Adj","Act","Code","Valeur","LOT","DC","SN comp.","Fiche","Et.","Ctrl","Traca","Trace"],rework,[24,13,22,20,10,10,30,24,20,18,17,20,10,28,28,74],unit);
+
+    const cons=(ofData?.consommables?.ops||[])
+      .filter(op=>unitMatches(op,unit))
+      .flatMap(op=>(op.items||[{}]).map(it=>[op.fiche,op.op,snScopeLabel(op,activeUnits),it.createdDT||op.createdDT,it.createdVisa||op.createdVisa,consoMap[it.consoId]||it.consoId,it.lot,it.dp,visaStamp(it.visaTraca,it.dateTraca),[trace(op),trace(it)].filter(Boolean).join(" | ")]));
+    section("Consommables",["Fiche","Op","SN cible","Date","Visa","Consommable","LOT","DP","Traca","Trace"],cons,[22,11,22,23,13,68,24,18,28,100],unit);
+
+    section("Test Equip.",["Date","Visa","SN cible","Four","N INV","Type","Designation","Date calib","Ctrl","Trace"],(ofData?.testequip?.rows||[]).filter(r=>unitMatches(r,unit)).map(r=>[r.createdDT,r.createdVisa,snScopeLabel(r,activeUnits),r.isFour?"Oui":"Non",r.nInv,r.type,r.designation,r.dateExpiration,r.checkDate,trace(r)]),[23,13,22,13,23,23,58,23,20,94],unit);
+
+    section("Faits",["Date","Visa","SN cible","Type","Numero","Date ouv.","Lien","Commentaires","Date clot.","Visa clot.","Trace"],(ofData?.faits?.rows||[]).filter(r=>unitMatches(r,unit)).map(r=>[r.createdDT,r.createdVisa,snScopeLabel(r,activeUnits),r.type,r.numero,r.date,r.lien,r.commentaires,r.closedDate,r.closedVisa,trace(r)]),[23,13,22,15,26,20,54,54,20,15,78],unit);
+
+    section("Etuvages",["Date","Visa","SN cible","Four","Duree","Temp","Entree","Visa E","Sortie","Visa S","Trace"],(ofData?.etuvage?.rows||[]).filter(r=>unitMatches(r,unit)).map(r=>[r.createdDT,r.createdVisa,snScopeLabel(r,activeUnits),r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa,trace(r)]),[23,13,22,24,15,15,31,14,31,14,101],unit);
+
+    const dem=(ofData?.demating?.connectors||[])
+      .filter(c=>unitMatches(c,unit))
+      .flatMap(c=>(c.events||[{}]).map((e,i)=>[c.nConect,snScopeLabel(c,activeUnits),e.dt,e.visa,e.action,e.action?String((i+1)/2):"-",[trace(c),trace(e)].filter(Boolean).join(" | ")]));
+    section("Matting / Dematting",["Connecteur","SN cible","Date","Visa","Action","Cycle","Trace"],dem,[30,24,31,15,27,15,138],unit);
+
+    section("Open Work",["Date","Visa","SN cible","N OW","Description","Ouverture","Cloture","Commentaires","Trace"],(ofData?.openwork?.rows||[]).filter(r=>unitMatches(r,unit)).map(r=>[r.createdDT,r.createdVisa,snScopeLabel(r,activeUnits),r.nOW,r.description,`${r.openDate||"-"} / ${r.openVisa||"-"}`,`${r.closedDate||"-"} / ${r.closedVisa||"-"}`,r.commentaires,trace(r)]),[23,13,22,13,70,33,33,59,78],unit);
+  });
+
+  const objects=["<< /Type /Catalog /Pages 2 0 R >>"];
+  const pageKids=[];
+  const font1=3, font2=4;
+  objects.push("<< /Type /Pages /Kids [] /Count 0 >>");
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+  pages.forEach((p,i)=>{
+    p.ops.push(`BT /F1 7 Tf ${setFill(color.muted)} 1 0 0 1 ${M.toFixed(2)} 12 Tm (${pdfEsc(`SP-F001A - OF ${h.of||"-"} - ${p.context||"Pack"}`)}) Tj ET`);
+    p.ops.push(`BT /F1 7 Tf ${setFill(color.muted)} 1 0 0 1 ${(W-M-55).toFixed(2)} 12 Tm (${pdfEsc(`Page ${i+1}/${pages.length}`)}) Tj ET`);
+    const stream=p.ops.join("\n");
+    const contentId=objects.length+2;
+    const pageId=objects.length+1;
+    pageKids.push(`${pageId} 0 R`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 ${font1} 0 R /F2 ${font2} 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  });
+  objects[1]=`<< /Type /Pages /Kids [${pageKids.join(" ")}] /Count ${pages.length} >>`;
+  let pdf="%PDF-1.4\n";
+  const offsets=[0];
+  objects.forEach((obj,i)=>{offsets[i+1]=pdf.length; pdf+=`${i+1} 0 obj\n${obj}\nendobj\n`;});
+  const xref=pdf.length;
+  pdf+=`xref\n0 ${objects.length+1}\n0000000000 65535 f \n`;
+  for(let i=1;i<=objects.length;i++) pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  pdf+=`trailer\n<< /Size ${objects.length+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new Blob([pdf],{type:"application/pdf"});
+};
 
 // ─── Modale d'annulation de ligne (soft-delete) ───────────────────────────
 const DeleteModal = ({onConfirm, onCancel}) => {
@@ -261,11 +529,10 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
 
   const FIELDS = [
     {key:"of",          label:"OF"},
-    {key:"sn",          label:"SN Composant"},
-    {key:"lot",         label:"LOT"},
     {key:"codeArticle",    label:"N° Article"},
     {key:"ancienArticle",  label:"Ancien N° Article"},
     {key:"description",    label:"Description"},
+    {key:"projet",         label:"Projet"},
     {key:"snProduitFini",  label:"SN Produit Fini"},
     {key:"otp",            label:"N° OTP"},
     {key:"ofRework",       label:"OF Rework"},
@@ -283,6 +550,23 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
             <Input value={draft[key]||""} onChange={v=>setDraft(d=>({...d,[key]:v}))} small/>
           </div>
         ))}
+        <div>
+          <div style={{color:C.muted,fontSize:9,letterSpacing:.8,textTransform:"uppercase",marginBottom:3}}>Type OF</div>
+          <select value={draft.typeOF||"production"} onChange={e=>setDraft(d=>({...d,typeOF:e.target.value}))}
+            style={{width:"100%",background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,
+              color:C.text,padding:"4px 6px",fontSize:11,fontFamily:"monospace",outline:"none"}}>
+            {Object.entries(OF_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <div style={{color:C.muted,fontSize:9,letterSpacing:.8,textTransform:"uppercase",marginBottom:3}}>Statut OF</div>
+          <select value={draft.status||"en_cours"} onChange={e=>setDraft(d=>({...d,status:e.target.value}))}
+            style={{width:"100%",background:STATUTS[draft.status||"en_cours"]?.color+"22",
+              border:`1px solid ${STATUTS[draft.status||"en_cours"]?.color}`,borderRadius:4,
+              color:STATUTS[draft.status||"en_cours"]?.color,padding:"4px 6px",fontSize:11,fontFamily:"monospace",fontWeight:700,outline:"none"}}>
+            {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
       </div>
       <div style={{display:"flex",gap:8}}>
         <Btn onClick={save}   color={C.green}  small>✓ Enregistrer</Btn>
@@ -298,7 +582,8 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
         overflow:"hidden",fontSize:12}}>
         {[
           ["OF",                h.of||"—"],
-          ["SN Composant / LOT",`${h.sn||"—"} / ${h.lot||"—"}`],
+          ["Type OF",           OF_TYPES[h.typeOF||"production"]?.label||"Production"],
+          ["Projet",            h.projet||h.otp||"—"],
           ["N° Article",        h.codeArticle||h.description||"—"],
           ["Ancien N° Article", h.ancienArticle||"—"],
           ["Description",       h.codeArticle?h.description||"—":"—"],
@@ -320,7 +605,7 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
               <span style={{fontFamily:"monospace",fontSize:9,color:C.muted,
                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:140}}
                 title={`S:\\OP_SPACE\\Photos_OF\\${h.of}`}>
-                {`S:\OP_SPACE\Photos_OF\${h.of}`}
+                {`S:\\OP_SPACE\\Photos_OF\\${h.of}`}
               </span>
               <span onClick={e=>{
                 e.stopPropagation();
@@ -342,7 +627,7 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
         )}
         {/* Statut */}
         <div style={{background:C.surface,padding:"6px 12px",display:"flex",flexDirection:"column",justifyContent:"center"}}>
-          <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>Statut</div>
+          <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:4}}>Statut OF</div>
           <select value={h.status||"en_cours"} onChange={e=>onUpdateStatus&&onUpdateStatus(e.target.value)}
             style={{background:STATUTS[h.status||"en_cours"]?.color+"22",
               border:`1px solid ${STATUTS[h.status||"en_cours"]?.color}`,
@@ -366,6 +651,198 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
           <CommentBtn comments={h.comments||[]} onChange={v=>onCommentsChange&&onCommentsChange(v)} user={user}/>
         </div>
       </div>
+    </div>
+  );
+};
+
+const cleanSn = v => String(v??"").trim().toUpperCase();
+const snTitle = u => [u?.sn||"SN ?",u?.lot?`LOT ${u.lot}`:""].filter(Boolean).join(" · ");
+const snRowsFromHeader = header => (header?._snRows||[]).filter(r=>!r.deleted&&cleanSn(r.sn));
+const snScope = (row, snRows=[]) => {
+  let ids = Array.isArray(row?.snIds) ? row.snIds.filter(Boolean) : [];
+  if(!ids.length&&row?.unitId) ids=[row.unitId];
+  ids=[...new Set(ids)].filter(id=>snRows.some(s=>s.id===id));
+  if((row?.snScope==="custom"||ids.length)&&ids.length) return {mode:"custom",ids};
+  return {mode:"all",ids:[]};
+};
+const snScopeLabel = (row, snRows=[]) => {
+  const scope=snScope(row,snRows);
+  if(scope.mode==="all") return "Tous";
+  const labels=scope.ids.map(id=>snRows.find(s=>s.id===id)).filter(Boolean).map(snTitle);
+  return labels.length>2 ? `${labels.length} SN` : labels.join(" + ") || "SN ?";
+};
+const defaultSnScope = header => {
+  const rows=snRowsFromHeader(header);
+  const ids=(header?._defaultSnIds||[]).filter(id=>rows.some(s=>s.id===id));
+  return ids.length
+    ? {snScope:"custom",snIds:ids,unitId:ids[0]}
+    : {snScope:"all",snIds:[],unitId:""};
+};
+const rowMatchesSn = (row, snRow, snRows=[]) => {
+  if(!snRow) return true;
+  const scope=snScope(row,snRows);
+  return scope.mode==="all" || scope.ids.includes(snRow.id);
+};
+
+const SnScopePicker = ({row,header,onChange,disabled=false}) => {
+  const rows=snRowsFromHeader(header);
+  const scope=snScope(row,rows);
+  const label=snScopeLabel(row,rows);
+  if(!rows.length) return <span style={{fontFamily:"monospace",fontSize:10,color:C.muted}}>Tous</span>;
+  if(disabled) return <span style={{fontFamily:"monospace",fontSize:10,color:scope.mode==="all"?C.green:C.blue}}>{label}</span>;
+  const setAll=()=>onChange({snScope:"all",snIds:[],unitId:""});
+  const setCustom=ids=>onChange({snScope:"custom",snIds:ids,unitId:ids[0]||""});
+  const toggle=id=>{
+    const next=scope.ids.includes(id) ? scope.ids.filter(x=>x!==id) : [...scope.ids,id];
+    setCustom(next.length?next:[id]);
+  };
+  return (
+    <details className="no-print" style={{position:"relative",display:"inline-block"}}>
+      <summary style={{listStyle:"none",cursor:"pointer",fontFamily:"monospace",fontSize:10,
+        color:scope.mode==="all"?C.green:C.blue,border:`1px solid ${scope.mode==="all"?C.green:C.blue}`,
+        borderRadius:4,padding:"2px 6px",whiteSpace:"nowrap",maxWidth:105,overflow:"hidden",textOverflow:"ellipsis"}}>
+        {label}
+      </summary>
+      <div style={{position:"absolute",top:"100%",left:0,zIndex:80,background:C.surface,
+        border:`1px solid ${C.border}`,borderRadius:6,padding:8,minWidth:190,boxShadow:"0 10px 30px #0008"}}>
+        <label style={{display:"flex",alignItems:"center",gap:6,color:C.text,fontSize:11,marginBottom:5,cursor:"pointer"}}>
+          <input type="radio" checked={scope.mode==="all"} onChange={setAll} style={{accentColor:C.green}}/>
+          Tous les SN
+        </label>
+        <div style={{borderTop:`1px solid ${C.border}`,paddingTop:5}}>
+          {rows.map(s=>(
+            <label key={s.id} style={{display:"flex",alignItems:"center",gap:6,color:C.text,fontSize:11,marginBottom:4,cursor:"pointer"}}>
+              <input type="checkbox" checked={scope.mode==="custom"&&scope.ids.includes(s.id)}
+                onChange={()=>toggle(s.id)} style={{accentColor:C.blue}}/>
+              <span style={{fontFamily:"monospace"}}>{snTitle(s)}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+};
+
+const unitsFromHeader = (h={}, visa="") => (h.sn||h.lot) ? {mode:"single",rows:[{
+  id:uid(),
+  sn:h.sn||"",
+  lot:h.lot||"",
+  status:"en_cours",
+  remarque:"",
+  createdVisa:visa||h.createdBy||"",
+  createdDT:h.createdAt||nowDT(),
+  deleted:false,
+}]} : {mode:"single",rows:[]};
+
+const TrackedSNs = ({data,onChange,header,user,activeUnitId,onActiveUnitChange}) => {
+  const rows=data?.rows||[];
+  const mode=data?.mode||((rows.filter(r=>!r.deleted).length>1)?"multi":"single");
+  const visible=rows.filter(r=>!r.deleted);
+  const selectable=visible.filter(r=>cleanSn(r.sn));
+  const emit=next=>onChange({...data,mode,...next});
+  const add=()=>{
+    if(mode==="single"&&visible.length>=1) return;
+    emit({rows:[...rows,{
+    id:uid(),
+    sn:"",
+    lot:"",
+    status:"en_cours",
+    remarque:"",
+    createdVisa:user?.trigram||"",
+    createdDT:nowDT(),
+    deleted:false,
+  }]});
+  };
+  const setMode=m=>{
+    if(m==="single"&&visible.length>1){ window.alert("Mode 1 OF / 1 SN impossible tant que plusieurs SN sont présents."); return; }
+    onChange({...data,mode:m,rows});
+    if(m==="single"&&visible[0]) onActiveUnitChange(visible[0].id);
+  };
+  const upd=(id,f,v)=>emit({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const updSn=(id,v)=>{
+    const sn=cleanSn(v);
+    if(sn&&visible.some(r=>r.id!==id&&cleanSn(r.sn)===sn)){
+      emit({rows:rows.map(r=>r.id===id?{...r,snError:`SN ${sn} déjà présent dans cet OF`}:r)});
+      return;
+    }
+    emit({rows:rows.map(r=>r.id===id?{...r,sn,snError:""}:r)});
+  };
+  const dup=id=>{
+    const r=rows.find(x=>x.id===id); if(!r) return;
+    if(mode==="single"&&visible.length>=1) return;
+    emit({rows:[...rows,{...r,id:uid(),sn:"",snError:"",createdVisa:user?.trigram||"",createdDT:nowDT(),deleted:false}]});
+  };
+  const del=id=>{
+    const next=rows.filter(r=>r.id!==id);
+    if(activeUnitId===id) onActiveUnitChange("all");
+    emit({rows:next});
+  };
+
+  return (
+    <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:12,marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+        <div>
+          <div style={{fontSize:12,color:C.accent,fontWeight:800,textTransform:"uppercase",letterSpacing:.8}}>SN suivis dans l'OF</div>
+          <div style={{fontSize:10,color:C.muted}}>Article et description restent fixes : {header?.codeArticle||header?.description||"article OF non renseigné"}.</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <select value={mode} onChange={e=>setMode(e.target.value)}
+            style={{background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,color:C.text,
+              padding:"5px 8px",fontSize:11,fontFamily:"monospace",outline:"none"}}>
+            <option value="single">1 OF / 1 SN</option>
+            <option value="multi">1 OF / multi SN</option>
+          </select>
+          <span style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:.8}}>Contexte</span>
+          <select value={selectable.some(r=>r.id===activeUnitId)?activeUnitId:"all"} onChange={e=>onActiveUnitChange(e.target.value)}
+            style={{background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,color:C.text,
+              padding:"5px 8px",fontSize:11,fontFamily:"monospace",outline:"none",minWidth:220}}>
+            <option value="all">Tous les SN de l'OF</option>
+            {selectable.map(u=><option key={u.id} value={u.id}>{snTitle(u)}</option>)}
+          </select>
+          <Btn onClick={add} small disabled={mode==="single"&&visible.length>=1}>+ SN</Btn>
+        </div>
+      </div>
+      {visible.length===0?(
+        <div style={{color:C.muted,fontSize:11,padding:"8px 0"}}>Aucun SN suivi - ajoutez le ou les SN concernés par cet OF.</div>
+      ):(
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:620}}>
+            <thead>
+              <tr>
+                <TH w={150}>SN</TH><TH w={120}>LOT</TH><TH w={120}>Statut SN</TH><TH>Remarque</TH><TH w={95}></TH>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((r,i)=>(
+                <tr key={r.id} style={{background:activeUnitId===r.id?C.blue+"12":i%2===0?"transparent":"#ffffff06"}}>
+                  <TD>
+                    <Input value={r.sn} onChange={v=>updSn(r.id,v)} small style={{fontFamily:"monospace",textTransform:"uppercase",borderColor:r.snError?C.red:undefined}}/>
+                    {r.snError&&<div style={{fontSize:9,color:C.red,marginTop:2,fontFamily:"monospace"}}>{r.snError}</div>}
+                  </TD>
+                  <TD><Input value={r.lot} onChange={v=>upd(r.id,"lot",v)} small style={{fontFamily:"monospace"}}/></TD>
+                  <TD>
+                    <select value={r.status||"en_cours"} onChange={e=>upd(r.id,"status",e.target.value)}
+                      style={{background:UNIT_STATUTS[r.status||"en_cours"]?.color+"22",
+                        border:`1px solid ${UNIT_STATUTS[r.status||"en_cours"]?.color}`,
+                        borderRadius:4,color:UNIT_STATUTS[r.status||"en_cours"]?.color,
+                        padding:"4px 6px",fontSize:11,fontFamily:"monospace",fontWeight:700,outline:"none",width:"100%"}}>
+                      {Object.entries(UNIT_STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </TD>
+                  <TD><Input value={r.remarque} onChange={v=>upd(r.id,"remarque",v)} small/></TD>
+                  <TD center>
+                    <ActionGroup>
+                      <IconBtn onClick={()=>onActiveUnitChange(r.id)} color={C.blue} title="Travailler sur ce SN" disabled={!cleanSn(r.sn)}>●</IconBtn>
+                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer" disabled={mode==="single"}>⧉</IconBtn>
+                      <IconBtn onClick={()=>del(r.id)} color={C.red} title="Supprimer">×</IconBtn>
+                    </ActionGroup>
+                  </TD>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };
@@ -522,9 +999,59 @@ const CommentBtn = ({comments, onChange, user}) => {
 // ─── 1. Adjust / Rework — auto-visa Opér. ──────────────────────────────────
 const ACTIONS = ["S","D","P","M","R"];
 const ACTION_LABELS = {S:"Soudé",D:"Désoudé",P:"Pointé",M:"Matière",R:"Rework"};
+const REWORK_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"repere",label:"Repère TOPO"},
+  {key:"action1",label:"A1"},
+  {key:"isAdjust",label:"Adjust"},
+  {key:"qty",label:"QTÉ"},
+  {key:"codeERP",label:"Code article"},
+  {key:"valeur",label:"Valeur"},
+  {key:"lot",label:"LOT"},
+  {key:"dc",label:"DC"},
+  {key:"sn",label:"SN"},
+  {key:"fiche",label:"Fiche"},
+  {key:"etape",label:"Étape"},
+];
+const currentYYWW = () => {
+  const d = new Date();
+  const utc = new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  const day = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(utc.getUTCFullYear(),0,1));
+  const week = Math.ceil((((utc - yearStart) / 86400000) + 1) / 7);
+  return (utc.getUTCFullYear()%100)*100 + week;
+};
+const dcCheck = raw => {
+  const value = String(raw||"").trim().toUpperCase().replace(/\s+/g,"");
+  if(!value) return null;
+  if(value==="N/A"||value==="NA") return {ok:true,na:true,label:"N/A"};
+  const m = value.match(/^(\d{2})(\d{2})(?:R(\d+))?$/);
+  if(!m) return {ok:false,label:"DC invalide"};
+  const base = Number(m[1])*100 + Number(m[2]);
+  const week = Number(m[2]);
+  const relief = Number(m[3]||0);
+  if(week<1||week>53) return {ok:false,label:"Semaine DC invalide"};
+  const max = base - (relief?300:0) + 700 + relief*400;
+  const limit = currentYYWW();
+  return {
+    ok:max>=limit,
+    max,
+    limit,
+    label:max>=limit ? `OK jusqu'à ${String(max).padStart(4,"0")}` : `Hors date depuis ${String(max).padStart(4,"0")}`
+  };
+};
 
 const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const rows = data.rows||[];
+  const repereKey = r => (r?.repere||"").trim().toUpperCase();
+  const adjustByRepere = rows.reduce((a,r)=>{
+    const key=repereKey(r);
+    if(key && r.isAdjust) a[key]=true;
+    return a;
+  },{});
+  const isAdjustRow = r => !!(r?.isAdjust || adjustByRepere[repereKey(r)]);
   const desoudes = Object.values(rows.reduce((open,r)=>{
     if(r.deleted) return open;
     const key=(r.repere||"").trim().toUpperCase();
@@ -534,32 +1061,34 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
     else if(actions.includes("D")) open[key]=r;
     return open;
   },{}));
-  const valueWarnings = Object.values(rows.reduce((state,r)=>{
+  const desoudageChecks = rows.reduce((state,r)=>{
     if(r.deleted) return state;
-    const key=(r.repere||"").trim().toUpperCase();
-    if(!key || r.isAdjust) return state;
-    const actions=[r.action1].filter(Boolean);
-    if(actions.includes("D")) state[key]={...state[key], d:r};
-    if(actions.includes("S")&&state[key]?.d){
-      const dVal=(state[key].d.valeur||"").trim().toUpperCase();
-      const sVal=(r.valeur||"").trim().toUpperCase();
-      if(dVal && sVal && dVal!==sVal) state[key]={...state[key], mismatch:{repere:key,d:state[key].d,s:r}};
-      else delete state[key].mismatch;
+    const key=repereKey(r);
+    if(!key || adjustByRepere[key]) return state;
+    if(r.action1==="S") state.lastS[key]=r;
+    if(r.action1==="D"){
+      const s=state.lastS[key];
+      if(!s) state.first.push({repere:key,d:r});
+      else {
+        const dVal=(r.valeur||"").trim().toUpperCase();
+        const sVal=(s.valeur||"").trim().toUpperCase();
+        if(dVal && sVal && dVal!==sVal) state.mismatch.push({repere:key,d:r,s});
+      }
     }
     return state;
-  },{})).map(v=>v.mismatch).filter(Boolean);
+  },{lastS:{},first:[],mismatch:[]});
   const add = () => {
     const last = rows.filter(r=>!r.deleted).slice(-1)[0];
     onChange({rows:[...rows,{
       id:uid(),createdVisa:user.trigram,createdDT:nowDT(),
-      sousEnsemble:last?.sousEnsemble||(header?.codeArticle||header?.description||""),
+      ...defaultSnScope(header),
       sortieVisa:"",repere:"",qty:"",action1:"",
       codeERP:"",valeur:"",lot:"",dc:"",sn:"",
       fiche:last?.fiche||"", etape:last?.etape||"",
       isAdjust:false,
       visaOper:"",dateOper:"",
       visaCtrl:"",dateCtrl:"",
-      remarques:"",
+      remarques:"",editHistory:[],
       tracaOk:false,visaTraca:"",dateTraca:""
     }]});
   };
@@ -567,8 +1096,24 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const [hideAchevees,setHideAchevees] = useState(true);
-  const [filters,setFilters] = useState({repere:"", sousEnsemble:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"});
+  const [filters,setFilters] = useState({repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"});
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
+  const updRepere=(id,v)=>onChange({rows:rows.map(r=>{
+    if(r.id!==id) return r;
+    const nextKey=String(v||"").trim().toUpperCase();
+    return {
+      ...r,
+      repere:String(v||"").toUpperCase(),
+      qty:nextKey&&r.qty===""&&r.action1!=="M"?"1":r.qty,
+      isAdjust:nextKey in adjustByRepere?!!adjustByRepere[nextKey]:!!r.isAdjust
+    };
+  })});
+  const updAdjust=(id,checked)=>{
+    const row=rows.find(r=>r.id===id);
+    const key=repereKey(row);
+    onChange({rows:rows.map(r=>key&&repereKey(r)===key?{...r,isAdjust:checked}:r.id===id?{...r,isAdjust:checked}:r)});
+  };
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
     visaOper:"",dateOper:"",visaCtrl:"",dateCtrl:"",tracaOk:false,visaTraca:"",dateTraca:""
   })]});
@@ -584,7 +1129,6 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
     if(!r.deleted&&hideAchevees&&!forceShowDeleted&&isAchevee(r)) return false;
     const txt = key => String(r[key]||"").toUpperCase();
     if(filters.repere&& !txt("repere").includes(filters.repere.toUpperCase())) return false;
-    if(filters.sousEnsemble&& !txt("sousEnsemble").includes(filters.sousEnsemble.toUpperCase())) return false;
     if(filters.action1&& r.action1!==filters.action1) return false;
     if(filters.codeERP&& !txt("codeERP").includes(filters.codeERP.toUpperCase())) return false;
     if(filters.valeur&& !txt("valeur").includes(filters.valeur.toUpperCase())) return false;
@@ -593,35 +1137,42 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
     if(filters.sn&& !txt("sn").includes(filters.sn.toUpperCase())) return false;
     if(filters.fiche&& !txt("fiche").includes(filters.fiche.toUpperCase())) return false;
     if(filters.etape&& !txt("etape").includes(filters.etape.toUpperCase())) return false;
-    if(filters.adjust==="yes"&&!r.isAdjust) return false;
-    if(filters.adjust==="no"&&r.isAdjust) return false;
+    if(filters.adjust==="yes"&&!isAdjustRow(r)) return false;
+    if(filters.adjust==="no"&&isAdjustRow(r)) return false;
     return true;
   });
   const hasFilters = Object.entries(filters).some(([k,v])=>k==="adjust"?v!=="all":!!v);
   const fset = (k,v) => setFilters(s=>({...s,[k]:v}));
-  const stampTraca=id=>onChange({rows:rows.map(r=>r.id===id?{...r,tracaOk:true,visaTraca:user.trigram,dateTraca:now()}:r)});
+  const stampTraca=id=>onChange({rows:rows.map(r=>r.id===id?{...r,tracaOk:true,visaTraca:user.trigram,dateTraca:nowDT()}:r)});
   const clearTraca=id=>onChange({rows:rows.map(r=>r.id===id?{...r,tracaOk:false,visaTraca:"",dateTraca:""}:r)});
   const stampOper=id=>onChange({rows:rows.map(r=>r.id===id?{...r,visaOper:user.trigram,dateOper:now(),validated:true,validError:""}:r)});
   const clearOper=id=>onChange({rows:rows.map(r=>r.id===id?{...r,visaOper:"",dateOper:""}:r)});
-  const stampCtrl=id=>onChange({rows:rows.map(r=>r.id===id?{...r,visaCtrl:user.trigram,dateCtrl:now()}:r)});
+  const stampCtrl=id=>onChange({rows:rows.map(r=>r.id===id?{...r,visaCtrl:user.trigram,dateCtrl:nowDT()}:r)});
   const clearCtrl=id=>onChange({rows:rows.map(r=>r.id===id?{...r,visaCtrl:"",dateCtrl:""}:r)});
 
   const REQUIRED = [
     {key:"repere", label:"Repère TOPO"},
+    {key:"action1",label:"A1"},
     {key:"qty",    label:"QTÉ"},
     {key:"fiche",  label:"Fiche Suiveuse"},
     {key:"etape",  label:"N° Étape"},
   ];
   const validateRow=id=>{
     const r=rows.find(x=>x.id===id);
-    const required = r?.action1==="S"
-      ? [...REQUIRED,{key:"lot",label:"LOT"},{key:"dc",label:"DC"}]
-      : REQUIRED;
+    const required = [
+      ...REQUIRED,
+      ...(["S","P","M"].includes(r?.action1)?[{key:"codeERP",label:"Code article"}]:[]),
+      ...(["S","P","M"].includes(r?.action1)?[{key:"lot",label:"LOT"},{key:"dc",label:"DC"}]:[])
+    ];
     const miss=checkRequired(r,required);
+    const dc = ["S","P","M"].includes(r?.action1) ? dcCheck(r?.dc) : null;
+    if(dc && !dc.ok) miss.push(dc.label);
     if(miss.length) { upd(id,"validError","Champs requis manquants : "+miss.join(", ")); }
-    else { upd(id,"validError",""); upd(id,"validated",true); }
+    else {
+      onChange({rows:rows.map(x=>x.id!==id?x:withEditHistory(x,user,REWORK_EDIT_FIELDS))});
+    }
   };
-  const unlockRow=id=>upd(id,"validated",false);
+  const unlockRow=id=>onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,editBase:snapshotFields(r,REWORK_EDIT_FIELDS)}:r)});
   return (
     <div>
       {desoudes.length>0&&(
@@ -640,17 +1191,20 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
           </div>
         </div>
       )}
-      {valueWarnings.length>0&&(
+      {(desoudageChecks.mismatch.length>0||desoudageChecks.first.length>0)&&(
         <div style={{background:C.red+"18",border:`1px solid ${C.red}`,borderRadius:6,
           padding:"9px 14px",marginBottom:12,display:"flex",alignItems:"flex-start",gap:10}}>
           <span style={{color:C.red,fontSize:16,lineHeight:1}}>⚠</span>
           <div>
             <div style={{color:C.red,fontWeight:800,fontSize:12,marginBottom:4}}>
-              Valeur différente entre désoudage et soudage sur composant non adjust
+              Contrôle désoudage sur composant non adjust
             </div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {valueWarnings.map(w=>(
-                <Badge key={w.repere} label={`${w.repere} - D ${w.d.valeur||"?"} / S ${w.s.valeur||"?"}`} color={C.red}/>
+              {desoudageChecks.mismatch.map(w=>(
+                <Badge key={`${w.repere}-${w.d.id}`} label={`${w.repere} - valeur D ${w.d.valeur||"?"} ≠ S avant ${w.s.valeur||"?"}`} color={C.red}/>
+              ))}
+              {desoudageChecks.first.map(w=>(
+                <Badge key={`${w.repere}-${w.d.id}`} label={`${w.repere} - 1er désoudage`} color={C.yellow}/>
               ))}
             </div>
           </div>
@@ -675,12 +1229,12 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
           <thead>
             <tr>
               <TH w={125}>Date / Heure</TH><TH w={52} color={C.accent}>Visa</TH>
-              <TH w={140}>Sous-ensemble</TH>
+              <TH w={95}>N° SN</TH>
               <TH w={80}>Repère TOPO</TH>
               <TH w={55}>Adjust</TH>
               <TH w={45}>QTÉ</TH>
               <TH w={38}>A1</TH>
-              <TH w={100}>Code ERP</TH>
+              <TH w={110}>Code article</TH>
               <TH w={110}>Valeur</TH>
               <TH w={75}>LOT</TH>
               <TH w={75}>DC</TH>
@@ -692,8 +1246,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
               <TH w={68}></TH>
             </tr>
             <tr>
-              <th></th><th></th>
-              <th style={{padding:"3px 4px"}}><Input value={filters.sousEnsemble} onChange={v=>fset("sousEnsemble",v)} small title="Filtrer sous-ensemble"/></th>
+              <th></th><th></th><th></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.repere} onChange={v=>fset("repere",v)} small title="Filtrer repère topo"/></th>
               <th style={{padding:"3px 4px"}}>
                 <select value={filters.adjust} onChange={e=>fset("adjust",e.target.value)}
@@ -713,7 +1266,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
                   {ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}
                 </select>
               </th>
-              <th style={{padding:"3px 4px"}}><Input value={filters.codeERP} onChange={v=>fset("codeERP",v)} small title="Filtrer code ERP"/></th>
+              <th style={{padding:"3px 4px"}}><Input value={filters.codeERP} onChange={v=>fset("codeERP",v)} small title="Filtrer code article"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.valeur} onChange={v=>fset("valeur",v)} small title="Filtrer valeur"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.lot} onChange={v=>fset("lot",v)} small title="Filtrer lot"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.dc} onChange={v=>fset("dc",v)} small title="Filtrer DC"/></th>
@@ -726,7 +1279,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
               </th>
               <th></th><th></th><th></th>
               <th style={{padding:"3px 4px",textAlign:"center"}}>
-                {hasFilters&&<button onClick={()=>setFilters({repere:"", sousEnsemble:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"})}
+                {hasFilters&&<button onClick={()=>setFilters({repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"})}
                   title="Effacer les filtres"
                   style={{background:C.border,border:"none",borderRadius:4,color:C.text,width:26,height:22,cursor:"pointer",fontWeight:800}}>×</button>}
               </th>
@@ -734,6 +1287,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
           </thead>
           <tbody>
             {visibleRows.flatMap((r,i)=>{
+              const dc = ["S","P","M"].includes(r.action1) ? dcCheck(r.dc) : null;
               return [
               <tr key={r.id} style={{background:r.deleted?"#da363318":r.tracaOk?"#23863610":i%2===0?"transparent":"#ffffff06",
                 textDecoration:r.deleted?"line-through":undefined,
@@ -742,27 +1296,12 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                 <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span></TD>
-                <TD>
-                  <Input value={r.sousEnsemble||""} onChange={v=>upd(r.id,"sousEnsemble",v.toUpperCase())}
-                    small readOnly={!!r.validated}
-                    placeholder={header?.codeArticle||header?.description||"N° Article"}
-                    title="Sous-ensemble SAP (par défaut = article du dossier)"
-                    style={{fontFamily:"monospace",fontSize:10,textTransform:"uppercase",
-                      ...(r.validated?LOCKED_INPUT_STYLE:{}),
-                      borderColor:r.sousEnsemble&&r.sousEnsemble!==(header?.codeArticle||header?.description)?C.blue:undefined,
-                      color:r.sousEnsemble&&r.sousEnsemble!==(header?.codeArticle||header?.description)?C.blue:undefined}}/>
-                  {r.sousEnsemble&&r.sousEnsemble!==(header?.codeArticle||header?.description)&&(
-                    <div style={{fontSize:8,color:C.blue,marginTop:1,fontFamily:"monospace"}}>≠ dossier</div>
-                  )}
-                </TD>
-                <TD><Input value={r.repere} onChange={v=>{
-                  upd(r.id,"repere",v.toUpperCase());
-                  if(v.trim()&&r.qty===""&&r.action1!=="M") upd(r.id,"qty","1");
-                }} small readOnly={!!r.validated} style={{...(r.validated?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
+                <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={!!r.validated}/></TD>
+                <TD><Input value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={!!r.validated} style={{...(r.validated?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
                 <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
-                  <input type="checkbox" checked={!!r.isAdjust} disabled={!!r.validated}
-                    onChange={e=>upd(r.id,"isAdjust",e.target.checked)}
-                    title="Composant adjust : le contrôle de valeur D/S est ignoré"
+                  <input type="checkbox" checked={isAdjustRow(r)} disabled={!!r.validated}
+                    onChange={e=>updAdjust(r.id,e.target.checked)}
+                    title="Composant adjust : appliqué à toutes les lignes du même repère"
                     style={{width:16,height:16,accentColor:C.accent,cursor:r.validated?"default":"pointer"}}/>
                 </TD>
                 <TD>
@@ -770,11 +1309,21 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
                     ? <Input value={r.qty} onChange={v=>upd(r.id,"qty",v)} small readOnly={!!r.validated} style={{...(r.validated?LOCKED_INPUT_STYLE:{})}}/>
                     : <span style={{fontFamily:"monospace",fontSize:11,color:C.muted,padding:"0 4px"}}>—</span>}
                 </TD>
-                <TD><Select value={r.action1} onChange={v=>upd(r.id,"action1",v)} options={ACTIONS}/></TD>
-                <TD><Input value={r.codeERP} onChange={v=>upd(r.id,"codeERP",fmtCodeERP(v))} small readOnly={!!r.validated} style={{width:90,fontFamily:"monospace",letterSpacing:1,...(r.validated?LOCKED_INPUT_STYLE:{})}} title="9 chiffres — format 123 456 789" placeholder="___ ___ ___"/></TD>
+                <TD><Select value={r.action1} onChange={v=>upd(r.id,"action1",v)} options={ACTIONS} disabled={!!r.validated}/></TD>
+                <TD><Input value={r.codeERP} onChange={v=>upd(r.id,"codeERP",v)} small readOnly={!!r.validated} style={{width:105,fontFamily:"monospace",...(r.validated?LOCKED_INPUT_STYLE:{})}} title="Code article ou texte libre" placeholder="Code article"/></TD>
                 <TD><Input value={r.valeur} onChange={v=>upd(r.id,"valeur",v)} small readOnly={!!r.validated} style={{minWidth:100,...(r.validated?LOCKED_INPUT_STYLE:{})}}/></TD>
-                <TD><Input value={r.lot}     onChange={v=>upd(r.id,"lot",v.toUpperCase().slice(0,10))} small readOnly={!!r.validated} title="Lot (ex: SP-J123)" style={{width:85,fontFamily:"monospace",...(r.validated?LOCKED_INPUT_STYLE:{})}}/></TD>
-                <TD><Input value={r.dc}      onChange={v=>upd(r.id,"dc",v.toUpperCase().slice(0,6))} small readOnly={!!r.validated} title="2552R1 = année 25, sem. 52, relief 1" style={{width:68,fontFamily:"monospace",...(r.validated?LOCKED_INPUT_STYLE:{})}}/></TD>
+                <TD><Input value={r.lot}     onChange={v=>upd(r.id,"lot",v.toUpperCase().slice(0,10))} small readOnly={!!r.validated} title="Lot (ex: SP-J123) ou N/A si non disponible" style={{width:85,fontFamily:"monospace",...(r.validated?LOCKED_INPUT_STYLE:{})}}/></TD>
+                <TD>
+                  <Input value={r.dc} onChange={v=>upd(r.id,"dc",v.toUpperCase().slice(0,6))}
+                    small readOnly={!!r.validated} title="DC (ex: 2552R1) ou N/A si non disponible"
+                    style={{width:68,fontFamily:"monospace",
+                      borderColor:dc&&!dc.ok?C.red:dc?.ok?C.green:undefined,
+                      color:dc&&!dc.ok?C.red:dc?.ok?C.green:undefined,
+                      ...(r.validated?LOCKED_INPUT_STYLE:{})}}/>
+                  {dc&&<div style={{fontSize:8,color:dc.ok?C.green:C.red,marginTop:1,fontFamily:"monospace",whiteSpace:"nowrap"}}>
+                    {dc.label}
+                  </div>}
+                </TD>
                 <TD><Input value={r.sn}      onChange={v=>upd(r.id,"sn",v)}      small readOnly={!!r.validated} style={{width:68,...(r.validated?LOCKED_INPUT_STYLE:{})}}/></TD>
                 <TD>
                   <div style={{display:"flex",gap:3,alignItems:"center",flexWrap:"nowrap"}}>
@@ -844,6 +1393,7 @@ const TabRework = ({data,onChange,user,header,forceShowDeleted=false}) => {
                   </td>
                 </tr>
               ),
+              <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
                   <td colSpan={99} style={{padding:"3px 10px 6px",background:"#da363325",borderBottom:`2px solid #da363355`}}>
@@ -1154,6 +1704,20 @@ const ConsoDropdown = ({value, onChange, consommables, cats}) => {
   );
 };
 
+const CONSO_OP_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"fiche",label:"Fiche"},
+  {key:"op",label:"Opération"},
+];
+
+const CONSO_ITEM_EDIT_FIELDS = [
+  {key:"consoId",label:"Consommable"},
+  {key:"lot",label:"LOT"},
+  {key:"dp",label:"DP"},
+  {key:"tracaOk",label:"Traça"},
+];
+
 const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forceShowDeleted=false}) => {
   // Structure hiérarchique : opérations → items consommables
   // ops = [{id, createdDT, createdVisa, fiche, op, validated, connError, deleted, …, items:[]}]
@@ -1172,7 +1736,7 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
     const last = ops.length>0?ops[ops.length-1]:null;
     onChange({ops:[...ops,{
       id:uid(), createdDT:nowDT(), createdVisa:user.trigram,
-      sousEnsemble:last?.sousEnsemble||(header?.codeArticle||header?.description||""),
+      ...defaultSnScope(header),
       fiche:last?.fiche||"", op:"",
       validated:false, connError:"", deleted:false,
       deletedReason:"",deletedVisa:"",deletedDate:"",
@@ -1180,15 +1744,16 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
     }]});
   };
   const updOp = (oid,f,v) => onChange({ops:ops.map(o=>o.id===oid?{...o,[f]:v}:o)});
+  const patchOp = (oid,fields) => onChange({ops:ops.map(o=>o.id===oid?{...o,...fields}:o)});
   const validateOp = oid => {
     const o=ops.find(x=>x.id===oid);
     if(!o?.fiche?.trim()||!o?.op?.trim()){
       onChange({ops:ops.map(x=>x.id===oid?{...x,connError:"Fiche et N° Opération requis"}:x)});
       return;
     }
-    onChange({ops:ops.map(x=>x.id===oid?{...x,connError:"",validated:true}:x)});
+    onChange({ops:ops.map(x=>x.id===oid?withEditHistory({...x,connError:""},user,CONSO_OP_EDIT_FIELDS):x)});
   };
-  const unlockOp = oid => updOp(oid,"validated",false);
+  const unlockOp = oid => onChange({ops:ops.map(o=>o.id===oid?{...o,validated:false,editBase:snapshotFields(o,CONSO_OP_EDIT_FIELDS)}:o)});
   const confirmDelOp = reason => {
     onChange({ops:ops.map(o=>o.id===deleteOpTarget
       ?{...o,deleted:true,deletedReason:reason,deletedVisa:user.trigram,deletedDate:nowDT()}:o)});
@@ -1243,7 +1808,7 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
     setRestoreItemTarget(null);
   };
   const stampTraca = (oid,iid) => onChange({ops:ops.map(o=>o.id!==oid?o:{
-    ...o,items:o.items.map(it=>it.id===iid?{...it,tracaOk:true,visaTraca:user.trigram,dateTraca:now()}:it)
+    ...o,items:o.items.map(it=>it.id===iid?{...it,tracaOk:true,visaTraca:user.trigram,dateTraca:nowDT()}:it)
   })});
   const clearTraca = (oid,iid) => onChange({ops:ops.map(o=>o.id!==oid?o:{
     ...o,items:o.items.map(it=>it.id===iid?{...it,tracaOk:false,visaTraca:"",dateTraca:""}:it)
@@ -1260,10 +1825,10 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
       onChange({ops:ops.map(x=>x.id!==oid?x:{...x,items:x.items.map(i=>i.id===iid?{...i,validError:"Requis : "+miss.join(", ")}:i)})});
       return;
     }
-    onChange({ops:ops.map(x=>x.id!==oid?x:{...x,items:x.items.map(i=>i.id===iid?{...i,validated:true,validError:""}:i)})});
+    onChange({ops:ops.map(x=>x.id!==oid?x:{...x,items:x.items.map(i=>i.id===iid?withEditHistory({...i,validError:""},user,CONSO_ITEM_EDIT_FIELDS):i)})});
   };
   const unlockItem = (oid,iid) => onChange({ops:ops.map(o=>o.id!==oid?o:{
-    ...o,items:o.items.map(it=>it.id===iid?{...it,validated:false}:it)
+    ...o,items:o.items.map(it=>it.id===iid?{...it,validated:false,editBase:snapshotFields(it,CONSO_ITEM_EDIT_FIELDS)}:it)
   })});
 
   // Collapsed: all validated ops collapsed except the last active one
@@ -1313,8 +1878,10 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
                 <span style={{fontFamily:"monospace",fontSize:9,color:C.muted}}>{o.createdDT||""}</span>
               </div>
 
-              {!o.validated&&<><span style={{color:C.muted,fontSize:10,textTransform:"uppercase",letterSpacing:.8}}>Sous-ens.</span><Input value={o.sousEnsemble||""} onChange={v=>updOp(o.id,"sousEnsemble",v.toUpperCase())} small placeholder={header?.codeArticle||header?.description||"N° Article"} style={{width:110,fontFamily:"monospace",fontSize:10}}/></>}
-              {o.validated&&o.sousEnsemble&&<span style={{fontFamily:"monospace",fontSize:10,color:C.muted}}>📦 {o.sousEnsemble}</span>}
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:C.muted,fontSize:10,textTransform:"uppercase",letterSpacing:.8}}>SN</span>
+                <SnScopePicker row={o} header={header} onChange={fields=>patchOp(o.id,fields)} disabled={!!o.validated}/>
+              </div>
               <div style={{display:"flex",alignItems:"center",gap:6}}>
                 <span style={{color:C.muted,fontSize:10,textTransform:"uppercase",letterSpacing:.8}}>Fiche</span>
                 <Input value={o.fiche} onChange={v=>updOp(o.id,"fiche",v)} readOnly={!!o.validated}
@@ -1360,6 +1927,11 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
                 {o.deleted&&<span onClick={()=>setRestoreOpTarget(o.id)} style={{cursor:"pointer",color:"#d29922",fontSize:12,fontWeight:700,padding:"2px 6px",border:"1px solid #d29922",borderRadius:4}}>↩ Réactiver</span>}
               </div>
             </div>
+            {(o.editHistory||[]).length>0&&(
+              <div style={{padding:"5px 14px",background:C.blue+"10",borderTop:`1px solid ${C.border}`}}>
+                <HistoryNote row={o} open={forceShowDeleted}/>
+              </div>
+            )}
 
             {/* ── Table consommables ── */}
             {o.validated&&!isCollapsed(o.id)&&(
@@ -1450,6 +2022,7 @@ const TabConsommables = ({data,onChange,user,consommables,onEditList,header,forc
                               )}
                             </TD>
                           </tr>,
+                          <HistoryTrail key={it.id+"_hist"} row={it} open={forceShowDeleted}/>,
                           it.deleted&&(
                             <tr key={it.id+"_ann"}>
                               <td colSpan={99} style={{padding:"3px 10px 5px",background:"#da363325",borderBottom:"1px solid #da363355"}}>
@@ -1515,11 +2088,21 @@ const calibStatus = s => {
   return{label:"OK",color:C.green,bg:"#23863622"};
 };
 
+const TEST_EQUIP_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"isFour",label:"Four"},
+  {key:"nInv",label:"N° INV"},
+  {key:"type",label:"Type"},
+  {key:"designation",label:"Désignation"},
+  {key:"dateExpiration",label:"Date calibration"},
+  {key:"checkDate",label:"Date contrôle"},
+];
 
 const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const rows=data.rows||[];
   const add=()=>onChange({rows:[...rows,{
-    id:uid(),sousEnsemble:header?.codeArticle||header?.description||"",nInv:"",type:"",designation:"",
+    id:uid(),...defaultSnScope(header),nInv:"",type:"",designation:"",
     dateExpiration:"",
     isFour:false,
     visa:user.trigram,
@@ -1532,6 +2115,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
     visa:user.trigram,checkDate:now()
   })]});
@@ -1546,8 +2130,8 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
     {key:"designation",   label:"Désignation"},
     {key:"dateExpiration",label:"Date calibration"},
   ];
-  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { upd(id,"validError",""); upd(id,"validated",true); } };
-  const unlockRow=id=>upd(id,"validated",false);
+  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:rows.map(x=>x.id===id?withEditHistory(x,user,TEST_EQUIP_EDIT_FIELDS):x)}); } };
+  const unlockRow=id=>onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,editBase:snapshotFields(r,TEST_EQUIP_EDIT_FIELDS)}:r)});
   const horsCalib=rows.filter(r=>!r.deleted&&(()=>{const s=calibStatus(r.dateExpiration);return s&&s.color===C.red;})());
   return (
     <div>
@@ -1571,7 +2155,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
           <thead>
             <tr>
               <TH w={130}>Date / Heure</TH><TH w={65} color={C.accent}>Visa</TH>
-              <TH w={130}>Sous-ensemble</TH>
+              <TH w={95}>N° SN</TH>
               <TH w={58}>Four</TH>
               <TH>N° INV</TH>
               <TH>TYPE</TH>
@@ -1594,7 +2178,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                   <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span></TD>
-                  <TD><Input value={r.sousEnsemble||""} onChange={v=>upd(r.id,"sousEnsemble",v.toUpperCase())} small readOnly={!!r.validated} placeholder={header?.codeArticle||header?.description||"N° Article"} style={{fontFamily:"monospace",fontSize:10,textTransform:"uppercase",...(r.validated?LOCKED_INPUT_STYLE:{})}} /></TD>
+                  <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={!!r.validated}/></TD>
                   <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
                     <input type="checkbox" checked={!!r.isFour} disabled={!!r.validated}
                       onChange={e=>upd(r.id,"isFour",e.target.checked)}
@@ -1639,6 +2223,7 @@ const TabTestEquip = ({data,onChange,user,header,forceShowDeleted=false}) => {
                     )}
                   </TD>
                 </tr>,
+              <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
                   <td colSpan={99} style={{padding:"3px 10px 6px",background:"#da363325",borderBottom:`2px solid #da363355`}}>
@@ -1754,6 +2339,19 @@ const FaitTypesManager = ({types, onClose, onSave}) => {
 };
 
 // ─── 5+6. Faits (NC / DM / ISS / …) ───────────────────────────────────────
+const FAITS_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"type",label:"Type"},
+  {key:"numero",label:"N°"},
+  {key:"visa",label:"Visa ouverture"},
+  {key:"date",label:"Date ouverture"},
+  {key:"lien",label:"Lien"},
+  {key:"commentaires",label:"Commentaires"},
+  {key:"closedDate",label:"Date clôture"},
+  {key:"closedVisa",label:"Visa clôture"},
+];
+
 const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDeleted=false}) => {
   const rows     = data.rows||[];
   const types    = faitTypes;
@@ -1761,11 +2359,12 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
 
   const add  = () => onChange({rows:[...rows,{
     id:uid(), createdVisa:user.trigram, createdDT:nowDT(),
-    sousEnsemble:header?.codeArticle||header?.description||"",
+    ...defaultSnScope(header),
     type:"", numero:"", visa:user.trigram, date:now(),
     lien:"", commentaires:"", closedVisa:"", closedDate:""
   }]});
   const upd   = (id,f,v) => onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const patchRow = (id,fields) => onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
     visa:user.trigram,date:now(),closedVisa:"",closedDate:""
   })]});
@@ -1784,10 +2383,10 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
     {key:"visa",   label:"Visa"},
     {key:"date",   label:"Date ouverture"},
   ];
-  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { upd(id,"validError",""); upd(id,"validated",true); } };
-  const unlockRow=id=>upd(id,"validated",false);
-  const close = id => onChange({rows:rows.map(r=>r.id===id?{...r,closedVisa:user.trigram,closedDate:now()}:r)});
-  const reopen= id => onChange({rows:rows.map(r=>r.id===id?{...r,closedVisa:"",closedDate:""}:r)});
+  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:rows.map(x=>x.id===id?withEditHistory(x,user,FAITS_EDIT_FIELDS):x)}); } };
+  const unlockRow=id=>onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,editBase:snapshotFields(r,FAITS_EDIT_FIELDS)}:r)});
+  const close = id => onChange({rows:rows.map(r=>r.id===id?withEditHistory({...r,closedVisa:user.trigram,closedDate:now(),editBase:r.editBase||snapshotFields(r,FAITS_EDIT_FIELDS)},user,FAITS_EDIT_FIELDS):r)});
+  const reopen= id => onChange({rows:rows.map(r=>r.id===id?withEditHistory({...r,closedVisa:"",closedDate:"",editBase:r.editBase||snapshotFields(r,FAITS_EDIT_FIELDS)},user,FAITS_EDIT_FIELDS):r)});
 
   const open   = rows.filter(r=>!r.deleted&&!isClosed(r)).length;
   const closed = rows.filter(r=>!r.deleted&&isClosed(r)).length;
@@ -1819,11 +2418,11 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
         </div>
       </div>
 
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:980}}>
         <thead>
           <tr>
             <TH w={130}>Date / Heure</TH><TH w={65} color={C.accent}>Visa</TH>
-            <TH w={130}>Sous-ensemble</TH>
+            <TH w={95}>N° SN</TH>
             <TH w={90}>Type</TH>
             <TH w={130}>N° (saisi)</TH>
             <TH w={80} color={C.accent}>Visa ✦</TH>
@@ -1849,7 +2448,7 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
 
                 <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span></TD>
-                <TD><Input value={r.sousEnsemble||""} onChange={v=>upd(r.id,"sousEnsemble",v.toUpperCase())} small readOnly={!!r.validated} placeholder={header?.codeArticle||header?.description||"N° Article"} style={{fontFamily:"monospace",fontSize:10,textTransform:"uppercase",...(r.validated?LOCKED_INPUT_STYLE:{})}} /></TD>
+                <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={!!r.validated}/></TD>
 
                 {/* Type — liste déroulante */}
                 <TD>
@@ -1989,6 +2588,7 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
                   </td>
                 </tr>
               ),
+              <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
                   <td colSpan={99} style={{padding:"3px 10px 6px",background:"#da363325",borderBottom:`2px solid #da363355`}}>
@@ -2021,14 +2621,27 @@ const TabFaits = ({data,onChange,user,faitTypes,onEditTypes,header,forceShowDele
 };
 
 // ─── 7. Étuvages ───────────────────────────────────────────────────────────
+const ETUVAGE_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"fourN",label:"Four N°"},
+  {key:"duree",label:"Durée"},
+  {key:"temp",label:"Temp"},
+  {key:"entreeDT",label:"Entrée four"},
+  {key:"entreeVisa",label:"Visa entrée"},
+  {key:"sortieDT",label:"Sortie four"},
+  {key:"sortieVisa",label:"Visa sortie"},
+];
+
 const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=false}) => {
   const rows=data.rows||[];
   const fours=(tstRows||[]).filter(t=>!t.deleted&&t.isFour);
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
-  const add=()=>onChange({rows:[...rows,{id:uid(),sousEnsemble:header?.codeArticle||header?.description||"",createdVisa:user?.trigram||"",createdDT:nowDT(),fourN:"",duree:"",temp:"",entreeVisa:"",entreeDT:"",sortieVisa:"",sortieDT:"",comments:[]}]});
+  const add=()=>onChange({rows:[...rows,{id:uid(),...defaultSnScope(header),createdVisa:user?.trigram||"",createdDT:nowDT(),fourN:"",duree:"",temp:"",entreeVisa:"",entreeDT:"",sortieVisa:"",sortieDT:"",comments:[]}]});
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
     entreeVisa:"",entreeDT:"",sortieVisa:"",sortieDT:""
   })]});
@@ -2049,9 +2662,13 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
       onChange({rows:rows.map(x=>x.id===id?{...x,validError:"Requis avant entrée : "+miss.join(", ")}:x)});
       return;
     }
-    onChange({rows:rows.map(x=>x.id===id?{...x,entreeDT:nowDT(),entreeVisa:user?.trigram||"",validated:true,validError:""}:x)});
+    onChange({rows:rows.map(x=>{
+      if(x.id!==id) return x;
+      const next={...x,entreeDT:x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",validated:true,validError:""};
+      return withEditHistory(next,user,ETUVAGE_EDIT_FIELDS);
+    })});
   };
-  const unlockRow=id=>onChange({rows:rows.map(x=>x.id===id?{...x,validated:false,entreeDT:"",entreeVisa:""}:x)});
+  const unlockRow=id=>onChange({rows:rows.map(x=>x.id===id?{...x,validated:false,editBase:snapshotFields(x,ETUVAGE_EDIT_FIELDS)}:x)});
   const stamp=(id,field)=>{
     const extra = field==="entreeDT"
       ? {entreeVisa:user?.trigram||"", validated:true, validError:""}
@@ -2091,7 +2708,7 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
           <thead>
             <tr>
               <TH w={130}>Date / Heure</TH><TH w={65} color={C.accent}>Visa</TH>
-              <TH w={130}>Sous-ensemble</TH>
+              <TH w={95}>N° SN</TH>
               <TH w={80}>Four N°</TH><TH w={70}>Durée [H]</TH><TH w={70}>Temp [°C]</TH>
               <TH w={120}>▶ Entrée four</TH><TH w={145}>Date/Heure entrée</TH>
               <TH w={120}>■ Sortie four</TH><TH w={145}>Date/Heure sortie</TH>
@@ -2115,7 +2732,7 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                   <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span></TD>
-                  <TD><Input value={r.sousEnsemble||""} onChange={v=>upd(r.id,"sousEnsemble",v.toUpperCase())} small readOnly={!!r.validated} placeholder={header?.codeArticle||header?.description||"N° Article"} style={{fontFamily:"monospace",fontSize:10,textTransform:"uppercase",...(r.validated?LOCKED_INPUT_STYLE:{})}} /></TD>
+                  <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={!!r.validated}/></TD>
                   <TD>
                     {r.validated?(
                       <Input value={r.fourN} small readOnly style={LOCKED_INPUT_STYLE}/>
@@ -2180,6 +2797,7 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
                   </td>
                 </tr>
               ),
+              <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
                   <td colSpan={99} style={{padding:"3px 10px 6px",background:"#da363325",borderBottom:`2px solid #da363355`}}>
@@ -2215,6 +2833,12 @@ const TabEtuvage = ({data,onChange,user,allRows,tstRows,header,forceShowDeleted=
 // Cycles = events.length / 2  (décimal : 0.5, 1, 1.5, 2…)
 // Alternance stricte après la première action (libre)
 // Suppression avec motif sur chaque événement
+const CONNECTOR_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"nConect",label:"Connecteur"},
+];
+
 const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const connectors = data.connectors||[];
   const [deleteEvTarget,   setDeleteEvTarget]   = useState(null); // {cid,eid}
@@ -2226,13 +2850,14 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
 
   // ── Connecteurs ─────────────────────────────────────────────
   const addC = () => onChange({connectors:[...connectors,{
-    id:uid(), sousEnsemble:header?.codeArticle||header?.description||"", nConect:"", validated:false, connError:"",
+    id:uid(), ...defaultSnScope(header), nConect:"", validated:false, connError:"",
     deleted:false, deletedReason:"", deletedVisa:"", deletedDate:"",
     createdVisa:user?.trigram||"",
     comments:[],
     events:[]
   }]});
   const updC = (cid,f,v) => onChange({connectors:connectors.map(c=>c.id===cid?{...c,[f]:v}:c)});
+  const patchC = (cid,fields) => onChange({connectors:connectors.map(c=>c.id===cid?{...c,...fields}:c)});
   const dupC = cid => {
     const c=connectors.find(x=>x.id===cid); if(!c) return;
     onChange({connectors:[...connectors,duplicateRow(c,user,{
@@ -2244,9 +2869,9 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const validateConn = cid => {
     const c=connectors.find(x=>x.id===cid);
     if(!c?.nConect?.trim()){ onChange({connectors:connectors.map(x=>x.id===cid?{...x,connError:"Nom du connecteur requis (ex: J13)"}:x)}); return; }
-    onChange({connectors:connectors.map(x=>x.id===cid?{...x,connError:"",validated:true}:x)});
+    onChange({connectors:connectors.map(x=>x.id===cid?withEditHistory({...x,connError:""},user,CONNECTOR_EDIT_FIELDS):x)});
   };
-  const unlockConn = cid => updC(cid,"validated",false);
+  const unlockConn = cid => onChange({connectors:connectors.map(c=>c.id===cid?{...c,validated:false,editBase:snapshotFields(c,CONNECTOR_EDIT_FIELDS)}:c)});
   const restoreC   = reason => {
     onChange({connectors:connectors.map(c=>c.id===restoreConnTarget?{...c,deleted:false,restoredReason:reason,restoredVisa:user?.trigram||"?",restoredDate:nowDT()}:c)});
     setRestoreConnTarget(null);
@@ -2361,7 +2986,7 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
             return (
               <div key={c.id} onClick={()=>requestEventFromTile(c)}
                 title={c.validated&&!c.deleted?`Cliquer pour enregistrer ${nextLabel}`:"Valider le connecteur avant action"}
-                style={{minHeight:138,border:`2px solid ${c.deleted?C.red:st.color}`,
+                style={{minHeight:158,border:`2px solid ${c.deleted?C.red:st.color}`,
                   background:c.deleted?"#da363318":st.color+"16",borderRadius:8,padding:10,
                   cursor:c.validated&&!c.deleted?"pointer":"default",display:"flex",flexDirection:"column",
                   justifyContent:"space-between",boxShadow:c.validated&&!c.deleted?`0 0 0 1px ${st.color}22 inset`:undefined}}>
@@ -2381,6 +3006,9 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
                   </span>
                 </div>
                 {c.connError&&<div style={{fontSize:9,color:C.yellow,fontFamily:"monospace"}}>{c.connError}</div>}
+                <div onClick={e=>e.stopPropagation()} style={{pointerEvents:"all"}}>
+                  <SnScopePicker row={c} header={header} onChange={fields=>patchC(c.id,fields)} disabled={!!c.validated}/>
+                </div>
                 <div>
                   <div style={{fontSize:10,color:st.color,fontWeight:800,textTransform:"uppercase",letterSpacing:.4}}>
                     {st.label.replace("⚡ ","").replace("✓ ","")}
@@ -2410,6 +3038,11 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
                   </>}
                   {c.deleted&&<IconBtn onClick={()=>setRestoreConnTarget(c.id)} color={C.yellow} title="Réactiver">↩</IconBtn>}
                 </div>
+                {(c.editHistory||[]).length>0&&(
+                  <div onClick={e=>e.stopPropagation()} style={{marginTop:6,pointerEvents:"all"}}>
+                    <HistoryNote row={c} open={forceShowDeleted}/>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -2434,12 +3067,12 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
             </div>
           </div>
           <div style={{overflowX:"auto"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",minWidth:760,fontSize:12}}>
+            <table style={{width:"100%",borderCollapse:"collapse",minWidth:740,fontSize:12}}>
               <thead>
                 <tr>
                   <TH w={100}>Connecteur</TH><TH w={115}>Statut</TH><TH w={55}>Cycle</TH>
                   <TH w={130}>Date / Heure</TH><TH w={65} color={C.accent}>Visa</TH>
-                  <TH>Sous-ensemble</TH><TH w={55}>💬</TH><TH w={40}></TH>
+                  <TH w={95}>N° SN</TH><TH w={55}>💬</TH><TH w={40}></TH>
                 </tr>
               </thead>
               <tbody>
@@ -2454,7 +3087,7 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
                       <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{cycle}</span></TD>
                       <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{ev.dt||"—"}</span></TD>
                       <TD><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:C.accent}}>{ev.visa||"—"}</span></TD>
-                      <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{c.sousEnsemble||"—"}</span></TD>
+                      <TD><span style={{fontFamily:"monospace",fontSize:10,color:C.blue}}>{snScopeLabel(c,snRowsFromHeader(header))}</span></TD>
                       <TD center style={{pointerEvents:"all"}}>
                         <CommentBtn comments={ev.comments||[]} onChange={v=>updEv(c.id,ev.id,"comments",v)} user={user}/>
                       </TD>
@@ -2490,13 +3123,26 @@ const TabDeMating = ({data,onChange,user,header,forceShowDeleted=false}) => {
   );
 };
 // ─── 9. Open Work ──────────────────────────────────────────────────────────
+const OPENWORK_EDIT_FIELDS = [
+  {key:"snScope",label:"Mode SN"},
+  {key:"snIds",label:"N° SN"},
+  {key:"nOW",label:"N° OW"},
+  {key:"description",label:"Description"},
+  {key:"openVisa",label:"Visa ouverture"},
+  {key:"openDate",label:"Date ouverture"},
+  {key:"closedVisa",label:"Visa clôture"},
+  {key:"closedDate",label:"Date clôture"},
+  {key:"commentaires",label:"Commentaires"},
+];
+
 const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
   const rows=data.rows||[];
-  const add=()=>onChange({rows:[...rows,{id:uid(),sousEnsemble:header?.codeArticle||header?.description||"",createdVisa:user.trigram,createdDT:nowDT(),nOW:String(rows.length+1).padStart(3,"0"),description:"",openVisa:user.trigram,openDate:now(),closedVisa:"",closedDate:"",commentaires:""}]});
+  const add=()=>onChange({rows:[...rows,{id:uid(),...defaultSnScope(header),createdVisa:user.trigram,createdDT:nowDT(),nOW:String(rows.length+1).padStart(3,"0"),description:"",openVisa:user.trigram,openDate:now(),closedVisa:"",closedDate:"",commentaires:""}]});
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const upd=(id,f,v)=>onChange({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const patchRow=(id,fields)=>onChange({rows:rows.map(r=>r.id===id?{...r,...fields}:r)});
   const dup=id=>onChange({rows:[...rows,duplicateRow(rows.find(r=>r.id===id),user,{
     nOW:String(rows.length+1).padStart(3,"0"),openVisa:user.trigram,openDate:now(),closedVisa:"",closedDate:""
   })]});
@@ -2509,10 +3155,10 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
     {key:"description", label:"Description"},
     {key:"openVisa",    label:"Visa"},
   ];
-  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { upd(id,"validError",""); upd(id,"validated",true); } };
-  const unlockRow=id=>upd(id,"validated",false);
-  const close=id=>onChange({rows:rows.map(r=>r.id===id?{...r,closedVisa:user.trigram,closedDate:now()}:r)});
-  const reopen=id=>onChange({rows:rows.map(r=>r.id===id?{...r,closedVisa:"",closedDate:""}:r)});
+  const validateRow=id=>{ const r=rows.find(x=>x.id===id); const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:rows.map(x=>x.id===id?withEditHistory(x,user,OPENWORK_EDIT_FIELDS):x)}); } };
+  const unlockRow=id=>onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,editBase:snapshotFields(r,OPENWORK_EDIT_FIELDS)}:r)});
+  const close=id=>onChange({rows:rows.map(r=>r.id===id?withEditHistory({...r,closedVisa:user.trigram,closedDate:now(),editBase:r.editBase||snapshotFields(r,OPENWORK_EDIT_FIELDS)},user,OPENWORK_EDIT_FIELDS):r)});
+  const reopen=id=>onChange({rows:rows.map(r=>r.id===id?withEditHistory({...r,closedVisa:"",closedDate:"",editBase:r.editBase||snapshotFields(r,OPENWORK_EDIT_FIELDS)},user,OPENWORK_EDIT_FIELDS):r)});
   const isClosed=r=>!!r.closedDate;
   const open=rows.filter(r=>!r.deleted&&!isClosed(r)).length;
   const closed=rows.filter(r=>!r.deleted&&isClosed(r)).length;
@@ -2530,11 +3176,11 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
           <Btn onClick={add} small>+ Open Work</Btn>
         </div>
       </div>
-      <table style={{width:"100%",borderCollapse:"collapse"}}>
+      <table style={{width:"100%",borderCollapse:"collapse",minWidth:850}}>
         <thead>
           <tr>
             <TH w={130}>Date / Heure</TH><TH w={65} color={C.accent}>Visa</TH>
-            <TH w={130}>Sous-ensemble</TH>
+            <TH w={95}>N° SN</TH>
             <TH w={55}>N° OW</TH>
             <TH>Description</TH>
             <TH w={90}>Visa clôt.</TH>
@@ -2554,7 +3200,7 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
               borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
               <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
               <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span></TD>
-              <TD><Input value={r.sousEnsemble||""} onChange={v=>upd(r.id,"sousEnsemble",v.toUpperCase())} small readOnly={!!r.validated} placeholder={header?.codeArticle||header?.description||"N° Article"} style={{fontFamily:"monospace",fontSize:10,textTransform:"uppercase",...(r.validated?LOCKED_INPUT_STYLE:{})}} /></TD>
+              <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={!!r.validated}/></TD>
               <TD center><Badge label={r.nOW} color={isClosed(r)?C.green:C.yellow}/></TD>
               <TD><Input value={r.description} onChange={v=>upd(r.id,"description",v)} small readOnly={!!r.validated} style={r.validated?LOCKED_INPUT_STYLE:{}}/></TD>
               <TD>
@@ -2598,6 +3244,7 @@ const TabOpenWork = ({data,onChange,user,header,forceShowDeleted=false}) => {
                 </td>
               </tr>
             ),
+              <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
                   <td colSpan={99} style={{padding:"3px 10px 6px",background:"#da363325",
@@ -2977,6 +3624,7 @@ const STATUTS = {
   cloture:  {label:"Clôturé",   color:"#238636"},
 };
 const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdateStatus,onSaveProfile,onManageUsers}) => {
+  const blankForm = {of:"",sn:"",lot:"",snProduitFini:"",codeArticle:"",ancienArticle:"",description:"",projet:"",otp:"",ofRework:"",typeOF:"production",status:"en_cours"};
   const [search,setSearch]          = useState("");
   const [page,setPage]               = useState(0);
   const [sort,setSort]               = useState("fav");
@@ -2986,7 +3634,7 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
   const [showNew,setShowNew] = useState(false);
   const [showProfile,setShowProfile] = useState(false);
   const [favs,setFavs]       = useState([]);
-  const [form,setForm]       = useState({of:"",sn:"",lot:"",snProduitFini:"",codeArticle:"",ancienArticle:"",description:"",otp:"",ofRework:""});
+  const [form,setForm]       = useState(blankForm);
 
   // Charger les favs de cet user
   useEffect(()=>{
@@ -3013,7 +3661,7 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
       if(ra!==rb)return ra-rb;
     }
     if(sort==="of") return (a.of||"").localeCompare(b.of||"");
-    if(sort==="projet") return (a.projet||"").localeCompare(b.projet||"");
+    if(sort==="projet") return (a.projet||a.otp||"").localeCompare(b.projet||b.otp||"");
     return 0;
   });
 
@@ -3023,7 +3671,7 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
     if(hideCloture&&(o.status||"en_cours")==="cloture") return false;
     if(filterStatus!=="all"&&(o.status||"en_cours")!==filterStatus) return false;
     if(filterCreator!=="all"&&(o.createdBy||"?")!==filterCreator) return false;
-    return !q||[o.of,o.sn,o.lot,o.snProduitFini,o.description,o.otp,o.ofRework,o.codeArticle,o.ancienArticle].some(v=>v?.toLowerCase().includes(q));
+    return !q||[o.of,o.sn,o.lot,o.snProduitFini,o.description,o.projet,o.otp,o.ofRework,o.codeArticle,o.ancienArticle,OF_TYPES[o.typeOF||"production"]?.label,STATUTS[o.status||"en_cours"]?.label].some(v=>v?.toLowerCase().includes(q));
   });
   const totalPages=Math.ceil(filtered.length/PAGE_SIZE);
   const paged=filtered.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
@@ -3031,7 +3679,7 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
   const create=async()=>{
     if(!form.of)return;
     onCreate({...form,createdBy:user.trigram,createdAt:now()});
-    setForm({of:"",sn:"",lot:"",snProduitFini:"",codeArticle:"",ancienArticle:"",description:"",otp:"",ofRework:""});
+    setForm({...blankForm});
     setShowNew(false);
   };
 
@@ -3103,10 +3751,11 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
             {[
               ["OF *","of","454545","N° de l'ordre de fabrication"],
-              ["SN Composant","sn","#00042","Numéro de série du composant"],
-              ["LOT","lot","SP-J12345","Numéro de lot"],
+              ["SN initial","sn","#00042","Premier SN créé dans la table SN"],
+              ["LOT initial","lot","SP-J12345","Lot du premier SN"],
               ["N° Article","codeArticle","R4B-S001A","Référence SAP"],
               ["Ancien N° Article","ancienArticle","123-456-001","Ancienne référence"],
+              ["Projet","projet","SP-F001","Projet / programme"],
               ["SN Produit Fini","snProduitFini","#PF-001","SN assemblage final"],
               ["N° OTP","otp","OTP-2024-001","Numéro OTP"],
               ["OF Rework","ofRework","RWK-454545","OF de rework associé"],
@@ -3120,6 +3769,26 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
           <div style={{marginBottom:12}}>
             <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>Description</div>
             <Input value={form.description||""} onChange={v=>setForm(f=>({...f,description:v}))} placeholder="Carte électronique haute tension"/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:12}}>
+            <div>
+              <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>Type OF</div>
+              <select value={form.typeOF||"production"} onChange={e=>setForm(f=>({...f,typeOF:e.target.value}))}
+                style={{width:"100%",background:"#0d1117",border:`1px solid ${C.border}`,borderRadius:4,
+                  color:C.text,padding:"6px 10px",fontSize:13,fontFamily:"monospace",outline:"none"}}>
+                {Object.entries(OF_TYPES).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>Statut OF</div>
+              <select value={form.status||"en_cours"} onChange={e=>setForm(f=>({...f,status:e.target.value}))}
+                style={{width:"100%",background:STATUTS[form.status||"en_cours"]?.color+"22",
+                  border:`1px solid ${STATUTS[form.status||"en_cours"]?.color}`,borderRadius:4,
+                  color:STATUTS[form.status||"en_cours"]?.color,padding:"6px 10px",fontSize:13,
+                  fontFamily:"monospace",fontWeight:700,outline:"none"}}>
+                {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
           </div>
           <Btn onClick={create} color={form.of?C.green:C.border} disabled={!form.of.trim()}>✓ Créer le dossier</Btn>
         </div>
@@ -3137,12 +3806,13 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
               <tr>
                 <TH w={30}>⭐</TH>
                 <TH w={90}>OF</TH>
-                <TH w={90}>SN Compo.</TH>
+                <TH w={90}>SN initial</TH>
                 <TH w={110}>LOT</TH>
                 <TH w={100}>SN Prod. Fini</TH>
                 <TH>Description</TH>
                 <TH w={80}>Projet</TH>
-                <TH w={105}>Statut</TH>
+                <TH w={115}>Type OF</TH>
+                <TH w={105}>Statut OF</TH>
                 <TH w={150}>Prochain étuvage</TH>
                 <TH w={70}>Créé par</TH>
                 <TH w={90}>Créé le</TH>
@@ -3176,7 +3846,8 @@ const OFSelector = ({ofList,onSelect,onCreate,user,onLogout,openHistory,onUpdate
                     <TD><span style={{fontFamily:"monospace",color:C.muted}}>{o.lot||"—"}</span></TD>
                     <TD><span style={{fontFamily:"monospace",color:o.snProduitFini?C.text:C.muted}}>{o.snProduitFini||"—"}</span></TD>
                     <TD><span style={{color:C.text}}>{o.description||"—"}</span></TD>
-                    <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{o.otp||o.projet||"—"}</span></TD>
+                    <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{o.projet||o.otp||"—"}</span></TD>
+                    <TD><span style={{fontSize:11,color:C.muted}}>{OF_TYPES[o.typeOF||"production"]?.label||"Production"}</span></TD>
                     <TD center>
                       <select value={o.status||"en_cours"}
                         onClick={e=>e.stopPropagation()}
@@ -3254,6 +3925,7 @@ export default function App(){
   const [openHistory,setOpenHistory] = useState([]); // IDs des OF récemment ouverts
   const [showAdminUsers,setShowAdminUsers] = useState(false);
   const [printAll,setPrintAll]       = useState(false);
+  const [activeUnitId,setActiveUnitId] = useState("all");
 
   useEffect(()=>{
     (async()=>{
@@ -3287,7 +3959,7 @@ export default function App(){
   };
   const [showProfile,setShowProfile] = useState(false);
   const handleLogout=async()=>{
-    setUser(null);setCurrentId(null);setOfData(null);
+    setUser(null);setCurrentId(null);setOfData(null);setActiveUnitId("all");
     try{await window.storage.delete("session",false);}catch{}
   };
 
@@ -3297,8 +3969,9 @@ export default function App(){
       if(r){
         const parsed=JSON.parse(r.value);
         // Ensure all required keys exist
-        const safe={header:{},rework:{},consommables:{},testequip:{},faits:{},etuvage:{},demating:{},openwork:{},...parsed};
-        setOfData(safe);setCurrentId(id);setActiveTab("rework");
+        const safe={header:{},units:{},rework:{},consommables:{},testequip:{},faits:{},etuvage:{},demating:{},openwork:{},...parsed};
+        if(!(safe.units?.rows||[]).length) safe.units=unitsFromHeader(safe.header,user?.trigram||"");
+        setOfData(safe);setCurrentId(id);setActiveTab("rework");setActiveUnitId("all");
         setOpenHistory(prev=>[id,...prev.filter(x=>x!==id)].slice(0,20));
       }
     }catch(e){console.error("selectOf error",e);}
@@ -3306,13 +3979,14 @@ export default function App(){
 
   const createOf=async header=>{
     const id=uid();
-    const entry={id,...header,status:"en_cours",lastEtuvageDT:null};
+    const entry={id,...header,typeOF:header.typeOF||"production",status:header.status||"en_cours",lastEtuvageDT:null};
     const newList=[...ofList,entry];
-    const newData={header:entry,rework:{},flux:{},colles:{},testequip:{},dm:{},ncr:{},etuvage:{},demating:{},openwork:{}};
+    const initialUnits=unitsFromHeader(entry,user?.trigram||entry.createdBy||"");
+    const newData={header:entry,units:initialUnits,rework:{},flux:{},colles:{},testequip:{},dm:{},ncr:{},etuvage:{},demating:{},openwork:{}};
     try{
       await window.storage.set("of-list",JSON.stringify(newList),true);
       await window.storage.set(`of:${id}`,JSON.stringify(newData),true);
-      setOfList(newList);setOfData(newData);setCurrentId(id);setActiveTab("rework");
+      setOfList(newList);setOfData(newData);setCurrentId(id);setActiveTab("rework");setActiveUnitId("all");
       setOpenHistory(prev=>[id,...prev].slice(0,20));
     }catch(e){console.error(e);}
   };
@@ -3330,7 +4004,7 @@ export default function App(){
         return pb>pa?b:a;
       }).entreeDT:null;
       setOfList(prev=>{
-        const updated=prev.map(o=>o.id===currentId?{...o,lastEtuvageDT:lastEtv,status:o.status||"en_cours"}:o);
+        const updated=prev.map(o=>o.id===currentId?{...o,...(data.header||{}),lastEtuvageDT:lastEtv,status:data.header?.status||o.status||"en_cours"}:o);
         window.storage.set("of-list",JSON.stringify(updated),true).catch(()=>{});
         return updated;
       });
@@ -3363,6 +4037,7 @@ export default function App(){
 
     // Cascade sousEnsemble to all rows that still had the OLD default value
     const oldDefault = ofData.header?.codeArticle||ofData.header?.description||"";
+    const cascadeUnits = arr => arr||[];
     const cascadeRows = arr => (arr||[]).map(r=>
       (!r.sousEnsemble||r.sousEnsemble===oldDefault)&&newSE
         ? {...r,sousEnsemble:newSE.toUpperCase()} : r);
@@ -3376,6 +4051,7 @@ export default function App(){
     const updated={
       ...ofData,
       header: newHeader,
+      units:       {...ofData.units,       rows:     cascadeUnits(ofData.units?.rows)},
       rework:      {...ofData.rework,      rows:     cascadeRows(ofData.rework?.rows)},
       testequip:   {...ofData.testequip,   rows:     cascadeRows(ofData.testequip?.rows)},
       faits:       {...ofData.faits,       rows:     cascadeRows(ofData.faits?.rows)},
@@ -3402,6 +4078,41 @@ export default function App(){
     setPrintAll(true);
     setTimeout(()=>window.print(),150);
   };
+  const exportReportJson=()=>{
+    const payload={
+      schema:"sp-f001a-report-v1",
+      exportedAt:nowDT(),
+      exportedBy:user?.trigram||"",
+      ofData,
+      lists:{consommables,faitTypes}
+    };
+    const name=`SP-F001A_${(h?.of||"OF").replace(/[^a-zA-Z0-9_-]+/g,"_")}_rapport.json`;
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  const downloadReportPdf=()=>{
+    const blob=buildDirectReportPdf({
+      ofData,
+      lists:{consommables,faitTypes},
+      exportedAt:nowDT(),
+      exportedBy:user?.trigram||""
+    });
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`SP-F001A_OF_${pdfSafeName(h?.of||"OF")}_pack.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   if(!loaded) return <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>Chargement…</div>;
   if(!user)   return <LoginScreen onLogin={handleLogin}/>;
@@ -3423,6 +4134,15 @@ export default function App(){
   );
 
   const h    = ofData.header;
+  const unitRows = ofData.units?.rows||[];
+  const snRows = unitRows.filter(u=>!u.deleted&&cleanSn(u.sn));
+  const activeUnit = snRows.find(u=>u.id===activeUnitId) || null;
+  const snSummary = snRows.length ? `${snRows.length} SN` : (h.sn ? `SN ${h.sn}` : "aucun SN");
+  const workHeader = {
+    ...h,
+    _snRows:snRows,
+    _defaultSnIds:activeUnit?[activeUnit.id]:[],
+  };
   const faits = ofData.faits?.rows?.length||0;
   const faitsOpen = ofData.faits?.rows?.filter(r=>!r.closedDate).length||0;
   const ows  = ofData.openwork?.rows?.filter(r=>!r.closedDate)?.length||0;
@@ -3432,28 +4152,103 @@ export default function App(){
   let nei = {label:"—",overdue:false};
   try{ nei = nextEtuvageInfo(ofData.etuvage?.rows); }catch{}
   const reportSous = h.codeArticle||h.description||"—";
+  const reportSn = snRows.length ? snRows.map(snTitle).join(" ; ") : `${h.sn||"—"} / ${h.lot||"—"}`;
+  const ReportTitle = () => printAll ? (
+    <div style={{borderBottom:`3px solid ${C.accent}`,paddingBottom:10,marginBottom:14}}>
+      <div style={{fontSize:22,fontWeight:900,fontFamily:"monospace",color:C.text}}>Rapport complet SP-F001A7</div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginTop:10,fontSize:11}}>
+        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>OF</div><strong>{h.of||"—"}</strong></div>
+        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Projet</div><strong>{h.projet||h.otp||"—"}</strong></div>
+        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>SN suivis</div><strong>{reportSn}</strong></div>
+        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Statut OF</div><strong>{STATUTS[h.status||"en_cours"]?.label||"—"}</strong></div>
+        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Édité</div><strong>{nowDT()} - {user.trigram}</strong></div>
+      </div>
+    </div>
+  ) : null;
   const ReportHead = ({tab}) => printAll ? (
     <div style={{border:`1px solid ${C.border}`,background:"#0d1117",borderRadius:6,
       padding:"8px 12px",margin:"0 0 12px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
       <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>OF</div><div style={{fontFamily:"monospace",fontWeight:800}}>{h.of||"—"}</div></div>
-      <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Sous-ensemble</div><div style={{fontFamily:"monospace",fontWeight:800}}>{reportSous}</div></div>
-      <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>SN / LOT</div><div style={{fontFamily:"monospace",fontWeight:800}}>{h.sn||"—"} / {h.lot||"—"}</div></div>
+      <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Article OF</div><div style={{fontFamily:"monospace",fontWeight:800}}>{reportSous}</div></div>
+      <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>SN suivis</div><div style={{fontFamily:"monospace",fontWeight:800}}>{reportSn}</div></div>
       <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Onglet</div><div style={{fontFamily:"monospace",fontWeight:800,color:C.accent}}>{tab}</div></div>
     </div>
   ) : null;
 
   return (
-    <div style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"system-ui,sans-serif"}}>
+    <div className={printAll?"print-report":""} style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"system-ui,sans-serif"}}>
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 10mm; }
+          body { background: #fff !important; color: #111 !important; }
+          .no-print, .sticky-tabs, .sticky-of-header > div button { display: none !important; }
+          .print-report, .print-report * {
+            color: #111 !important;
+            box-shadow: none !important;
+            text-shadow: none !important;
+          }
+          .print-report {
+            background: #fff !important;
+            font-size: 9px !important;
+          }
+          .print-report > div:first-of-type,
+          .print-report .sticky-tabs,
+          .print-report .sticky-of-header {
+            position: static !important;
+            display: none !important;
+          }
+          .print-report table {
+            width: 100% !important;
+            min-width: 0 !important;
+            border-collapse: collapse !important;
+            page-break-inside: auto;
+          }
+          .print-report tr { page-break-inside: avoid; page-break-after: auto; }
+          .print-report th {
+            background: #e9edf2 !important;
+            color: #111 !important;
+            border: 1px solid #9aa4af !important;
+            padding: 3px !important;
+          }
+          .print-report td {
+            background: #fff !important;
+            color: #111 !important;
+            border: 1px solid #c3cad1 !important;
+            padding: 3px !important;
+          }
+          .print-report input,
+          .print-report select,
+          .print-report textarea {
+            border: 0 !important;
+            background: transparent !important;
+            color: #111 !important;
+            padding: 0 !important;
+            font-size: 9px !important;
+            min-height: 0 !important;
+          }
+          .print-report details.edit-history {
+            display: block !important;
+            background: #eef5ff !important;
+            border-left: 3px solid #1f6feb !important;
+            padding: 3px 6px !important;
+          }
+          .print-report details.edit-history summary {
+            color: #174ea6 !important;
+            font-weight: 800 !important;
+          }
+        }
+      `}</style>
       {/* Top bar */}
       <div style={{background:C.surface,borderBottom:`1px solid ${C.border}`,padding:"10px 20px",
         display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setCurrentId(null)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>←</button>
+          <button onClick={()=>{setCurrentId(null);setActiveUnitId("all");}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>←</button>
           <div>
             <div style={{fontSize:11,color:C.muted}}>SP-F001A7</div>
-            <div style={{fontWeight:700,fontFamily:"monospace",fontSize:13}}>OF {h.of} · {h.sn} / {h.lot}</div>
+            <div style={{fontWeight:700,fontFamily:"monospace",fontSize:13}}>OF {h.of} · {snSummary}</div>
           </div>
-          <Badge label={h.projet||"—"} color={C.blue}/>
+          <Badge label={h.projet||h.otp||"—"} color={C.blue}/>
+          {activeUnit&&<Badge label={snTitle(activeUnit)} color={C.green}/>}
           {faitsOpen>0  &&<Badge label={`${faitsOpen} fait${faitsOpen>1?"s":""} ouvert${faitsOpen>1?"s":""}`} color={C.yellow}/>}
           {ows>0       &&<Badge label={`${ows} OW`}   color={C.yellow}/>}
           {horsCalib>0 &&<Badge label={`⚠ ${horsCalib} hors calib.`} color={C.red}/>}
@@ -3463,7 +4258,8 @@ export default function App(){
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:11,color:C.muted}}>{saving?"⟳ …":lastSaved?`✓ ${lastSaved}`:""}</span>
-          <Btn onClick={printReport} color={C.blue} small>Imprimer / PDF</Btn>
+          <Btn onClick={downloadReportPdf} color={C.green} small>Pack PDF</Btn>
+          <Btn onClick={exportReportJson} color={C.border} small>JSON</Btn>
           <div onClick={()=>setShowProfile(true)}
             style={{background:C.accent+"22",border:`1px solid ${C.accent}`,borderRadius:20,padding:"3px 12px",
               fontFamily:"monospace",fontWeight:700,color:C.accent,fontSize:12,cursor:"pointer",
@@ -3511,43 +4307,45 @@ export default function App(){
             try{window.storage.set("of-list",JSON.stringify(newList),true);}catch{}
             setOfData(updated);save(updated);
           }}/>
+          <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
+            header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
         </div>
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:16}}>
-          {printAll&&<div style={{fontWeight:900,fontSize:18,color:C.text,marginBottom:18,fontFamily:"monospace"}}>Rapport complet OF {h.of}</div>}
+          <ReportTitle/>
           {(printAll||activeTab==="rework")&&<>
             <ReportHead tab="Adjust/Rework"/>
             <SectionTitle>Adjust/Rework</SectionTitle>
-            <TabRework data={ofData.rework} onChange={d=>updateTab("rework",d)} user={user} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabRework data={ofData.rework} onChange={d=>updateTab("rework",d)} user={user} header={workHeader} forceShowDeleted={printAll}/>
           </>}
           {(!printAll&&activeTab==="consommables"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Consommables"/>
             <SectionTitle>Consommables</SectionTitle>
-            <TabConsommables data={ofData.consommables||{}} onChange={d=>updateTab("consommables",d)} user={user} consommables={consommables} onEditList={()=>setShowConsoEditor(true)} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabConsommables data={ofData.consommables||{}} onChange={d=>updateTab("consommables",d)} user={user} consommables={consommables} onEditList={()=>setShowConsoEditor(true)} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
           {(!printAll&&activeTab==="testequip"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Test Equip."/>
             <SectionTitle>Test Equip.</SectionTitle>
-            <TabTestEquip data={ofData.testequip} onChange={d=>updateTab("testequip",d)} user={user} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabTestEquip data={ofData.testequip} onChange={d=>updateTab("testequip",d)} user={user} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
           {(!printAll&&activeTab==="faits"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Faits"/>
             <SectionTitle>Faits</SectionTitle>
-            <TabFaits data={ofData.faits||{}} onChange={d=>updateTab("faits",d)} user={user} faitTypes={faitTypes} onEditTypes={()=>setShowFaitTypes(true)} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabFaits data={ofData.faits||{}} onChange={d=>updateTab("faits",d)} user={user} faitTypes={faitTypes} onEditTypes={()=>setShowFaitTypes(true)} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
           {(!printAll&&activeTab==="etuvage"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Étuvages"/>
             <SectionTitle>Étuvages</SectionTitle>
-            <TabEtuvage data={ofData.etuvage} onChange={d=>updateTab("etuvage",d)} user={user} allRows={ofData.etuvage?.rows} tstRows={ofData.testequip?.rows} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabEtuvage data={ofData.etuvage} onChange={d=>updateTab("etuvage",d)} user={user} allRows={ofData.etuvage?.rows} tstRows={ofData.testequip?.rows} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
           {(!printAll&&activeTab==="demating"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Matting"/>
             <SectionTitle>Matting</SectionTitle>
-            <TabDeMating data={ofData.demating} onChange={d=>updateTab("demating",d)} user={user} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabDeMating data={ofData.demating} onChange={d=>updateTab("demating",d)} user={user} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
           {(!printAll&&activeTab==="openwork"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Open Work"/>
             <SectionTitle>Open Work</SectionTitle>
-            <TabOpenWork data={ofData.openwork} onChange={d=>updateTab("openwork",d)} user={user} header={ofData.header} forceShowDeleted={printAll}/>
+            <TabOpenWork data={ofData.openwork} onChange={d=>updateTab("openwork",d)} user={user} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
         </div>
       </div>
@@ -3570,4 +4368,3 @@ export default function App(){
     </div>
   );
 }
-
