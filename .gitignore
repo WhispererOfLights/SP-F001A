@@ -5,6 +5,9 @@
 *.db
 tmp/
 output/
+data/
+tests/artifacts/
+src/App.runtime.jsx
 
 # Python
 __pycache__/

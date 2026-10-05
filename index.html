@@ -9,7 +9,7 @@
     <title>SP-F001A7 - Suivi production</title>
     <style>
       * { box-sizing: border-box; }
-      body { margin: 0; background: #0d1117; }
+      body { margin: 0; background: #0d1117; font-family: system-ui, sans-serif; }
       button, input, select, textarea { font: inherit; }
       @media print {
         body { background: #fff !important; }
@@ -22,34 +22,10 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      window.storage = {
-        _store(persistent) {
-          return persistent ? window.localStorage : window.sessionStorage;
-        },
-        _key(key, persistent) {
-          return `${persistent ? "p" : "s"}:${key}`;
-        },
-        async get(key, persistent = true) {
-          const value = this._store(persistent).getItem(this._key(key, persistent));
-          if (value === null) throw new Error("not found");
-          return { value };
-        },
-        async set(key, value, persistent = true) {
-          this._store(persistent).setItem(this._key(key, persistent), value);
-        },
-        async delete(key, persistent = true) {
-          this._store(persistent).removeItem(this._key(key, persistent));
-        }
-      };
-    </script>
+    <script src="./src/clients.js?v=219"></script>
     <script src="./vendor/react.development.js"></script>
     <script src="./vendor/react-dom.development.js"></script>
-    <script src="./vendor/babel.min.js"></script>
-    <script type="text/babel" data-presets="env" data-plugins="transform-react-jsx" src="./src/App.browser.jsx?v=33"></script>
+    <script src="./src/App.runtime.js?v=219"></script>
   </body>
 </html>
-
-
-
 

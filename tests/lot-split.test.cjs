@@ -1,0 +1,63 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ctx = {React:{createElement:()=>({})},ReactDOM:{createRoot:()=>({render:()=>{}})},
+  document:{documentElement:{style:{}},body:{style:{}},getElementById:()=>({})},localStorage:{getItem:()=>null},Blob,TextEncoder};
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.split=splitTrackedLot;globalThis.qty=changeTrackedLotQuantity;globalThis.matches=rowMatchesSn;globalThis.normalize=withUnitMetadata;globalThis.importLot=parseImportSnLot;globalThis.targets=snRowsFromHeader;globalThis.home=homeRowsForOf;',ctx);
+const manager={role:'Manager',trigram:'JGR'};
+const tabs=['rework','testequip','faits','etuvage','openwork'];
+const data={header:{of:'TEST'},units:{rows:[{id:'a',sn:'LOT-A',unitKind:'lot',qteInitiale:'10',status:'en_cours'},{id:'x',sn:'LOT-X',unitKind:'lot',qteInitiale:'3'}]},
+  consommables:{ops:[{id:'op',snScope:'custom',snIds:['a'],items:[{id:'glue',echantillon:'sample-1'}]}]},
+  demating:{connectors:[{id:'conn',snScope:'custom',snIds:['a'],events:[{id:'event',action:'Matting'}]}]}};
+for(const tab of tabs) data[tab]={rows:[{id:tab,snScope:'custom',snIds:['a']},{id:tab+'-other',snScope:'custom',snIds:['x']},{id:tab+'-all',snScope:'all',snExcludeIds:['a']}]};
+const first=ctx.split(data,'a','6',[{lot:'LOT-B',qty:'4'}],manager);
+assert.equal(first.units.rows[0].sn,'');
+assert.equal(first.units.rows[0].lot,'LOT-A');
+assert.equal(ctx.importLot('LOT-IMP','12').sn,'');
+assert.equal(ctx.importLot('LOT-IMP','12').lot,'LOT-IMP');
+assert.equal(ctx.importLot('SN123','1').sn,'SN123');
+assert.equal(ctx.importLot('SN123','1').lot,'');
+assert.equal(ctx.targets(first.header).length,3);
+assert.equal(ctx.home(first.header,first)[0].sn,'');
+assert.equal(ctx.home(first.header,first)[0].lot,'LOT-A');
+assert.equal(ctx.normalize(first).units.rows[0].id,'a');
+assert.equal(ctx.normalize({header:{},units:{rows:[{id:'serial',sn:'ABC123'}]}}).units.rows[0].sn,'ABC123');
+const b=first.units.rows.find(u=>u.lot==='LOT-B');
+assert.equal(first.units.rows[0].qteActuelle,'6');
+assert.equal(first.units.rows[0].qteInitiale,'10');
+assert.equal(b.parentUnitId,'a');
+assert.equal(data.units.rows[0].qteActuelle,undefined);
+for(const tab of tabs){
+  assert.ok(ctx.matches(first[tab].rows[0],b,first.units.rows));
+  assert.ok(!ctx.matches(first[tab].rows[1],b,first.units.rows));
+  assert.ok(!ctx.matches(first[tab].rows[2],b,first.units.rows));
+}
+assert.ok(ctx.matches(first.consommables.ops[0],b,first.units.rows));
+assert.ok(ctx.matches(first.demating.connectors[0],b,first.units.rows));
+assert.equal(first.demating.connectors[0].events[0].action,'Mating');
+first.rework.rows.push({id:'only-b',snScope:'custom',snIds:[b.id]},{id:'only-a',snScope:'custom',snIds:['a']});
+const second=ctx.split(first,b.id,'3',[{lot:'LOT-C',qty:'1'}],manager);
+const c=second.units.rows.find(u=>u.lot==='LOT-C');
+assert.equal(c.parentUnitId,b.id);
+assert.equal(second.units.rows[0].qteActuelle,'6');
+assert.ok(ctx.matches(second.rework.rows.find(r=>r.id==='only-b'),c,second.units.rows));
+assert.ok(!ctx.matches(second.rework.rows.find(r=>r.id==='only-a'),c,second.units.rows));
+assert.equal(second.lotSplits.length,2);
+const increased=ctx.qty(second,b.id,'20',manager);
+const changed=increased.units.rows.find(u=>u.id===b.id);
+assert.equal(changed.qteInitiale,'4');
+assert.equal(changed.qteActuelle,'20');
+assert.equal(changed.quantityHistory.at(-1).before,'3');
+assert.equal(changed.quantityHistory.at(-1).after,'20');
+assert.equal(changed.quantityHistory.at(-1).visa,'JGR');
+const expanded=ctx.split(increased,b.id,'10',[{lot:'LOT-D',qty:'6'},{lot:'LOT-E',qty:'4'}],manager);
+assert.equal(expanded.units.rows.find(u=>u.id===b.id).qteActuelle,'10');
+assert.equal(expanded.lotSplits.at(-1).initialQty,20);
+assert.throws(()=>ctx.split(data,'a','6',[{lot:'LOT-B',qty:'5'}],manager));
+assert.throws(()=>ctx.split(data,'a','6',[{lot:'LOT-X',qty:'4'}],manager));
+assert.throws(()=>ctx.split(data,'a','6',[{lot:'LOT-B',qty:'2'},{lot:'lot-b',qty:'2'}],manager));
+assert.throws(()=>ctx.split(data,'a','6',[{lot:'LOT-B',qty:'4'}],{role:'Opérateur',trigram:'OPR'}));
+assert.throws(()=>ctx.qty(data,'a','2.5',manager));
+assert.throws(()=>ctx.split({...data,units:{rows:[{id:'sn',sn:'SN1',unitKind:'sn',qteInitiale:'10'}]}},'sn','6',[{lot:'LOT-B',qty:'4'}],manager));
+console.log('Lot splits and quantity history: all tests passed.');

@@ -1,0 +1,50 @@
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const {chromium}=require(process.env.PLAYWRIGHT_PATH||'playwright');
+const root=path.join(__dirname,'..');
+(async()=>{
+  const browser=await chromium.launch({headless:true,channel:'msedge'});
+  try{
+    const page=await browser.newPage({viewport:{width:1920,height:1080}});
+    const errors=[];page.on('pageerror',e=>errors.push(e.message));
+    await page.route('**/*',r=>r.fulfill({contentType:'text/html',body:'<div id="root"></div>'}));
+    await page.goto('http://password-test.local');
+    await page.addScriptTag({path:path.join(root,'vendor/react.development.js')});
+    await page.addScriptTag({path:path.join(root,'vendor/react-dom.development.js')});
+    await page.evaluate(()=>{
+      const hash=str=>{let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+str.charCodeAt(i)|0;return h.toString(36);};
+      const manager={trigram:'JGR',role:'Manager',pwd:hash('old')};
+      window.records={'user:ADMIN':{trigram:'ADMIN',role:'Admin',pwd:hash('admin')},'user:JGR':manager,'user:ABC':{trigram:'ABC',role:'Opérateur',pwd:hash('old')},'users-list':['ADMIN','JGR','ABC'],'of-list':[]};
+      localStorage.setItem('sp-f001-last-activity',String(Date.now()));
+      window.storage={get:async key=>window.records[key]?{value:JSON.stringify(window.records[key])}:null,set:async(key,value)=>{window.records[key]=JSON.parse(value);},delete:async key=>delete window.records[key],list:async()=>Object.keys(window.records)};
+    });
+    await page.addScriptTag({path:path.join(root,'src/App.runtime.js')});
+    await page.locator('input[type="text"]').first().fill('JGR');
+    await page.locator('input[type="password"]').fill('old');
+    await page.locator('input[type="password"]').press('Enter');
+    await page.getByRole('button',{name:'Utilisateurs',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Utilisateurs',exact:true}).click();
+    page.on('dialog',d=>d.accept());
+    const row=page.getByRole('row').filter({has:page.getByRole('cell',{name:'ABC',exact:true})});
+    await row.getByRole('button',{name:'Réinitialiser MDP',exact:true}).click();
+    await page.waitForFunction(()=>window.records['user:ABC'].mustChangePassword===true);
+    assert.equal(await page.evaluate(()=>window.records['user:ABC'].pwd),await page.evaluate(()=>hash('abc0')));
+    await page.evaluate(()=>{window.records.session={trigram:'ABC',role:'Opérateur'};ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));});
+    await page.getByRole('heading',{name:'Changement de mot de passe obligatoire'}).waitFor();
+    assert.equal(await page.getByRole('button',{name:'Utilisateurs',exact:true}).count(),0);
+    await page.getByLabel('Nouveau mot de passe',{exact:true}).fill('abc0');
+    await page.getByLabel('Confirmer le mot de passe',{exact:true}).fill('abc0');
+    await page.getByRole('button',{name:'Enregistrer le mot de passe'}).click();
+    await page.getByText('Choisissez un mot de passe différent du mot de passe temporaire').waitFor();
+    await page.getByLabel('Nouveau mot de passe',{exact:true}).fill('new-secret');
+    await page.getByLabel('Confirmer le mot de passe',{exact:true}).fill('different');
+    await page.getByRole('button',{name:'Enregistrer le mot de passe'}).click();
+    await page.getByText('Les mots de passe ne correspondent pas').waitFor();
+    await page.getByLabel('Confirmer le mot de passe',{exact:true}).fill('new-secret');
+    await page.getByRole('button',{name:'Enregistrer le mot de passe'}).click();
+    await page.waitForFunction(()=>window.records['user:ABC'].mustChangePassword===false&&window.records.session.mustChangePassword===false);
+    assert.equal(await page.evaluate(()=>window.records['user:ABC'].pwd),await page.evaluate(()=>hash('new-secret')));
+    assert.deepEqual(errors,[]);
+    console.log('Password reset and required change UI: passed.');
+  }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

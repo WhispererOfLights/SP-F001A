@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SP-F001A - Migration données</title>
+    <style>
+      body { margin:0; background:#0d1117; color:#e6edf3; font-family:system-ui,Segoe UI,Arial,sans-serif; }
+      main { max-width:960px; margin:32px auto; padding:0 20px; }
+      h1 { color:#e05c00; font-size:22px; margin:0 0 8px; }
+      p { color:#8b949e; line-height:1.5; }
+      .card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; margin:16px 0; }
+      label { display:block; color:#8b949e; font-size:12px; text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px; }
+      input { width:100%; box-sizing:border-box; background:#0d1117; border:1px solid #30363d; border-radius:5px; color:#e6edf3; padding:9px 10px; font-family:monospace; }
+      button { background:#e05c00; border:0; border-radius:5px; color:white; font-weight:800; padding:9px 13px; cursor:pointer; margin-right:8px; }
+      button.secondary { background:#30363d; }
+      button.good { background:#238636; }
+      button:disabled { opacity:.5; cursor:not-allowed; }
+      pre { background:#0d1117; border:1px solid #30363d; border-radius:6px; padding:12px; overflow:auto; max-height:340px; }
+      .ok { color:#3fb950; }
+      .warn { color:#d29922; }
+      .err { color:#f85149; }
+      .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+      .pill { border:1px solid #30363d; border-radius:999px; padding:4px 9px; color:#8b949e; font-size:12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Migration données SP-F001A</h1>
+      <p>
+        Cette page copie les anciennes données stockées dans le navigateur vers le serveur partagé.
+        Ouvrez-la depuis le même navigateur et la même adresse que l'ancienne application, puis envoyez vers le serveur prod.
+      </p>
+
+      <div class="card">
+        <label>Serveur destination</label>
+        <input id="apiBase" />
+        <p>Exemple : <code>http://NOM-MACHINE:5181/api/storage/</code></p>
+        <div class="row">
+          <button id="scanBtn" class="secondary">Analyser le navigateur</button>
+          <button id="backupBtn" class="secondary" disabled>Télécharger sauvegarde JSON</button>
+          <button id="migrateBtn" class="good" disabled>Migrer vers le serveur</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span class="pill" id="foundCount">0 donnée trouvée</span>
+          <span class="pill" id="targetInfo">Serveur non testé</span>
+        </div>
+        <pre id="log">Prêt.</pre>
+      </div>
+    </main>
+
+    <script>
+      const apiBaseInput = document.getElementById("apiBase");
+      const scanBtn = document.getElementById("scanBtn");
+      const backupBtn = document.getElementById("backupBtn");
+      const migrateBtn = document.getElementById("migrateBtn");
+      const logEl = document.getElementById("log");
+      const foundCount = document.getElementById("foundCount");
+      const targetInfo = document.getElementById("targetInfo");
+
+      let entries = [];
+      apiBaseInput.value = location.protocol === "http:" || location.protocol === "https:"
+        ? `${location.origin}/api/storage/`
+        : "http://NOM-MACHINE:5181/api/storage/";
+
+      const log = (line, cls = "") => {
+        const text = typeof line === "string" ? line : JSON.stringify(line, null, 2);
+        logEl.innerHTML += `\n${cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text)}`;
+        logEl.scrollTop = logEl.scrollHeight;
+      };
+      const escapeHtml = s => String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+      function scan() {
+        logEl.textContent = "";
+        entries = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const storageKey = localStorage.key(i);
+          if (!storageKey || !storageKey.startsWith("p:")) continue;
+          const key = storageKey.slice(2);
+          const value = localStorage.getItem(storageKey);
+          if (value == null) continue;
+          entries.push({ key, value });
+        }
+        entries.sort((a, b) => a.key.localeCompare(b.key));
+        foundCount.textContent = `${entries.length} donnée${entries.length > 1 ? "s" : ""} trouvée${entries.length > 1 ? "s" : ""}`;
+        backupBtn.disabled = entries.length === 0;
+        migrateBtn.disabled = entries.length === 0;
+        log(`Origine : ${location.origin || location.href}`);
+        if (!entries.length) {
+          log("Aucune donnée persistante trouvée ici. Ouvrez cette page depuis l'ancienne adresse de l'application.", "warn");
+          return;
+        }
+        log("Données trouvées :");
+        entries.forEach(e => log(`- ${e.key} (${e.value.length} caractères)`));
+      }
+
+      function backup() {
+        const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), entries }, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `SP-F001A_migration_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      async function migrate() {
+        const base = apiBaseInput.value.trim();
+        if (!base.endsWith("/api/storage/")) {
+          log("Le serveur destination doit finir par /api/storage/", "err");
+          return;
+        }
+        migrateBtn.disabled = true;
+        let ok = 0;
+        try {
+          for (const e of entries) {
+            const res = await fetch(base + encodeURIComponent(e.key), {
+              method: "PUT",
+              headers: { "Content-Type": "application/json; charset=utf-8" },
+              body: e.value
+            });
+            if (!res.ok) throw new Error(`${e.key}: HTTP ${res.status}`);
+            ok++;
+            log(`OK ${e.key}`, "ok");
+          }
+          targetInfo.textContent = `${ok} donnée${ok > 1 ? "s" : ""} migrée${ok > 1 ? "s" : ""}`;
+          log("Migration terminée.", "ok");
+        } catch (err) {
+          targetInfo.textContent = "Erreur migration";
+          log(err.message || err, "err");
+        } finally {
+          migrateBtn.disabled = entries.length === 0;
+        }
+      }
+
+      scanBtn.onclick = scan;
+      backupBtn.onclick = backup;
+      migrateBtn.onclick = migrate;
+      scan();
+    </script>
+  </body>
+</html>

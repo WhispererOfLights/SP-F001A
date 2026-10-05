@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const ctx={React:{createElement:()=>({})},ReactDOM:{createRoot:()=>({render:()=>{}})},document:{documentElement:{style:{}},body:{style:{}},getElementById:()=>({})},localStorage:{getItem:()=>null},Blob,TextEncoder};
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.filterHome=homeWorkedFilter;',ctx);
+const rows=[{id:'mine'},{id:'other'}];
+assert.equal(ctx.filterHome(rows,[],true,false).rows.length,2);
+assert.equal(ctx.filterHome(rows,[],true,false).active,false);
+assert.equal(ctx.filterHome(rows,['mine'],true,false).rows.length,1);
+assert.equal(ctx.filterHome(rows,['mine'],true,false).active,true);
+assert.equal(ctx.filterHome(rows,['mine'],true,true).rows.length,2);
+assert.equal(ctx.filterHome(rows,['mine'],true,true).active,false);
+assert.equal(ctx.filterHome([{id:'other'}],['mine'],true,false).rows.length,1);
+assert.equal(ctx.filterHome(rows,['mine'],false,false).rows.length,2);
+assert.equal(ctx.filterHome([],['mine'],true,false).rows.length,0);
+console.log('Home worked filter: all tests passed.');
