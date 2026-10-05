@@ -124,6 +124,16 @@ assert.equal(importedUnits[0].items[0].unitKind,'sn');
 assert.equal(importedUnits[0].items[0].sn,'LAMPE-EM07');
 assert.equal(importedUnits[1].items[0].unitKind,'lot');
 assert.equal(importedUnits[2].items[0].unitKind,'lot');
+const duplicateImport=context.parseUnits([
+  '1;PROJET;ARTICLE;250 000 748;Lampe;SN-001;1000595;x',
+  '1;PROJET;ARTICLE;250 000 748;Lampe;SN-001;1000595;x',
+  '1;PROJET;ARTICLE;250 000 748;Lampe;SN-001;1000596;x',
+].join('\n'));
+assert.equal(duplicateImport.length,2,'Le même SN reste autorisé dans deux OF différents');
+assert.equal(duplicateImport[0].items.length,1,'Une ligne OF + SN identique est ignorée');
+assert.equal(duplicateImport[0].duplicateItems,1,'Le doublon ignoré est comptabilisé pour le message d’import');
+assert.equal(duplicateImport[1].items.length,1);
+assert.equal(duplicateImport[1].duplicateItems,0);
 const converted=context.convertUnit({header:data.header,units:{rows:[{id:'lamp',sn:'',lot:'LAMPE-EM07',unitKind:'lot',qteInitiale:'1'}]},rework:{rows:[{id:'rw',snIds:['lamp']}]}},'lamp','sn',{trigram:'JGR'});
 assert.equal(converted.units.rows[0].sn,'LAMPE-EM07');
 assert.equal(converted.units.rows[0].lot,'');

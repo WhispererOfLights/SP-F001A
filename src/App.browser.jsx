@@ -6416,6 +6416,7 @@ const parseImportSnLot = (snLot, qty) => {
     unitKind:isSn ? "sn" : "lot",
   };
 };
+const importUnitKey = item => `${item?.unitKind||""}|${cleanSn(item?.sn)}|${cleanSn(item?.lot)}`;
 const parseOfImportPaste = text => {
   const groups=new Map();
   parseImportRows(text).forEach(cells=>{
@@ -6442,6 +6443,7 @@ const parseOfImportPaste = text => {
         ofRework:isReprise?"oui":"non",
         typeOF:isReprise?"reprise":"production",
         items:[],
+        duplicateItems:0,
       });
     }
     const g=groups.get(key);
@@ -6451,9 +6453,10 @@ const parseOfImportPaste = text => {
     if(!g.description) g.description=String(description||"").trim();
     if(isReprise){g.ofRework="oui";g.typeOF="reprise";}
     if(item){
-      const itemKey=`${item.unitKind}|${cleanSn(item.sn)}|${cleanSn(item.lot)}`;
-      const existing=g.items.find(x=>`${x.unitKind}|${cleanSn(x.sn)}|${cleanSn(x.lot)}`===itemKey);
+      const itemKey=importUnitKey(item);
+      const existing=g.items.find(x=>importUnitKey(x)===itemKey);
       if(existing){
+        g.duplicateItems++;
         if(!existing.qteInitiale && item.qteInitiale) existing.qteInitiale=item.qteInitiale;
       }else{
         g.items.push(item);
@@ -7173,7 +7176,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
               <ImportCsvFile onText={text=>{setImportText(text);setImportMsg("");}} onError={setImportMsg}/>
               <Btn onClick={importPaste} color={importText.trim()?C.green:C.border} disabled={!importText.trim()} small>Importer le collage</Btn>
-              {importMsg&&<span style={{fontSize:11,color:importMsg.startsWith("Erreur")?C.red:C.muted}}>{importMsg}</span>}
+              {importMsg&&<span style={{fontSize:11,color:importMsg.startsWith("Erreur")?C.red:importMsg.includes("Attention :")?C.yellow:C.muted}}>{importMsg}</span>}
             </div>
           </div>
         </div>
@@ -7604,7 +7607,8 @@ function App(){
     const valid=(groups||[]).filter(g=>String(g?.of||"").trim());
     if(!valid.length) return "Aucun OF importable.";
     let nextList=[...ofList];
-    let created=0, updated=0, addedItems=0, duplicates=0;
+    let created=0, updated=0, addedItems=0;
+    let duplicates=valid.reduce((total,g)=>total+(Number(g.duplicateItems)||0),0);
     const stamp=now();
     const stampDT=nowDT();
     const makeUnitRow=item=>({
@@ -7643,8 +7647,6 @@ function App(){
       if(source.ofRework==="oui"){target.ofRework="oui";target.typeOF="reprise";}
       return target;
     };
-    const rowKey=r=>`${r.unitKind||""}|${cleanSn(r.sn)}|${cleanSn(r.lot)}`;
-
     for(const group of valid){
       const headerBase=baseHeader(group);
       const existing=nextList.find(o=>String(o.of||"").trim().toUpperCase()===headerBase.of.toUpperCase());
@@ -7658,12 +7660,12 @@ function App(){
         data=withUnitMetadata(data);
         const units=(data.units?.rows||[]).length ? data.units : unitsFromHeader(data.header||existing,user?.trigram||existing.createdBy||"");
         const rows=[...(units.rows||[])];
-        const liveRows=new Set(rows.filter(r=>!r.deleted).map(rowKey).filter(Boolean));
+        const liveRows=new Set(rows.filter(r=>!r.deleted).map(importUnitKey).filter(Boolean));
         let addedHere=0;
         (group.items||[]).forEach(item=>{
           const row=makeUnitRow(item);
           if(!hasUnitIdentity(row)) return;
-          const key=rowKey(row);
+          const key=importUnitKey(row);
           if(liveRows.has(key)){duplicates++;return;}
           rows.push(row);
           liveRows.add(key);
@@ -7701,8 +7703,10 @@ function App(){
     const parts=[`${created} OF créé${created>1?"s":""}`];
     if(updated) parts.push(`${updated} OF complété${updated>1?"s":""}`);
     parts.push(`${addedItems} ligne${addedItems>1?"s":""} SN/LOT ajoutée${addedItems>1?"s":""}`);
-    if(duplicates) parts.push(`${duplicates} doublon${duplicates>1?"s":""} ignoré${duplicates>1?"s":""}`);
-    return `Import terminé : ${parts.join(", ")}.`;
+    const result=`Import terminé : ${parts.join(", ")}.`;
+    return duplicates
+      ? `${result} Attention : ${duplicates} ligne${duplicates>1?"s":""} déjà présente${duplicates>1?"s":""} dans le même OF, ignorée${duplicates>1?"s":""}.`
+      : result;
   };
 
   const save=useCallback(async data=>{

@@ -17751,6 +17751,9 @@ var parseImportSnLot = function parseImportSnLot(snLot, qty) {
     unitKind: isSn ? "sn" : "lot"
   };
 };
+var importUnitKey = function importUnitKey(item) {
+  return "".concat((item === null || item === void 0 ? void 0 : item.unitKind) || "", "|").concat(cleanSn(item === null || item === void 0 ? void 0 : item.sn), "|").concat(cleanSn(item === null || item === void 0 ? void 0 : item.lot));
+};
 var parseOfImportPaste = function parseOfImportPaste(text) {
   var groups = new Map();
   parseImportRows(text).forEach(function (cells) {
@@ -17791,7 +17794,8 @@ var parseOfImportPaste = function parseOfImportPaste(text) {
         description: String(description || "").trim(),
         ofRework: isReprise ? "oui" : "non",
         typeOF: isReprise ? "reprise" : "production",
-        items: []
+        items: [],
+        duplicateItems: 0
       });
     }
     var g = groups.get(key);
@@ -17804,11 +17808,12 @@ var parseOfImportPaste = function parseOfImportPaste(text) {
       g.typeOF = "reprise";
     }
     if (item) {
-      var itemKey = "".concat(item.unitKind, "|").concat(cleanSn(item.sn), "|").concat(cleanSn(item.lot));
+      var itemKey = importUnitKey(item);
       var existing = g.items.find(function (x) {
-        return "".concat(x.unitKind, "|").concat(cleanSn(x.sn), "|").concat(cleanSn(x.lot)) === itemKey;
+        return importUnitKey(x) === itemKey;
       });
       if (existing) {
+        g.duplicateItems++;
         if (!existing.qteInitiale && item.qteInitiale) existing.qteInitiale = item.qteInitiale;
       } else {
         g.items.push(item);
@@ -20209,7 +20214,7 @@ var OFSelector = function OFSelector(_ref117) {
   }, "Importer le collage"), importMsg && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
-      color: importMsg.startsWith("Erreur") ? C.red : C.muted
+      color: importMsg.startsWith("Erreur") ? C.red : importMsg.includes("Attention :") ? C.yellow : C.muted
     }
   }, importMsg)))), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -21646,7 +21651,7 @@ function App() {
   };
   var importOFs = /*#__PURE__*/function () {
     var _importOFs = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee45(groups) {
-      var valid, nextList, created, updated, addedItems, duplicates, stamp, stampDT, makeUnitRow, baseHeader, fillMissing, rowKey, _iterator7, _step7, _loop2, parts, _t68;
+      var valid, nextList, created, updated, addedItems, duplicates, stamp, stampDT, makeUnitRow, baseHeader, fillMissing, _iterator7, _step7, _loop2, parts, result, _t68;
       return _regenerator().w(function (_context46) {
         while (1) switch (_context46.p = _context46.n) {
           case 0:
@@ -21666,7 +21671,10 @@ function App() {
             return _context46.a(2, "Aucun OF importable.");
           case 2:
             nextList = _toConsumableArray(ofList);
-            created = 0, updated = 0, addedItems = 0, duplicates = 0;
+            created = 0, updated = 0, addedItems = 0;
+            duplicates = valid.reduce(function (total, g) {
+              return total + (Number(g.duplicateItems) || 0);
+            }, 0);
             stamp = now();
             stampDT = nowDT();
             makeUnitRow = function makeUnitRow(item) {
@@ -21712,9 +21720,6 @@ function App() {
                 target.typeOF = "reprise";
               }
               return target;
-            };
-            rowKey = function rowKey(r) {
-              return "".concat(r.unitKind || "", "|").concat(cleanSn(r.sn), "|").concat(cleanSn(r.lot));
             };
             _iterator7 = _createForOfIteratorHelper(valid);
             _context46.p = 3;
@@ -21763,12 +21768,12 @@ function App() {
                     rows = _toConsumableArray(units.rows || []);
                     liveRows = new Set(rows.filter(function (r) {
                       return !r.deleted;
-                    }).map(rowKey).filter(Boolean));
+                    }).map(importUnitKey).filter(Boolean));
                     addedHere = 0;
                     (group.items || []).forEach(function (item) {
                       var row = makeUnitRow(item);
                       if (!hasUnitIdentity(row)) return;
-                      var key = rowKey(row);
+                      var key = importUnitKey(row);
                       if (liveRows.has(key)) {
                         duplicates++;
                         return;
@@ -21871,8 +21876,8 @@ function App() {
             parts = ["".concat(created, " OF cr\xE9\xE9").concat(created > 1 ? "s" : "")];
             if (updated) parts.push("".concat(updated, " OF compl\xE9t\xE9").concat(updated > 1 ? "s" : ""));
             parts.push("".concat(addedItems, " ligne").concat(addedItems > 1 ? "s" : "", " SN/LOT ajout\xE9e").concat(addedItems > 1 ? "s" : ""));
-            if (duplicates) parts.push("".concat(duplicates, " doublon").concat(duplicates > 1 ? "s" : "", " ignor\xE9").concat(duplicates > 1 ? "s" : ""));
-            return _context46.a(2, "Import termin\xE9 : ".concat(parts.join(", "), "."));
+            result = "Import termin\xE9 : ".concat(parts.join(", "), ".");
+            return _context46.a(2, duplicates ? "".concat(result, " Attention : ").concat(duplicates, " ligne").concat(duplicates > 1 ? "s" : "", " d\xE9j\xE0 pr\xE9sente").concat(duplicates > 1 ? "s" : "", " dans le m\xEAme OF, ignor\xE9e").concat(duplicates > 1 ? "s" : "", ".") : result);
         }
       }, _callee45, null, [[3, 7, 8, 9]]);
     }));
