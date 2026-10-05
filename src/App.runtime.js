@@ -14353,6 +14353,33 @@ var TabDeMating = function TabDeMating(_ref85) {
       })
     });
   };
+  var updEvDate = function updEvDate(cid, eid, value) {
+    var c = connectors.find(function (x) {
+      return x.id === cid;
+    });
+    if (!(c !== null && c !== void 0 && c.editBase) || !canEdit(c)) return;
+    onChange({
+      connectors: scopedRowsPatch(connectors, cid, header, function (current) {
+        return {
+          events: (current.events || []).map(function (event) {
+            return event.id !== eid ? event : _objectSpread(_objectSpread({}, event), {}, {
+              dt: value,
+              editHistory: [].concat(_toConsumableArray(event.editHistory || []), [{
+                id: uid(),
+                dt: nowDT(),
+                visa: (user === null || user === void 0 ? void 0 : user.trigram) || "?",
+                changes: [{
+                  label: "Date de l'opération",
+                  from: event.dt || "",
+                  to: value
+                }]
+              }])
+            });
+          })
+        };
+      })
+    });
+  };
   var confirmDelEv = function confirmDelEv(reason) {
     var cid = deleteEvTarget.cid,
       eid = deleteEvTarget.eid;
@@ -14971,26 +14998,26 @@ var TabDeMating = function TabDeMating(_ref85) {
           fontSize: 11,
           color: C.muted
         }
-      }, empty ? "—" : idx)), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "monospace",
-          fontSize: 11,
-          color: mat ? C.green : C.muted
+      }, empty ? "—" : idx)), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(OperationDateCell, {
+        value: mat === null || mat === void 0 ? void 0 : mat.dt,
+        editing: !!mat && !!c.editBase && canEdit(c) && !mat.deleted,
+        onChange: function onChange(value) {
+          return updEvDate(c.id, mat.id, value);
         }
-      }, (mat === null || mat === void 0 ? void 0 : mat.dt) || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+      })), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
         style: {
           fontFamily: "monospace",
           fontWeight: 800,
           fontSize: 12,
           color: mat ? C.accent : C.muted
         }
-      }, (mat === null || mat === void 0 ? void 0 : mat.visa) || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
-        style: {
-          fontFamily: "monospace",
-          fontSize: 11,
-          color: dem ? C.blue : C.muted
+      }, (mat === null || mat === void 0 ? void 0 : mat.visa) || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(OperationDateCell, {
+        value: dem === null || dem === void 0 ? void 0 : dem.dt,
+        editing: !!dem && !!c.editBase && canEdit(c) && !dem.deleted,
+        onChange: function onChange(value) {
+          return updEvDate(c.id, dem.id, value);
         }
-      }, (dem === null || dem === void 0 ? void 0 : dem.dt) || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+      })), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
         style: {
           fontFamily: "monospace",
           fontWeight: 800,

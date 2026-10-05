@@ -5313,6 +5313,20 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
       events:c.events.map(e=>e.id===eid?{...e,[f]:v}:e)
     }))});
   };
+  const updEvDate = (cid,eid,value) => {
+    const c=connectors.find(x=>x.id===cid);
+    if(!c?.editBase||!canEdit(c)) return;
+    onChange({connectors:scopedRowsPatch(connectors,cid,header,current=>({
+      events:(current.events||[]).map(event=>event.id!==eid?event:{
+        ...event,
+        dt:value,
+        editHistory:[...(event.editHistory||[]),{
+          id:uid(),dt:nowDT(),visa:user?.trigram||"?",
+          changes:[{label:"Date de l'opération",from:event.dt||"",to:value}],
+        }],
+      }),
+    }))});
+  };
 
   const confirmDelEv = reason => {
     const {cid,eid}=deleteEvTarget;
@@ -5546,9 +5560,9 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                       <TD></TD>
                       <TD></TD>
                       <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{empty?"—":idx}</span></TD>
-                      <TD><span style={{fontFamily:"monospace",fontSize:11,color:mat?C.green:C.muted}}>{mat?.dt||"—"}</span></TD>
+                      <TD><OperationDateCell value={mat?.dt} editing={!!mat&&!!c.editBase&&canEdit(c)&&!mat.deleted} onChange={value=>updEvDate(c.id,mat.id,value)}/></TD>
                       <TD><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:mat?C.accent:C.muted}}>{mat?.visa||"—"}</span></TD>
-                      <TD><span style={{fontFamily:"monospace",fontSize:11,color:dem?C.blue:C.muted}}>{dem?.dt||"—"}</span></TD>
+                      <TD><OperationDateCell value={dem?.dt} editing={!!dem&&!!c.editBase&&canEdit(c)&&!dem.deleted} onChange={value=>updEvDate(c.id,dem.id,value)}/></TD>
                       <TD><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:dem?C.accent:C.muted}}>{dem?.visa||"—"}</span></TD>
                       <TD></TD>
                       <TD></TD>
