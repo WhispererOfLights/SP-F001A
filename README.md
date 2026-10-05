@@ -20,22 +20,22 @@ Ce mode est pratique pour tester l'interface, mais les donnees restent dans le n
 
 ## Lancer en prod partagee
 
-Copier tout le dossier du site dans le dossier reseau, par exemple :
+Copier tout le dossier du site dans un emplacement réseau accessible aux utilisateurs, par exemple :
 
-```powershell
-S:\OP\_SPACE\RAFS\_USO\SP-F001(Web)
+```text
+<DOSSIER_RESEAU>\SP-F001A
 ```
 
 Puis double-cliquer sur `start-prod.bat` depuis ce dossier. Par defaut la base partagee est stockee dans :
 
 ```text
-S:\OP\_SPACE\RAFS\_USO\SP-F001(Web)\data\sp-f001a.sqlite
+<DOSSIER_RESEAU>\SP-F001A\data\sp-f001a.sqlite
 ```
 
 Il est aussi possible de choisir un autre dossier de donnees :
 
 ```bat
-set "SP_F001A_DATA_DIR=S:\OP\_SPACE\RAFS\_USO\SP-F001(Web)\data"
+set "SP_F001A_DATA_DIR=<DOSSIER_RESEAU>\SP-F001A\data"
 ```
 
 Les postes production ouvrent ensuite le lien du PC qui fait tourner le serveur :
@@ -91,10 +91,10 @@ powershell -ExecutionPolicy Bypass -File scripts\test-all.ps1
 Le déploiement exécute d'abord tous les tests, incrémente la version du runtime et sauvegarde la version précédente :
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -Version 212
+powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -Version <VERSION> -Destination "<DOSSIER_RESEAU>\SP-F001A"
 ```
 
-Le dossier réseau par défaut est `\\neu-fs01.neu.orolia\Dpts\OP_SPACE\RAFS_USO\SP-F001(Web)`.
+Le chemin de production réel est volontairement absent de ce document. Il se configure avec `-Destination` lors du déploiement et avec `SP_F001A_DATA_DIR` pour le stockage des données.
 Voir aussi [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Pack PDF
