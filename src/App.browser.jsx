@@ -434,10 +434,39 @@ const duplicateRow = (row, user, extra={}) => ({
 });
 
 const appDateTimestamp = value => {
-  const match=String(value||"").match(/^(\d{2})[/.](\d{2})[/.](\d{2}|\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  const match=String(value||"").match(/^(\d{2})[/.](\d{2})[/.](\d{4}|\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if(!match) return 0;
   const year=match[3].length===2?2000+Number(match[3]):Number(match[3]);
   return new Date(year,Number(match[2])-1,Number(match[1]),Number(match[4]||0),Number(match[5]||0),Number(match[6]||0)).getTime();
+};
+const operationDateInputValue = value => {
+  const timestamp=appDateTimestamp(value);
+  if(!timestamp) return "";
+  const date=new Date(timestamp);
+  const pad=value=>String(value).padStart(2,"0");
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+};
+const operationDateFromInput = value => {
+  const match=String(value||"").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  return match?`${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}`:"";
+};
+const isFutureOperationDate = (value,reference=Date.now()) => {
+  const timestamp=appDateTimestamp(value);
+  return !!timestamp&&timestamp>reference;
+};
+const OperationDateCell = ({value,editing,onChange}) => {
+  if(!editing) return <span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{value||"—"}</span>;
+  const max=operationDateInputValue(nowDT());
+  return <input type="datetime-local" aria-label="Date de l'opération" value={operationDateInputValue(value)} max={max}
+    title="Corriger la date et l'heure de l'opération"
+    onChange={event=>{
+      const next=operationDateFromInput(event.target.value);
+      if(!next) return;
+      if(isFutureOperationDate(next)){window.alert("La date de l'opération ne peut pas être dans le futur.");return;}
+      onChange(next);
+    }}
+    style={{width:"100%",minWidth:112,background:C.input,color:C.text,border:`1px solid ${C.yellow}`,
+      borderRadius:4,padding:"3px 4px",fontFamily:"monospace",fontSize:9}}/>;
 };
 const sortByNewestOperation = (items,getDate=item=>item?.createdDT,getDraft=item=>!item?.validated&&!item?.deleted) =>
   [...(items||[])].map((item,index)=>({item,index,time:appDateTimestamp(getDate(item)),draft:getDraft(item)}))
@@ -2385,6 +2414,7 @@ const CommentBtn = ({comments, onChange, user, disabled=false}) => {
 const ACTIONS = ["S","D","P","M","R"];
 const ACTION_LABELS = {S:"Soudé",D:"Désoudé",P:"Pointé",M:"Matière",R:"Rework"};
 const REWORK_EDIT_FIELDS = [
+  {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
   {key:"snIds",label:"N° SN"},
   {key:"repere",label:"Repère TOPO"},
@@ -3140,7 +3170,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 opacity:r.deleted?.6:1,
                 pointerEvents:r.deleted?"none":undefined,
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
-                <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
+                <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                 <TD><Input entryField="repere" value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
@@ -3597,6 +3627,7 @@ const CONSO_OP_EDIT_FIELDS = [
 ];
 
 const CONSO_ITEM_EDIT_FIELDS = [
+  {key:"createdDT",label:"Date de l'opération"},
   {key:"consoId",label:"Consommable"},
   {key:"echantillon",label:"N° échantillon"},
   {key:"lot",label:"LOT"},
@@ -3987,7 +4018,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                 <tr key={rowKey} style={{background:rowDeleted?"#da363318":it.tracaOk?"#23863610":idx%2===0?"transparent":C.stripe,
                   borderLeft:`3px solid ${rowDeleted?C.red:it.tracaOk?C.green:valid?C.green:conso?catColor:C.border}`,
                   textDecoration:rowDeleted?"line-through":undefined,opacity:rowDeleted?.6:1,pointerEvents:rowDeleted?"none":undefined}}>
-                  <TD><span style={{fontFamily:"monospace",fontSize:10,color:C.muted}}>{it.createdDT||o.createdDT||"—"}</span></TD>
+                  <TD><OperationDateCell value={it.createdDT||o.createdDT} editing={!!it.editBase&&editable&&!rowDeleted} onChange={value=>updItem(oid,iid,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:C.accent}}>{it.createdVisa||o.createdVisa||"—"}</span><CopyOriginMark origin={it.copyOrigin||o.copyOrigin}/></TD>
                   <TD style={{pointerEvents:rowDeleted?"none":"all"}}><CopyCell value={snScopeLabel(o,snRowsFromHeader(header))} title="Copier SN cible">
                     <SnScopePicker row={o} header={header} onChange={fields=>patchOp(oid,fields)} disabled={locked}/>
@@ -4138,6 +4169,7 @@ const calibStatus = s => {
 };
 
 const TEST_EQUIP_EDIT_FIELDS = [
+  {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
   {key:"snIds",label:"N° SN"},
   {key:"isFour",label:"Four"},
@@ -4239,7 +4271,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
                   pointerEvents:r.deleted?"none":undefined,
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
-                  <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
+                  <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
                   <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                   <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
@@ -4471,6 +4503,7 @@ const StatusTypesManager = ({types,onClose,onSave}) => {
 
 // ─── 5+6. Faits (NC / DM / ISS / …) ───────────────────────────────────────
 const FAITS_EDIT_FIELDS = [
+  {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
   {key:"snIds",label:"N° SN"},
   {key:"type",label:"Type"},
@@ -4591,7 +4624,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
                 pointerEvents:r.deleted?"none":undefined,
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
 
-                <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
+                <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
 
@@ -4781,6 +4814,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
 
 // ─── 7. Étuvages ───────────────────────────────────────────────────────────
 const ETUVAGE_EDIT_FIELDS = [
+  {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
   {key:"snIds",label:"N° SN"},
   {key:"fourN",label:"Four N°"},
@@ -4922,7 +4956,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
                   pointerEvents:r.deleted?"none":undefined,
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
-                  <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
+                  <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
                   <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                   <TD>
@@ -5553,6 +5587,7 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
 };
 // ─── 9. Open Work ──────────────────────────────────────────────────────────
 const OPENWORK_EDIT_FIELDS = [
+  {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
   {key:"snIds",label:"N° SN"},
   {key:"nOW",label:"N° OW"},
@@ -5641,7 +5676,7 @@ const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,
               textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:isClosed(r)?.8:1,
               pointerEvents:r.deleted?"none":undefined,
               borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
-              <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{r.createdDT||"—"}</span></TD>
+              <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
               <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
               <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
               <TD center><Badge label={r.nOW} color={isClosed(r)?C.green:C.yellow}/></TD>
