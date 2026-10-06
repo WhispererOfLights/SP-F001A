@@ -1948,6 +1948,8 @@ const effectiveScopedRows = (data,tab) => {
 const effectiveEtuvageRows = data => effectiveScopedRows(data,"etuvage");
 const SAP_IB52_HEADERS = ["","","Article","","N° série","Qté","","","Lot"];
 const SAP_CO02_HEADERS = ["Article","","Qté","","Type","Opération","Séquence","Division","Magasin","","","Lot"];
+const SAP_FULL_HEADERS = ["Source","Date","Visa","SN cible","LOT cible","Fiche suiveuse","OP","Repère / Type","Action / Statut","Qté","N° échantillon / Fait","Code article","Valeur / Désignation","LOT / N° fait","DC / DP","CTRL","TRAÇA","Date ouverture","Visa ouverture","Date clôture","Visa clôture","Lien","Commentaires","Annulée","Annulée le","Annulée par","Motif annulation"];
+const factSapArticle = type => ({NC:"2920000656",DM:"2920000657",ISS:"2920000656"})[String(type||"").trim().toUpperCase()]||"";
 const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const header=ofData.header||{};
   const allUnits=(ofData.units?.rows||[]).map(normalizeTrackedUnit).filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
@@ -1963,8 +1965,13 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const facts=(ofData.faits?.rows||[]).filter(exportable);
   const qty=value=>String(value??"").trim()||"1";
   const article=value=>compactArticleCode(value);
+  const comments=value=>(value||[]).map(comment=>[comment.dt,comment.visa,comment.text].filter(Boolean).join(" - ")).join(" | ");
+  const deletedInfo=row=>[
+    row?.deleted?"X":"",row?.deletedDate||"",row?.deletedVisa||"",row?.deletedReason||"",
+  ];
   const ib52=[];
   const co02=[];
+  const full=[];
 
   // IB52 : tous les consommables.
   consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>ib52.push([
@@ -1987,7 +1994,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
 
   // IB52 : faits techniques actifs.
   facts.forEach(row=>targetRows(row).forEach(()=>ib52.push([
-    "","",String(row.numero||row.type||""),"","","1","","","",
+    "","",factSapArticle(row.type),"","","1","","",String(row.numero||""),
   ])));
 
   // CO02 : composants montés, puis consommables.
@@ -1997,7 +2004,28 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>co02.push([
     article(conso.sap||conso.code||item.consoId),"",qty(item.qty||item.qte||op.qty||op.qte),"","L","0010","0","7700","PRD3","","",String(item.lot||""),
   ])));
-  return {IB52:ib52,CO02:co02};
+
+  // Export complet : reprend toutes les informations, y compris brouillons et annulations.
+  (ofData.rework?.rows||[]).forEach(row=>targetRows(row).forEach(target=>full.push([
+    "Adjust/Rework",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"",row.fiche||"",row.etape||"",
+    row.repere||"",ACTION_LABELS[row.action1]||row.action1||"",row.qty||"",row.sn||"",article(row.codeERP),row.valeur||"",row.lot||"",row.dc||"",
+    visaStamp(row.visaCtrl,row.dateCtrl),visaStamp(row.visaTraca,row.dateTraca),"","","","","","",...deletedInfo(row),
+  ])));
+  (ofData.consommables?.ops||[]).forEach(op=>(op.items||[]).forEach(item=>{
+    const conso=consoById[item.consoId]||{};
+    targetRows(op).forEach(target=>full.push([
+      "Consommable",item.createdDT||op.createdDT||"",item.createdVisa||op.createdVisa||"",target.sn||"",target.lot||"",op.fiche||"",op.op||"",
+      consoDescriptionForCsv(conso,item.consoId),"",item.qty||item.qte||op.qty||op.qte||"1",item.echantillon||"",article(conso.sap||conso.code||item.consoId),
+      consoDescriptionForCsv(conso,item.consoId),item.lot||"",item.dp||"","",visaStamp(item.visaTraca,item.dateTraca),"","","","","",comments(item.comments),
+      ...deletedInfo(item.deleted?item:op),
+    ]));
+  }));
+  (ofData.faits?.rows||[]).forEach(row=>targetRows(row).forEach(target=>full.push([
+    "Fait technique",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"","","",row.type||"",row.closedDate?"Clôturé":"Ouvert","1",
+    row.numero||"",factSapArticle(row.type),row.commentaires||"",row.numero||"","","","",row.date||"",row.visa||"",row.closedDate||"",row.closedVisa||"",
+    row.lien||"",[row.commentaires||"",comments(row.comments)].filter(Boolean).join(" | "),...deletedInfo(row),
+  ])));
+  return {IB52:ib52,CO02:co02,FULL:full};
 };
 const SnFilter = ({value,onChange,header,title="Filtrer SN cible"}) => {
   const rows=snRowsFromHeader(header);
@@ -7559,6 +7587,7 @@ export default function App(){
     const workbook=buildExcelWorkbook([
       {name:"IB52",rows:[SAP_IB52_HEADERS,...rows.IB52],headerRows:1},
       {name:"CO02",rows:[SAP_CO02_HEADERS,...rows.CO02],headerRows:1},
+      {name:"Toutes les infos",rows:[SAP_FULL_HEADERS,...rows.FULL],headerRows:1},
     ]);
     downloadBlob(workbook,`${reportFileBaseName(options.selectedSnIds||null)} - SAP IB52 CO02.xlsx`);
   };

@@ -4432,8 +4432,16 @@ var effectiveEtuvageRows = function effectiveEtuvageRows(data) {
 };
 var SAP_IB52_HEADERS = ["", "", "Article", "", "N° série", "Qté", "", "", "Lot"];
 var SAP_CO02_HEADERS = ["Article", "", "Qté", "", "Type", "Opération", "Séquence", "Division", "Magasin", "", "", "Lot"];
+var SAP_FULL_HEADERS = ["Source", "Date", "Visa", "SN cible", "LOT cible", "Fiche suiveuse", "OP", "Repère / Type", "Action / Statut", "Qté", "N° échantillon / Fait", "Code article", "Valeur / Désignation", "LOT / N° fait", "DC / DP", "CTRL", "TRAÇA", "Date ouverture", "Visa ouverture", "Date clôture", "Visa clôture", "Lien", "Commentaires", "Annulée", "Annulée le", "Annulée par", "Motif annulation"];
+var factSapArticle = function factSapArticle(type) {
+  return {
+    NC: "2920000656",
+    DM: "2920000657",
+    ISS: "2920000656"
+  }[String(type || "").trim().toUpperCase()] || "";
+};
 var buildSapExcelRows = function buildSapExcelRows(_ref49) {
-  var _ofData$units3, _ofData$rework2, _ofData$consommables, _ofData$faits;
+  var _ofData$units3, _ofData$rework2, _ofData$consommables, _ofData$faits, _ofData$rework3, _ofData$consommables2, _ofData$faits2;
   var _ref49$ofData = _ref49.ofData,
     ofData = _ref49$ofData === void 0 ? {} : _ref49$ofData,
     _ref49$consommables = _ref49.consommables,
@@ -4484,8 +4492,17 @@ var buildSapExcelRows = function buildSapExcelRows(_ref49) {
   var article = function article(value) {
     return compactArticleCode(value);
   };
+  var comments = function comments(value) {
+    return (value || []).map(function (comment) {
+      return [comment.dt, comment.visa, comment.text].filter(Boolean).join(" - ");
+    }).join(" | ");
+  };
+  var deletedInfo = function deletedInfo(row) {
+    return [row !== null && row !== void 0 && row.deleted ? "X" : "", (row === null || row === void 0 ? void 0 : row.deletedDate) || "", (row === null || row === void 0 ? void 0 : row.deletedVisa) || "", (row === null || row === void 0 ? void 0 : row.deletedReason) || ""];
+  };
   var ib52 = [];
   var co02 = [];
+  var full = [];
 
   // IB52 : tous les consommables.
   consoLines.forEach(function (_ref50) {
@@ -4526,7 +4543,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref49) {
   // IB52 : faits techniques actifs.
   facts.forEach(function (row) {
     return targetRows(row).forEach(function () {
-      return ib52.push(["", "", String(row.numero || row.type || ""), "", "", "1", "", "", ""]);
+      return ib52.push(["", "", factSapArticle(row.type), "", "", "1", "", "", String(row.numero || "")]);
     });
   });
 
@@ -4546,9 +4563,30 @@ var buildSapExcelRows = function buildSapExcelRows(_ref49) {
       return co02.push([article(conso.sap || conso.code || item.consoId), "", qty(item.qty || item.qte || op.qty || op.qte), "", "L", "0010", "0", "7700", "PRD3", "", "", String(item.lot || "")]);
     });
   });
+
+  // Export complet : reprend toutes les informations, y compris brouillons et annulations.
+  (((_ofData$rework3 = ofData.rework) === null || _ofData$rework3 === void 0 ? void 0 : _ofData$rework3.rows) || []).forEach(function (row) {
+    return targetRows(row).forEach(function (target) {
+      return full.push(["Adjust/Rework", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", row.fiche || "", row.etape || "", row.repere || "", ACTION_LABELS[row.action1] || row.action1 || "", row.qty || "", row.sn || "", article(row.codeERP), row.valeur || "", row.lot || "", row.dc || "", visaStamp(row.visaCtrl, row.dateCtrl), visaStamp(row.visaTraca, row.dateTraca), "", "", "", "", "", ""].concat(_toConsumableArray(deletedInfo(row))));
+    });
+  });
+  (((_ofData$consommables2 = ofData.consommables) === null || _ofData$consommables2 === void 0 ? void 0 : _ofData$consommables2.ops) || []).forEach(function (op) {
+    return (op.items || []).forEach(function (item) {
+      var conso = consoById[item.consoId] || {};
+      targetRows(op).forEach(function (target) {
+        return full.push(["Consommable", item.createdDT || op.createdDT || "", item.createdVisa || op.createdVisa || "", target.sn || "", target.lot || "", op.fiche || "", op.op || "", consoDescriptionForCsv(conso, item.consoId), "", item.qty || item.qte || op.qty || op.qte || "1", item.echantillon || "", article(conso.sap || conso.code || item.consoId), consoDescriptionForCsv(conso, item.consoId), item.lot || "", item.dp || "", "", visaStamp(item.visaTraca, item.dateTraca), "", "", "", "", "", comments(item.comments)].concat(_toConsumableArray(deletedInfo(item.deleted ? item : op))));
+      });
+    });
+  });
+  (((_ofData$faits2 = ofData.faits) === null || _ofData$faits2 === void 0 ? void 0 : _ofData$faits2.rows) || []).forEach(function (row) {
+    return targetRows(row).forEach(function (target) {
+      return full.push(["Fait technique", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", "", "", row.type || "", row.closedDate ? "Clôturé" : "Ouvert", "1", row.numero || "", factSapArticle(row.type), row.commentaires || "", row.numero || "", "", "", "", row.date || "", row.visa || "", row.closedDate || "", row.closedVisa || "", row.lien || "", [row.commentaires || "", comments(row.comments)].filter(Boolean).join(" | ")].concat(_toConsumableArray(deletedInfo(row))));
+    });
+  });
   return {
     IB52: ib52,
-    CO02: co02
+    CO02: co02,
+    FULL: full
   };
 };
 var SnFilter = function SnFilter(_ref53) {
@@ -22784,7 +22822,7 @@ function App() {
     return copyReworkAcross;
   }();
   var updateHeader = function updateHeader(fields) {
-    var _ofData$header6, _ofData$header7, _ofData$units5, _ofData$rework3, _ofData$testequip2, _ofData$faits2, _ofData$etuvage, _ofData$openwork, _ofData$consommables2, _ofData$demating;
+    var _ofData$header6, _ofData$header7, _ofData$units5, _ofData$rework4, _ofData$testequip2, _ofData$faits3, _ofData$etuvage, _ofData$openwork, _ofData$consommables3, _ofData$demating;
     if (!isAdminManager(user)) return;
     var newHeader = _objectSpread(_objectSpread({}, ofData.header), fields);
     var newSE = fields.codeArticle || fields.description ? fields.codeArticle || fields.description || "" : null;
@@ -22821,13 +22859,13 @@ function App() {
         rows: cascadeUnits((_ofData$units5 = ofData.units) === null || _ofData$units5 === void 0 ? void 0 : _ofData$units5.rows)
       }),
       rework: _objectSpread(_objectSpread({}, ofData.rework), {}, {
-        rows: cascadeRows((_ofData$rework3 = ofData.rework) === null || _ofData$rework3 === void 0 ? void 0 : _ofData$rework3.rows)
+        rows: cascadeRows((_ofData$rework4 = ofData.rework) === null || _ofData$rework4 === void 0 ? void 0 : _ofData$rework4.rows)
       }),
       testequip: _objectSpread(_objectSpread({}, ofData.testequip), {}, {
         rows: cascadeRows((_ofData$testequip2 = ofData.testequip) === null || _ofData$testequip2 === void 0 ? void 0 : _ofData$testequip2.rows)
       }),
       faits: _objectSpread(_objectSpread({}, ofData.faits), {}, {
-        rows: cascadeRows((_ofData$faits2 = ofData.faits) === null || _ofData$faits2 === void 0 ? void 0 : _ofData$faits2.rows)
+        rows: cascadeRows((_ofData$faits3 = ofData.faits) === null || _ofData$faits3 === void 0 ? void 0 : _ofData$faits3.rows)
       }),
       etuvage: _objectSpread(_objectSpread({}, ofData.etuvage), {}, {
         rows: cascadeRows((_ofData$etuvage = ofData.etuvage) === null || _ofData$etuvage === void 0 ? void 0 : _ofData$etuvage.rows)
@@ -22836,7 +22874,7 @@ function App() {
         rows: cascadeRows((_ofData$openwork = ofData.openwork) === null || _ofData$openwork === void 0 ? void 0 : _ofData$openwork.rows)
       }),
       consommables: _objectSpread(_objectSpread({}, ofData.consommables), {}, {
-        ops: cascadeOps((_ofData$consommables2 = ofData.consommables) === null || _ofData$consommables2 === void 0 ? void 0 : _ofData$consommables2.ops)
+        ops: cascadeOps((_ofData$consommables3 = ofData.consommables) === null || _ofData$consommables3 === void 0 ? void 0 : _ofData$consommables3.ops)
       }),
       demating: _objectSpread(_objectSpread({}, ofData.demating), {}, {
         connectors: cascadeConns((_ofData$demating = ofData.demating) === null || _ofData$demating === void 0 ? void 0 : _ofData$demating.connectors)
@@ -23020,6 +23058,10 @@ function App() {
     }, {
       name: "CO02",
       rows: [SAP_CO02_HEADERS].concat(_toConsumableArray(rows.CO02)),
+      headerRows: 1
+    }, {
+      name: "Toutes les infos",
+      rows: [SAP_FULL_HEADERS].concat(_toConsumableArray(rows.FULL)),
       headerRows: 1
     }]);
     downloadBlob(workbook, "".concat(reportFileBaseName(options.selectedSnIds || null), " - SAP IB52 CO02.xlsx"));
