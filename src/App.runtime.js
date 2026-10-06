@@ -1547,6 +1547,7 @@ var excelColumnName = function excelColumnName(index) {
   return name;
 };
 var excelWorksheetXml = function excelWorksheetXml(rows) {
+  var headerRows = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
   var width = Math.max.apply(Math, [1].concat(_toConsumableArray(rows.map(function (row) {
     return row.length;
   }))));
@@ -1557,7 +1558,8 @@ var excelWorksheetXml = function excelWorksheetXml(rows) {
       var _row$columnIndex;
       var value = (_row$columnIndex = row[columnIndex]) !== null && _row$columnIndex !== void 0 ? _row$columnIndex : "";
       var ref = "".concat(excelColumnName(columnIndex)).concat(rowIndex + 1);
-      return "<c r=\"".concat(ref, "\" t=\"inlineStr\"><is><t xml:space=\"preserve\">").concat(xmlEsc(value), "</t></is></c>");
+      var style = rowIndex < headerRows ? ' s="1"' : "";
+      return "<c r=\"".concat(ref, "\"").concat(style, " t=\"inlineStr\"><is><t xml:space=\"preserve\">").concat(xmlEsc(value), "</t></is></c>");
     }).join(""), "</row>");
   }).join("");
   var lastRow = Math.max(1, rows.length);
@@ -1567,7 +1569,7 @@ var buildExcelWorkbook = function buildExcelWorkbook(sheets) {
   var sheetEntries = sheets.map(function (sheet, index) {
     return {
       name: "xl/worksheets/sheet".concat(index + 1, ".xml"),
-      data: excelWorksheetXml(sheet.rows || [])
+      data: excelWorksheetXml(sheet.rows || [], sheet.headerRows || 0)
     };
   });
   var overrides = sheets.map(function (_, index) {
@@ -1594,7 +1596,7 @@ var buildExcelWorkbook = function buildExcelWorkbook(sheets) {
     data: "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">".concat(workbookRels).concat(styleRel, "</Relationships>")
   }, {
     name: "xl/styles.xml",
-    data: "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"1\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts><fills count=\"1\"><fill><patternFill patternType=\"none\"/></fill></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs></styleSheet>"
+    data: "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts><fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFD9E1E8\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"1\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/></cellXfs></styleSheet>"
   }].concat(_toConsumableArray(sheetEntries)));
 };
 var compactArticleCode = function compactArticleCode(v) {
@@ -4428,6 +4430,8 @@ var effectiveScopedRows = function effectiveScopedRows(data, tab) {
 var effectiveEtuvageRows = function effectiveEtuvageRows(data) {
   return effectiveScopedRows(data, "etuvage");
 };
+var SAP_IB52_HEADERS = ["", "", "Article", "", "N° série", "Qté", "", "", "Lot"];
+var SAP_CO02_HEADERS = ["Article", "", "Qté", "", "Type", "Opération", "Séquence", "Division", "Magasin", "", "", "Lot"];
 var buildSapExcelRows = function buildSapExcelRows(_ref49) {
   var _ofData$units3, _ofData$rework2, _ofData$consommables, _ofData$faits;
   var _ref49$ofData = _ref49.ofData,
@@ -23011,10 +23015,12 @@ function App() {
     });
     var workbook = buildExcelWorkbook([{
       name: "IB52",
-      rows: rows.IB52
+      rows: [SAP_IB52_HEADERS].concat(_toConsumableArray(rows.IB52)),
+      headerRows: 1
     }, {
       name: "CO02",
-      rows: rows.CO02
+      rows: [SAP_CO02_HEADERS].concat(_toConsumableArray(rows.CO02)),
+      headerRows: 1
     }]);
     downloadBlob(workbook, "".concat(reportFileBaseName(options.selectedSnIds || null), " - SAP IB52 CO02.xlsx"));
   };

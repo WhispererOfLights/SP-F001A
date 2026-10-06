@@ -55,12 +55,18 @@ assert.equal(rows.CO02.at(-1)[11],'0000020452');
 assert.equal(rows.CO02.some(row=>row.includes('FT-001')),false,'Les faits techniques sont exclus de CO02');
 
 (async()=>{
-  const blob=context.excelWorkbook([{name:'IB52',rows:rows.IB52},{name:'CO02',rows:rows.CO02}]);
+  const ib52Headers=['','','Article','','N° série','Qté','','','Lot'];
+  const co02Headers=['Article','','Qté','','Type','Opération','Séquence','Division','Magasin','','','Lot'];
+  const blob=context.excelWorkbook([
+    {name:'IB52',rows:[ib52Headers,...rows.IB52],headerRows:1},
+    {name:'CO02',rows:[co02Headers,...rows.CO02],headerRows:1},
+  ]);
   assert.equal(blob.type,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   const bytes=Buffer.from(await blob.arrayBuffer());
   assert.equal(bytes.subarray(0,2).toString(),'PK');
   const raw=bytes.toString('utf8');
   for(const marker of ['xl/workbook.xml','xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml','name="IB52"','name="CO02"']) assert.ok(raw.includes(marker),marker);
+  for(const marker of ['N° série','Opération','Séquence','Division','Magasin','s="1"']) assert.ok(raw.includes(marker),marker);
   const tempFile=path.join(os.tmpdir(),`sp-f001a-sap-${process.pid}.xlsx`);
   fs.writeFileSync(tempFile,bytes);
   const zipCheck=spawnSync('python',['-c','import sys,zipfile,xml.etree.ElementTree as ET; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; ET.fromstring(z.read("xl/workbook.xml")); ET.fromstring(z.read("xl/worksheets/sheet1.xml")); ET.fromstring(z.read("xl/worksheets/sheet2.xml"))',tempFile],{encoding:'utf8'});

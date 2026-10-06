@@ -618,18 +618,19 @@ const excelColumnName = index => {
   while(value){value--;name=String.fromCharCode(65+(value%26))+name;value=Math.floor(value/26);}
   return name;
 };
-const excelWorksheetXml = rows => {
+const excelWorksheetXml = (rows,headerRows=0) => {
   const width=Math.max(1,...rows.map(row=>row.length));
   const body=rows.map((row,rowIndex)=>`<row r="${rowIndex+1}">${Array.from({length:width},(_,columnIndex)=>{
     const value=row[columnIndex]??"";
     const ref=`${excelColumnName(columnIndex)}${rowIndex+1}`;
-    return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(value)}</t></is></c>`;
+    const style=rowIndex<headerRows?' s="1"':"";
+    return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(value)}</t></is></c>`;
   }).join("")}</row>`).join("");
   const lastRow=Math.max(1,rows.length);
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${excelColumnName(width-1)}${lastRow}"/><sheetData>${body}</sheetData></worksheet>`;
 };
 const buildExcelWorkbook = sheets => {
-  const sheetEntries=sheets.map((sheet,index)=>({name:`xl/worksheets/sheet${index+1}.xml`,data:excelWorksheetXml(sheet.rows||[])}));
+  const sheetEntries=sheets.map((sheet,index)=>({name:`xl/worksheets/sheet${index+1}.xml`,data:excelWorksheetXml(sheet.rows||[],sheet.headerRows||0)}));
   const overrides=sheets.map((_,index)=>`<Override PartName="/xl/worksheets/sheet${index+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("");
   const workbookSheets=sheets.map((sheet,index)=>`<sheet name="${xmlEsc(sheet.name)}" sheetId="${index+1}" r:id="rId${index+1}"/>`).join("");
   const workbookRels=sheets.map((_,index)=>`<Relationship Id="rId${index+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index+1}.xml"/>`).join("");
@@ -639,7 +640,7 @@ const buildExcelWorkbook = sheets => {
     {name:"_rels/.rels",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
     {name:"xl/workbook.xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${workbookSheets}</sheets></workbook>`},
     {name:"xl/_rels/workbook.xml.rels",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${workbookRels}${styleRel}</Relationships>`},
-    {name:"xl/styles.xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>`},
+    {name:"xl/styles.xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFD9E1E8"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="1" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs></styleSheet>`},
     ...sheetEntries,
   ]);
 };
@@ -1945,6 +1946,8 @@ const effectiveScopedRows = (data,tab) => {
   return (data?.[tab]?.rows||[]).filter(r=>!r.deleted&&(!units.length||units.some(u=>rowMatchesSn(r,u,units))));
 };
 const effectiveEtuvageRows = data => effectiveScopedRows(data,"etuvage");
+const SAP_IB52_HEADERS = ["","","Article","","N° série","Qté","","","Lot"];
+const SAP_CO02_HEADERS = ["Article","","Qté","","Type","Opération","Séquence","Division","Magasin","","","Lot"];
 const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const header=ofData.header||{};
   const allUnits=(ofData.units?.rows||[]).map(normalizeTrackedUnit).filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
@@ -8179,8 +8182,8 @@ function App(){
   const exportSapExcel=(options={})=>{
     const rows=buildSapExcelRows({ofData,consommables,selectedSnIds:options.selectedSnIds||null});
     const workbook=buildExcelWorkbook([
-      {name:"IB52",rows:rows.IB52},
-      {name:"CO02",rows:rows.CO02},
+      {name:"IB52",rows:[SAP_IB52_HEADERS,...rows.IB52],headerRows:1},
+      {name:"CO02",rows:[SAP_CO02_HEADERS,...rows.CO02],headerRows:1},
     ]);
     downloadBlob(workbook,`${reportFileBaseName(options.selectedSnIds||null)} - SAP IB52 CO02.xlsx`);
   };
