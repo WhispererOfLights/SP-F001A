@@ -565,8 +565,84 @@ const pdfHelveticaTextWidth=(value,size)=>[...pdfText(value).normalize("NFD").re
   .reduce((sum,character)=>sum+(HELVETICA_WIDTHS[character]||556),0)*size/1000;
 const pdfSafeName = v => pdfAscii(v).replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"") || "rapport";
 const fileSafeName = v => pdfAscii(v).replace(/#/g,"SN").replace(/[<>:"/\\|?*\x00-\x1F]+/g," ").replace(/\s+/g," ").trim().replace(/[ .]+$/,"") || "export";
-const csvCell = v => `"${String(v??"").replace(/"/g,'""')}"`;
-const strikeText = v => String(v??"").split("").map(ch=>ch+"\u0336").join("");
+const xmlEsc = value => String(value??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const zipU16 = value => new Uint8Array([value&255,(value>>>8)&255]);
+const zipU32 = value => new Uint8Array([value&255,(value>>>8)&255,(value>>>16)&255,(value>>>24)&255]);
+const concatBytes = parts => {
+  const size=parts.reduce((total,part)=>total+part.length,0);
+  const result=new Uint8Array(size);
+  let offset=0;
+  parts.forEach(part=>{result.set(part,offset);offset+=part.length;});
+  return result;
+};
+const crc32Bytes = bytes => {
+  let crc=0xFFFFFFFF;
+  for(const byte of bytes){
+    crc^=byte;
+    for(let bit=0;bit<8;bit++) crc=(crc>>>1)^((crc&1)?0xEDB88320:0);
+  }
+  return (crc^0xFFFFFFFF)>>>0;
+};
+const buildStoredZip = entries => {
+  const encoder=new TextEncoder();
+  const locals=[];
+  const centrals=[];
+  let offset=0;
+  const now=new Date();
+  const dosTime=(now.getHours()<<11)|(now.getMinutes()<<5)|(now.getSeconds()>>1);
+  const dosDate=((Math.max(1980,now.getFullYear())-1980)<<9)|((now.getMonth()+1)<<5)|now.getDate();
+  entries.forEach(entry=>{
+    const name=encoder.encode(entry.name);
+    const data=typeof entry.data==="string"?encoder.encode(entry.data):entry.data;
+    const crc=crc32Bytes(data);
+    const local=concatBytes([
+      zipU32(0x04034B50),zipU16(20),zipU16(0),zipU16(0),zipU16(dosTime),zipU16(dosDate),
+      zipU32(crc),zipU32(data.length),zipU32(data.length),zipU16(name.length),zipU16(0),name,data,
+    ]);
+    const central=concatBytes([
+      zipU32(0x02014B50),zipU16(20),zipU16(20),zipU16(0),zipU16(0),zipU16(dosTime),zipU16(dosDate),
+      zipU32(crc),zipU32(data.length),zipU32(data.length),zipU16(name.length),zipU16(0),zipU16(0),
+      zipU16(0),zipU16(0),zipU32(0),zipU32(offset),name,
+    ]);
+    locals.push(local);centrals.push(central);offset+=local.length;
+  });
+  const centralData=concatBytes(centrals);
+  const end=concatBytes([
+    zipU32(0x06054B50),zipU16(0),zipU16(0),zipU16(entries.length),zipU16(entries.length),
+    zipU32(centralData.length),zipU32(offset),zipU16(0),
+  ]);
+  return new Blob([...locals,centralData,end],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+};
+const excelColumnName = index => {
+  let value=index+1,name="";
+  while(value){value--;name=String.fromCharCode(65+(value%26))+name;value=Math.floor(value/26);}
+  return name;
+};
+const excelWorksheetXml = rows => {
+  const width=Math.max(1,...rows.map(row=>row.length));
+  const body=rows.map((row,rowIndex)=>`<row r="${rowIndex+1}">${Array.from({length:width},(_,columnIndex)=>{
+    const value=row[columnIndex]??"";
+    const ref=`${excelColumnName(columnIndex)}${rowIndex+1}`;
+    return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(value)}</t></is></c>`;
+  }).join("")}</row>`).join("");
+  const lastRow=Math.max(1,rows.length);
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${excelColumnName(width-1)}${lastRow}"/><sheetData>${body}</sheetData></worksheet>`;
+};
+const buildExcelWorkbook = sheets => {
+  const sheetEntries=sheets.map((sheet,index)=>({name:`xl/worksheets/sheet${index+1}.xml`,data:excelWorksheetXml(sheet.rows||[])}));
+  const overrides=sheets.map((_,index)=>`<Override PartName="/xl/worksheets/sheet${index+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("");
+  const workbookSheets=sheets.map((sheet,index)=>`<sheet name="${xmlEsc(sheet.name)}" sheetId="${index+1}" r:id="rId${index+1}"/>`).join("");
+  const workbookRels=sheets.map((_,index)=>`<Relationship Id="rId${index+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index+1}.xml"/>`).join("");
+  const styleRel=`<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`;
+  return buildStoredZip([
+    {name:"[Content_Types].xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${overrides}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`},
+    {name:"_rels/.rels",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`},
+    {name:"xl/workbook.xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${workbookSheets}</sheets></workbook>`},
+    {name:"xl/_rels/workbook.xml.rels",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${workbookRels}${styleRel}</Relationships>`},
+    {name:"xl/styles.xml",data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>`},
+    ...sheetEntries,
+  ]);
+};
 const compactArticleCode = v => String(v??"").replace(/\s+/g,"").trim();
 const consoDescriptionForCsv = (conso={}, fallback="") => {
   const code = compactArticleCode(conso.sap||conso.code||"");
@@ -1390,13 +1466,13 @@ const PdfOptionsModal = ({snRows, defaultSelectedIds=null, includeHistoryDefault
   const [includeDeleted,setIncludeDeleted] = useState(true);
   const [skipEmptyReports,setSkipEmptyReports] = useState(true);
   const [includePdf,setIncludePdf] = useState(true);
-  const [includeCsv,setIncludeCsv] = useState(false);
+  const [includeExcel,setIncludeExcel] = useState(false);
   const [selectedSections,setSelectedSections]=useState(()=>REPORT_SECTIONS.map(s=>s.id));
   const [selected,setSelected] = useState(()=>defaultSelectedIds?.length ? defaultSelectedIds : snRows.map(u=>u.id));
   const toggle=id=>setSelected(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
   const selectAll=()=>setSelected(snRows.map(u=>u.id));
   const selectNone=()=>setSelected([]);
-  const canGenerate=(!snRows.length || selected.length>0) && (includePdf||includeCsv) && (!includePdf||selectedSections.length>0);
+  const canGenerate=(!snRows.length || selected.length>0) && (includePdf||includeExcel) && (!includePdf||selectedSections.length>0);
   return (
     <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,
       display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
@@ -1415,9 +1491,9 @@ const PdfOptionsModal = ({snRows, defaultSelectedIds=null, includeHistoryDefault
             PDF
           </label>
           <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,cursor:"pointer"}}>
-            <input type="checkbox" checked={includeCsv} onChange={e=>setIncludeCsv(e.target.checked)}
+            <input type="checkbox" checked={includeExcel} onChange={e=>setIncludeExcel(e.target.checked)}
               style={{accentColor:C.blue}}/>
-            CSV Adjust/Rework + Consommables
+            Excel SAP (IB52 + CO02)
           </label>
         </div>
         {includePdf&&<fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
@@ -1471,7 +1547,7 @@ const PdfOptionsModal = ({snRows, defaultSelectedIds=null, includeHistoryDefault
         </label>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
           <Btn onClick={onCancel} color={C.border} small>Annuler</Btn>
-          <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({selectedSnIds:selected,selectedSections,includeHistory,includeDeleted,skipEmptyReports,includePdf,includeCsv})}
+          <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({selectedSnIds:selected,selectedSections,includeHistory,includeDeleted,skipEmptyReports,includePdf,includeExcel})}
             color={canGenerate?C.green:C.border} small>Generer</Btn>
         </div>
       </div>
@@ -1869,6 +1945,57 @@ const effectiveScopedRows = (data,tab) => {
   return (data?.[tab]?.rows||[]).filter(r=>!r.deleted&&(!units.length||units.some(u=>rowMatchesSn(r,u,units))));
 };
 const effectiveEtuvageRows = data => effectiveScopedRows(data,"etuvage");
+const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
+  const header=ofData.header||{};
+  const allUnits=(ofData.units?.rows||[]).map(normalizeTrackedUnit).filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
+  const selectedSet=new Set(selectedSnIds?.length?selectedSnIds:allUnits.map(unit=>unit.id));
+  const selectedUnits=allUnits.filter(unit=>selectedSet.has(unit.id));
+  const targets=selectedUnits.length?selectedUnits:[{id:"__of__",sn:header.sn||"",lot:header.lot||"",unitKind:header.lot?"lot":"sn"}];
+  const consoById=Object.fromEntries((consommables||[]).map(item=>[item.id,item]));
+  const exportable=row=>!!row&&!row.deleted&&row.validated!==false;
+  const targetRows=row=>targets.filter(target=>target.id==="__of__"||rowMatchesSn(row,target,allUnits));
+  const rework=(ofData.rework?.rows||[]).filter(exportable);
+  const consoLines=(ofData.consommables?.ops||[]).filter(exportable).flatMap(op=>(op.items||[])
+    .filter(exportable).map(item=>({op,item,conso:consoById[item.consoId]||{}})));
+  const facts=(ofData.faits?.rows||[]).filter(exportable);
+  const qty=value=>String(value??"").trim()||"1";
+  const article=value=>compactArticleCode(value);
+  const ib52=[];
+  const co02=[];
+
+  // IB52 : tous les consommables.
+  consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>ib52.push([
+    "","",article(conso.sap||conso.code||item.consoId),"",String(item.echantillon||""),qty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
+  ])));
+
+  // IB52 : état final de chaque repère TOPO pour chaque SN / LOT sélectionné.
+  targets.forEach(target=>{
+    const finalByRepere=new Map();
+    rework
+      .filter(row=>target.id==="__of__"||rowMatchesSn(row,target,allUnits))
+      .filter(row=>["S","D","P","M"].includes(row.action1)&&String(row.repere||"").trim())
+      .map((row,index)=>({row,index,time:appDateTimestamp(row.createdDT)}))
+      .sort((a,b)=>a.time-b.time||a.index-b.index)
+      .forEach(({row})=>finalByRepere.set(String(row.repere).trim().toUpperCase(),row));
+    [...finalByRepere.values()].filter(row=>["S","P","M"].includes(row.action1)).forEach(row=>ib52.push([
+      "","",article(row.codeERP),"",String(row.sn||""),qty(row.qty),"","",String(row.lot||""),
+    ]));
+  });
+
+  // IB52 : faits techniques actifs.
+  facts.forEach(row=>targetRows(row).forEach(()=>ib52.push([
+    "","",String(row.numero||row.type||""),"","","1","","","",
+  ])));
+
+  // CO02 : composants montés, puis consommables.
+  rework.filter(row=>["S","M","P"].includes(row.action1)).forEach(row=>targetRows(row).forEach(()=>co02.push([
+    article(row.codeERP),"",qty(row.qty),"","L","0010","0","7700","PRD3","","",String(row.lot||""),
+  ])));
+  consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>co02.push([
+    article(conso.sap||conso.code||item.consoId),"",qty(item.qty||item.qte||op.qty||op.qte),"","L","0010","0","7700","PRD3","","",String(item.lot||""),
+  ])));
+  return {IB52:ib52,CO02:co02};
+};
 const SnFilter = ({value,onChange,header,title="Filtrer SN cible"}) => {
   const rows=snRowsFromHeader(header);
   if(!rows.length) return null;
@@ -8049,80 +8176,13 @@ function App(){
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
     downloadBlob(blob,name);
   };
-  const exportSapCsv=(options={})=>{
-    const snRows=(ofData?.units?.rows||[]).filter(u=>!u.deleted&&hasUnitIdentity(u));
-    const selectedIds=options.selectedSnIds&&options.selectedSnIds.length ? options.selectedSnIds : snRows.map(u=>u.id);
-    const selectedSnRows=snRows.length ? snRows.filter(u=>selectedIds.includes(u.id)) : [];
-    const consoById=Object.fromEntries((consommables||[]).map(c=>[c.id,c]));
-    const headers=["Source","Date","Visa","SN","LOT","Fiche","OP","Repere/Conso","Action","Qte","N echantillon","Code article","Valeur","LOT comp./conso","DC/DP","CTRL","TRACA","Annulee","Annule le","Annule par","Motif annulation"];
-    const fmt=(v,deleted)=>deleted?strikeText(v):String(v??"");
-    const targetsFor=row=>{
-      if(!snRows.length) return [{sn:h?.sn||h?.snProduitFini||"",lot:h?.lot||"", label:snScopeLabel(row,[])}];
-      return selectedSnRows
-        .filter(sn=>rowMatchesSn(row,sn,snRows))
-        .map(sn=>({sn:sn.sn||"",lot:sn.lot||"",label:snTitle(sn)}));
-    };
-    const rows=[];
-    (ofData?.rework?.rows||[]).forEach(r=>{
-      const deleted=!!r.deleted;
-      targetsFor(r).forEach(target=>rows.push([
-        "Adjust/Rework",
-        fmt(r.createdDT,deleted),
-        fmt(r.createdVisa,deleted),
-        fmt(target.sn,deleted),
-        fmt(target.lot,deleted),
-        fmt(r.fiche,deleted),
-        fmt(r.etape,deleted),
-        fmt(r.repere,deleted),
-        fmt(ACTION_LABELS[r.action1]||r.action1,deleted),
-        fmt(r.qty||"",deleted),
-        "",
-        fmt(compactArticleCode(r.codeERP),deleted),
-        fmt(r.valeur,deleted),
-        fmt(r.lot,deleted),
-        fmt(r.dc,deleted),
-        fmt(visaStamp(r.visaCtrl,r.dateCtrl),deleted),
-        fmt(visaStamp(r.visaTraca,r.dateTraca),deleted),
-        deleted?"X":"",
-        r.deletedDate||"",
-        r.deletedVisa||"",
-        r.deletedReason||""
-      ]));
-    });
-    (ofData?.consommables?.ops||[]).forEach(op=>{
-      const items=(op.items||[]).length?op.items:[{}];
-      items.forEach(it=>{
-        const conso=consoById[it.consoId]||{};
-        const consoCode=compactArticleCode(conso.sap||conso.code||it.consoId);
-        const consoDesc=consoDescriptionForCsv(conso,it.consoId);
-        const deleted=!!op.deleted||!!it.deleted;
-        targetsFor(op).forEach(target=>rows.push([
-          "Consommable",
-          fmt(it.createdDT||op.createdDT,deleted),
-          fmt(it.createdVisa||op.createdVisa,deleted),
-          fmt(target.sn,deleted),
-          fmt(target.lot,deleted),
-          fmt(op.fiche,deleted),
-          fmt(op.op,deleted),
-          fmt(consoDesc,deleted),
-          "",
-          fmt(it.qty||it.qte||op.qty||op.qte||"1",deleted),
-          fmt(it.echantillon,deleted),
-          fmt(consoCode,deleted),
-          "",
-          fmt(it.lot,deleted),
-          fmt(it.dp,deleted),
-          "",
-          fmt(visaStamp(it.visaTraca,it.dateTraca),deleted),
-          deleted?"X":"",
-          it.deletedDate||op.deletedDate||"",
-          it.deletedVisa||op.deletedVisa||"",
-          it.deletedReason||op.deletedReason||""
-        ]));
-      });
-    });
-    const csv="\uFEFF"+[headers,...rows].map(r=>r.map(csvCell).join(";")).join("\r\n");
-    downloadBlob(new Blob([csv],{type:"text/csv;charset=utf-8"}),`${reportFileBaseName(options.selectedSnIds||null)} - Adjust-Rework Consommables.csv`);
+  const exportSapExcel=(options={})=>{
+    const rows=buildSapExcelRows({ofData,consommables,selectedSnIds:options.selectedSnIds||null});
+    const workbook=buildExcelWorkbook([
+      {name:"IB52",rows:rows.IB52},
+      {name:"CO02",rows:rows.CO02},
+    ]);
+    downloadBlob(workbook,`${reportFileBaseName(options.selectedSnIds||null)} - SAP IB52 CO02.xlsx`);
   };
   const downloadReportPdf=async (options={})=>{
     const includeHistory = !!options.includeHistory;
@@ -8145,7 +8205,7 @@ function App(){
   };
   const exportReportPack=async (options={})=>{
     if(options.includePdf) await downloadReportPdf({...options,keepModal:true});
-    if(options.includeCsv) exportSapCsv(options);
+    if(options.includeExcel) exportSapExcel(options);
     setShowPdfOptions(false);
   };
 
