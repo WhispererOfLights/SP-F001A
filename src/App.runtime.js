@@ -19207,6 +19207,11 @@ var homeFactsForUnit = function homeFactsForUnit(data, unitId) {
     return !unit || rowMatchesSn(row, unit, units);
   });
 };
+var homeFactSearchText = function homeFactSearchText(facts) {
+  return (facts || []).map(function (fact) {
+    return [fact.type, fact.numero, fact.commentaires, fact.date, fact.visa, fact.closedDate, fact.closedVisa].filter(Boolean).join(" ");
+  }).join(" ");
+};
 var OFSelector = function OFSelector(_ref123) {
   var _STATUTS1, _STATUTS10, _STATUTS11;
   var ofList = _ref123.ofList,
@@ -19566,6 +19571,7 @@ var OFSelector = function OFSelector(_ref123) {
       var n = nextEtuvageForRow(o);
       return n.count ? n.label : "";
     }
+    if (key === "followup") return "".concat(homeFactSearchText(homeFactsForUnit(dataById[o.id], o._homeUnitId)), " ").concat((warningsById[o.id] || []).join(" "), " ").concat(openOWById[o.id] ? "OW ".concat(openOWById[o.id]) : "");
     return String(o[key] || "");
   };
   var homeSortValue = function homeSortValue(o, key) {
@@ -19610,8 +19616,8 @@ var OFSelector = function OFSelector(_ref123) {
         value = _ref128[1];
       return value && !columnValue(o, key).toLowerCase().includes(value.toLowerCase().trim());
     })) return false;
-    return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS9 = STATUTS[o.status || "en_cours"]) === null || _STATUTS9 === void 0 ? void 0 : _STATUTS9.label, (_STATUTS0 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label].some(function (v) {
-      return v === null || v === void 0 ? void 0 : v.toLowerCase().includes(q);
+    return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS9 = STATUTS[o.status || "en_cours"]) === null || _STATUTS9 === void 0 ? void 0 : _STATUTS9.label, (_STATUTS0 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, homeFactSearchText(homeFactsForUnit(dataById[o.id], o._homeUnitId))].some(function (v) {
+      return String(v || "").toLowerCase().includes(q);
     });
   });
   var searchActive = !!search.trim() || Object.values(columnFilters).some(function (value) {
@@ -20193,7 +20199,7 @@ var OFSelector = function OFSelector(_ref123) {
       setPage(0);
     },
     title: "Rechercher un OF, SN ou lot",
-    placeholder: "\uD83D\uDD0D  OF, SN, LOT, SN Produit Fini, OTP\u2026"
+    placeholder: "\uD83D\uDD0D  OF, SN, LOT, OTP, NC, DM, ISS\u2026"
   })), /*#__PURE__*/React.createElement("select", {
     value: sort,
     onChange: function onChange(e) {
@@ -20687,7 +20693,11 @@ var OFSelector = function OFSelector(_ref123) {
         padding: "4px 5px"
       }
     }, columnFilter(key, label));
-  }), /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
+  }), /*#__PURE__*/React.createElement("td", {
+    style: {
+      padding: "4px 5px"
+    }
+  }, columnFilter("followup", "Faits / Suivi")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
     var _STATUTS12, _STATUTS13, _STATUTS14, _UNIT_STATUTS4, _UNIT_STATUTS5, _UNIT_STATUTS6, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
     var isRecent = openHistory[0] === o.id;

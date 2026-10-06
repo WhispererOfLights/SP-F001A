@@ -6385,6 +6385,9 @@ const homeFactsForUnit = (data,unitId) => {
   const unit=units.find(item=>item.id===unitId&&!item.deleted);
   return effectiveScopedRows(data,"faits").filter(row=>!unit||rowMatchesSn(row,unit,units));
 };
+const homeFactSearchText = facts => (facts||[]).map(fact=>[
+  fact.type,fact.numero,fact.commentaires,fact.date,fact.visa,fact.closedDate,fact.closedVisa,
+].filter(Boolean).join(" ")).join(" ");
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageUsers,onManageStatuses}) => {
   const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
   const [search,setSearch]          = useState("");
@@ -6477,6 +6480,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     if(key==="unitStatus") return UNIT_STATUTS[o.unitStatus]?.label||"";
     if(key==="otp") return o.otp||o.projet||"";
     if(key==="nextEtuvage"){const n=nextEtuvageForRow(o);return n.count?n.label:"";}
+    if(key==="followup") return `${homeFactSearchText(homeFactsForUnit(dataById[o.id],o._homeUnitId))} ${(warningsById[o.id]||[]).join(" ")} ${openOWById[o.id]?`OW ${openOWById[o.id]}`:""}`;
     return String(o[key]||"");
   };
   const homeSortValue=(o,key)=>{
@@ -6503,7 +6507,10 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     if(onlyWarnings&&!warningsById[o.id]?.length) return false;
     if(filterStatus.length&&!filterStatus.includes(o.status||"en_cours")&&!filterStatus.includes(o.unitStatus||"en_cours")) return false;
     if(Object.entries(columnFilters).some(([key,value])=>value&&!columnValue(o,key).toLowerCase().includes(value.toLowerCase().trim()))) return false;
-    return !q||[o.of,o.sn,o.lot,o.snProduitFini,o.description,o.otp,o.projet,o.ofRework,o.codeArticle,STATUTS[o.status||"en_cours"]?.label,STATUTS[o.unitStatus||"en_cours"]?.label].some(v=>v?.toLowerCase().includes(q));
+    return !q||[o.of,o.sn,o.lot,o.snProduitFini,o.description,o.otp,o.projet,o.ofRework,o.codeArticle,
+      STATUTS[o.status||"en_cours"]?.label,STATUTS[o.unitStatus||"en_cours"]?.label,
+      homeFactSearchText(homeFactsForUnit(dataById[o.id],o._homeUnitId))
+    ].some(v=>String(v||"").toLowerCase().includes(q));
   });
   const searchActive=!!search.trim()||Object.values(columnFilters).some(value=>String(value).trim());
   const workedFilter=homeWorkedFilter(matching,workedIds,onlyWorked,searchActive);
@@ -6664,7 +6671,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
         {/* Recherche */}
         <div style={{flex:1,minWidth:180}}>
-          <Input value={search} onChange={v=>{setSearch(v);setPage(0);}} title="Rechercher un OF, SN ou lot" placeholder="🔍  OF, SN, LOT, SN Produit Fini, OTP…"/>
+          <Input value={search} onChange={v=>{setSearch(v);setPage(0);}} title="Rechercher un OF, SN ou lot" placeholder="🔍  OF, SN, LOT, OTP, NC, DM, ISS…"/>
         </div>
         {/* Tri */}
         <select value={sort} onChange={e=>{setSort(e.target.value);setColumnSort({key:"",direction:"asc"});setPage(0);}}
@@ -6808,7 +6815,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 {isAdminManager(user)&&<td/>}
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
                 {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['status','Statut OF'],['unitStatus','Statut SN'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
-                <td/>
+                <td style={{padding:"4px 5px"}}>{columnFilter("followup","Faits / Suivi")}</td>
                 <td/>
               </tr>
             </thead>
