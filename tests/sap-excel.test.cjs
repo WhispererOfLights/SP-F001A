@@ -14,7 +14,7 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/App.runtime.js'), 'utf8') +
-  ';globalThis.sapRows=buildSapExcelRows;globalThis.excelWorkbook=buildExcelWorkbook;', context);
+  ';globalThis.sapRows=buildSapExcelRows;globalThis.sapHeader=sapExcelDocumentHeader;globalThis.excelWorkbook=buildExcelWorkbook;', context);
 
 const unit = {id:'u1',sn:'SN-FINI',unitKind:'sn'};
 const rework = (id,repere,action1,codeERP,createdDT,extra={}) => ({
@@ -45,6 +45,7 @@ const ofData = {
   ]},
 };
 const rows = context.sapRows({ofData,consommables:[{id:'conso1',sap:'1600000046',label:'Soudure'}],selectedSnIds:['u1']});
+const documentHeader=context.sapHeader({ofData,selectedSnIds:['u1']});
 
 assert.ok(rows.IB52.every(row=>row.length===9));
 assert.ok(rows.CO02.every(row=>row.length===12));
@@ -63,22 +64,28 @@ const fullFacts=rows.FULL.filter(row=>row[0]==='Fait technique');
 assert.deepEqual(Array.from(fullFacts,row=>[row[7],row[11],row[13]]),[
   ['NC','2920000656','NC-001'],['DM','2920000657','DM-001'],['ISS','2920000656','ISS-001'],
 ]);
+assert.deepEqual(Array.from(documentHeader,row=>Array.from(row)),[
+  ['N° OF','N° article','Description','SN du dossier export'],
+  ['1000','','','SN-FINI'],
+  [],
+]);
 
 (async()=>{
   const ib52Headers=['','','Article','','N° série','Qté','','','Lot'];
   const co02Headers=['Article','','Qté','','Type','Opération','Séquence','Division','Magasin','','','Lot'];
   const fullHeaders=['Source','Date','Visa','SN cible','LOT cible','Fiche suiveuse','OP','Repère / Type','Action / Statut','Qté','N° échantillon / Fait','Code article','Valeur / Désignation','LOT / N° fait','DC / DP','CTRL','TRAÇA','Date ouverture','Visa ouverture','Date clôture','Visa clôture','Lien','Commentaires','Annulée','Annulée le','Annulée par','Motif annulation'];
+  const sheetRows=(headers,data)=>[...documentHeader,headers,...data];
   const blob=context.excelWorkbook([
-    {name:'IB52',rows:[ib52Headers,...rows.IB52],headerRows:1},
-    {name:'CO02',rows:[co02Headers,...rows.CO02],headerRows:1},
-    {name:'Toutes les infos',rows:[fullHeaders,...rows.FULL],headerRows:1},
+    {name:'IB52',rows:sheetRows(ib52Headers,rows.IB52),headerRows:[0,3]},
+    {name:'CO02',rows:sheetRows(co02Headers,rows.CO02),headerRows:[0,3]},
+    {name:'Toutes les infos',rows:sheetRows(fullHeaders,rows.FULL),headerRows:[0,3]},
   ]);
   assert.equal(blob.type,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   const bytes=Buffer.from(await blob.arrayBuffer());
   assert.equal(bytes.subarray(0,2).toString(),'PK');
   const raw=bytes.toString('utf8');
   for(const marker of ['xl/workbook.xml','xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml','xl/worksheets/sheet3.xml','name="IB52"','name="CO02"','name="Toutes les infos"']) assert.ok(raw.includes(marker),marker);
-  for(const marker of ['N° série','Opération','Séquence','Division','Magasin','s="1"']) assert.ok(raw.includes(marker),marker);
+  for(const marker of ['N° OF','N° article','Description','SN du dossier export','SN-FINI','N° série','Opération','Séquence','Division','Magasin','s="1"']) assert.ok(raw.includes(marker),marker);
   const tempFile=path.join(os.tmpdir(),`sp-f001a-sap-${process.pid}.xlsx`);
   fs.writeFileSync(tempFile,bytes);
   const zipCheck=spawnSync('python',['-c','import sys,zipfile,xml.etree.ElementTree as ET; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; ET.fromstring(z.read("xl/workbook.xml")); ET.fromstring(z.read("xl/worksheets/sheet1.xml")); ET.fromstring(z.read("xl/worksheets/sheet2.xml")); ET.fromstring(z.read("xl/worksheets/sheet3.xml"))',tempFile],{encoding:'utf8'});

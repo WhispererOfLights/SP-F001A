@@ -620,10 +620,11 @@ const excelColumnName = index => {
 };
 const excelWorksheetXml = (rows,headerRows=0) => {
   const width=Math.max(1,...rows.map(row=>row.length));
+  const styledRows=new Set(Array.isArray(headerRows)?headerRows:Array.from({length:headerRows},(_,index)=>index));
   const body=rows.map((row,rowIndex)=>`<row r="${rowIndex+1}">${Array.from({length:width},(_,columnIndex)=>{
     const value=row[columnIndex]??"";
     const ref=`${excelColumnName(columnIndex)}${rowIndex+1}`;
-    const style=rowIndex<headerRows?' s="1"':"";
+    const style=styledRows.has(rowIndex)?' s="1"':"";
     return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(value)}</t></is></c>`;
   }).join("")}</row>`).join("");
   const lastRow=Math.max(1,rows.length);
@@ -1949,6 +1950,19 @@ const effectiveEtuvageRows = data => effectiveScopedRows(data,"etuvage");
 const SAP_IB52_HEADERS = ["","","Article","","N° série","Qté","","","Lot"];
 const SAP_CO02_HEADERS = ["Article","","Qté","","Type","Opération","Séquence","Division","Magasin","","","Lot"];
 const SAP_FULL_HEADERS = ["Source","Date","Visa","SN cible","LOT cible","Fiche suiveuse","OP","Repère / Type","Action / Statut","Qté","N° échantillon / Fait","Code article","Valeur / Désignation","LOT / N° fait","DC / DP","CTRL","TRAÇA","Date ouverture","Visa ouverture","Date clôture","Visa clôture","Lien","Commentaires","Annulée","Annulée le","Annulée par","Motif annulation"];
+const sapExcelDocumentHeader = ({ofData={},selectedSnIds=null}) => {
+  const header=ofData.header||{};
+  const units=(ofData.units?.rows||[]).map(normalizeTrackedUnit).filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
+  const selectedSet=new Set(selectedSnIds?.length?selectedSnIds:units.map(unit=>unit.id));
+  const selected=units.filter(unit=>selectedSet.has(unit.id));
+  const identities=(selected.length?selected:units).map(unit=>unit.sn||unit.lot).filter(Boolean);
+  const dossierSn=[...new Set(identities)].join(" ; ")||header.sn||header.lot||"";
+  return [
+    ["N° OF","N° article","Description","SN du dossier export"],
+    [header.of||"",header.codeArticle||"",header.description||"",dossierSn],
+    [],
+  ];
+};
 const factSapArticle = type => ({NC:"2920000656",DM:"2920000657",ISS:"2920000656"})[String(type||"").trim().toUpperCase()]||"";
 const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const header=ofData.header||{};
@@ -7584,10 +7598,12 @@ export default function App(){
   };
   const exportSapExcel=(options={})=>{
     const rows=buildSapExcelRows({ofData,consommables,selectedSnIds:options.selectedSnIds||null});
+    const documentHeader=sapExcelDocumentHeader({ofData,selectedSnIds:options.selectedSnIds||null});
+    const sheetRows=(columns,data)=>[...documentHeader,columns,...data];
     const workbook=buildExcelWorkbook([
-      {name:"IB52",rows:[SAP_IB52_HEADERS,...rows.IB52],headerRows:1},
-      {name:"CO02",rows:[SAP_CO02_HEADERS,...rows.CO02],headerRows:1},
-      {name:"Toutes les infos",rows:[SAP_FULL_HEADERS,...rows.FULL],headerRows:1},
+      {name:"IB52",rows:sheetRows(SAP_IB52_HEADERS,rows.IB52),headerRows:[0,3]},
+      {name:"CO02",rows:sheetRows(SAP_CO02_HEADERS,rows.CO02),headerRows:[0,3]},
+      {name:"Toutes les infos",rows:sheetRows(SAP_FULL_HEADERS,rows.FULL),headerRows:[0,3]},
     ]);
     downloadBlob(workbook,`${reportFileBaseName(options.selectedSnIds||null)} - SAP IB52 CO02.xlsx`);
   };
