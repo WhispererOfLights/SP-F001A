@@ -69,6 +69,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.getByRole('cell',{name:'2 SN',exact:true}).count()>0,true);
     assert.equal(await page.getByRole('cell',{name:'1 LOT',exact:true}).count()>0,true);
     await expandHomeOf.click();
+    assert.equal(await page.getByRole('cell',{name:'250001163',exact:true}).count(),3);
+    assert.equal(await page.getByRole('cell',{name:'Article de test',exact:true}).count(),3);
+    assert.equal(await page.getByText('récent',{exact:true}).count(),0);
     await page.getByRole('button',{name:'Trier SN de A à Z',exact:true}).click();
     let sortedHomeRows=await page.locator('tbody input[aria-label^="Sélectionner "]').evaluateAll(inputs=>inputs.map(input=>input.getAttribute('aria-label')));
     assert.ok(sortedHomeRows[0].startsWith('Sélectionner SN1'));

@@ -7020,7 +7020,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [pageSize,setPageSize]=useState(25);
   const [columnFilters,setColumnFilters]=useState({});
   const [dataById,setDataById]=useState({});
-  const [sort,setSort]               = useState("fav");
+  const [sort,setSort]               = useState("opens");
   const [columnSort,setColumnSort]   = useState({key:"",direction:"asc"});
   const [filterStatus,setFilterStatus] = useState([]);
   const [onlyWorked,setOnlyWorked] = useState(true);
@@ -7462,7 +7462,6 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             <tbody>
               {paged.map((o,i)=>{
                 const isFav=favs.includes(o.id);
-                const isRecent=openHistory[0]===o.id;
                 const snLabels=snLabelsById[o.id]||snRowsFromHeader(o).map(snTitle);
                 const ofRows=allHomeRows.filter(row=>row.id===o.id);
                 const multiSn=ofRows.length>1;
@@ -7500,16 +7499,15 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                         {multiSn&&groupStart&&<button type="button" aria-label={`${collapsed?"Déplier":"Replier"} les ${summaryName} de OF ${o.of}`} title={collapsed?"Afficher les SN / LOT":"Replier les SN / LOT"} onClick={e=>{e.stopPropagation();toggleOfExpanded(o.id);}}
                           style={{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:`1px solid ${C.blue}`,borderRadius:4,background:C.blue+"12",color:C.blue,fontSize:13,fontWeight:900,cursor:"pointer",flexShrink:0}}>{collapsed?"+":"−"}</button>}
-                        <span style={{fontWeight:700,fontFamily:"monospace",color:groupStart?C.text:C.muted}}>{groupStart?o.of:`↳ ${o.of}`}</span>
+                        <span style={{fontWeight:700,fontFamily:"monospace",color:C.text}}>{o.of}</span>
                         {multiSn&&groupStart&&<span title={`${snLabels.length} SN / LOT : ${snLabels.join(", ")}`}><Badge label={summaryName} color={C.blue}/></span>}
-                        {isRecent&&<Badge label="récent" color={C.purple}/>}
                       </div>
                     </TD>
-                    <TD><span style={{fontFamily:"monospace",color:C.muted}}>{groupStart?(o.codeArticle||o.articleNo||"—"):""}</span></TD>
+                    <TD><span style={{fontFamily:"monospace",color:C.muted}}>{o.codeArticle||o.articleNo||"—"}</span></TD>
                     <TD><span style={{fontFamily:"monospace",color:collapsed||o.sn?C.blue:C.muted,fontWeight:700}}>{collapsed?snSummary:(o.sn||"—")}</span></TD>
                     <TD><span style={{fontFamily:"monospace",color:C.muted,fontWeight:collapsed?700:400}}>{collapsed?lotSummary:(o.lot||"—")}</span></TD>
-                    <TD><span style={{color:C.text}}>{groupStart?(o.description||"—"):""}</span></TD>
-                    <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{groupStart?(o.otp||o.projet||"—"):""}</span></TD>
+                    <TD><span style={{color:C.text}}>{o.description||"—"}</span></TD>
+                    <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{o.otp||o.projet||"—"}</span></TD>
                     <TD onClick={e=>e.stopPropagation()}>{collapsed?<span style={{color:C.muted}}>—</span>:<FinishedProductSn of={o} user={user} onSave={onFinishedSnChange}/>}</TD>
                     <TD center><Badge label={(String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true")?"Oui":"Non"} color={String(o.ofRework||"").toLowerCase()==="oui"?C.yellow:C.border}/></TD>
                     <TD center>

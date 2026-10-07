@@ -19262,7 +19262,7 @@ var OFSelector = function OFSelector(_ref123) {
     _useState234 = _slicedToArray(_useState233, 2),
     dataById = _useState234[0],
     setDataById = _useState234[1];
-  var _useState235 = useState("fav"),
+  var _useState235 = useState("opens"),
     _useState236 = _slicedToArray(_useState235, 2),
     sort = _useState236[0],
     setSort = _useState236[1];
@@ -20739,7 +20739,6 @@ var OFSelector = function OFSelector(_ref123) {
   }, columnFilter("followup", "Faits / Suivi")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
     var _STATUTS12, _STATUTS13, _STATUTS14, _UNIT_STATUTS$groupSt, _UNIT_STATUTS$groupSt2, _UNIT_STATUTS4, _UNIT_STATUTS5, _UNIT_STATUTS6, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
-    var isRecent = openHistory[0] === o.id;
     var snLabels = snLabelsById[o.id] || snRowsFromHeader(o).map(snTitle);
     var ofRows = allHomeRows.filter(function (row) {
       return row.id === o.id;
@@ -20861,22 +20860,19 @@ var OFSelector = function OFSelector(_ref123) {
       style: {
         fontWeight: 700,
         fontFamily: "monospace",
-        color: groupStart ? C.text : C.muted
+        color: C.text
       }
-    }, groupStart ? o.of : "\u21B3 ".concat(o.of)), multiSn && groupStart && /*#__PURE__*/React.createElement("span", {
+    }, o.of), multiSn && groupStart && /*#__PURE__*/React.createElement("span", {
       title: "".concat(snLabels.length, " SN / LOT : ").concat(snLabels.join(", "))
     }, /*#__PURE__*/React.createElement(Badge, {
       label: summaryName,
       color: C.blue
-    })), isRecent && /*#__PURE__*/React.createElement(Badge, {
-      label: "r\xE9cent",
-      color: C.purple
-    }))), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+    })))), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "monospace",
         color: C.muted
       }
-    }, groupStart ? o.codeArticle || o.articleNo || "—" : "")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+    }, o.codeArticle || o.articleNo || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "monospace",
         color: collapsed || o.sn ? C.blue : C.muted,
@@ -20892,14 +20888,14 @@ var OFSelector = function OFSelector(_ref123) {
       style: {
         color: C.text
       }
-    }, groupStart ? o.description || "—" : "")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+    }, o.description || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "monospace",
         fontSize: 11,
         color: C.muted,
         whiteSpace: "nowrap"
       }
-    }, groupStart ? o.otp || o.projet || "—" : "")), /*#__PURE__*/React.createElement(TD, {
+    }, o.otp || o.projet || "—")), /*#__PURE__*/React.createElement(TD, {
       onClick: function onClick(e) {
         return e.stopPropagation();
       }
