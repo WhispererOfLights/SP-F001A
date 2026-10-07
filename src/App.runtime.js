@@ -20341,7 +20341,7 @@ var OFSelector = function OFSelector(_ref122) {
       });
     },
     color: showNew ? C.border : C.accent
-  }, showNew ? "✕ Annuler" : "+ Nouveau dossier")), isAdminManager(user) && selectionMode && /*#__PURE__*/React.createElement("div", {
+  }, showNew ? "✕ Annuler" : "+ Nouveau dossier")), selectionMode && /*#__PURE__*/React.createElement("div", {
     role: "toolbar",
     "aria-label": "Actions sur la s\xE9lection",
     style: {
@@ -20371,7 +20371,7 @@ var OFSelector = function OFSelector(_ref122) {
     onClick: exportBulkComponentSheets,
     color: C.blue,
     small: true
-  }, "Feuilles composants"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Feuilles composants"), isAdminManager(user) && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(Btn, {
     onClick: function onClick() {
       return setHomeMailKind("closure");
     },
@@ -20384,7 +20384,7 @@ var OFSelector = function OFSelector(_ref122) {
     color: C.yellow,
     small: true,
     disabled: mixedMeetingOtp
-  }, "Inspection IP"), /*#__PURE__*/React.createElement(Btn, {
+  }, "Inspection IP")), /*#__PURE__*/React.createElement(Btn, {
     onClick: function onClick() {
       return setSelectedKeys([]);
     },
@@ -20693,7 +20693,7 @@ var OFSelector = function OFSelector(_ref122) {
       top: 0,
       zIndex: 6
     }
-  }, /*#__PURE__*/React.createElement("tr", null, isAdminManager(user) && /*#__PURE__*/React.createElement(TH, {
+  }, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement(TH, {
     w: 34
   }, /*#__PURE__*/React.createElement("input", {
     "aria-label": "S\xE9lectionner les lignes de la page",
@@ -20710,7 +20710,7 @@ var OFSelector = function OFSelector(_ref122) {
     style: {
       background: C.raised
     }
-  }, isAdminManager(user) && /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
+  }, /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
     type: "button",
     title: "Effacer les filtres de colonne",
     "aria-label": "Effacer les filtres de colonne",
@@ -20793,7 +20793,7 @@ var OFSelector = function OFSelector(_ref122) {
       onMouseLeave: function onMouseLeave(e) {
         return e.currentTarget.style.background = selected ? C.yellow + "20" : isFav ? "#e05c0008" : i % 2 === 0 ? "transparent" : C.stripe;
       }
-    }, isAdminManager(user) && /*#__PURE__*/React.createElement(TD, {
+    }, /*#__PURE__*/React.createElement(TD, {
       center: true,
       onClick: function onClick(e) {
         e.stopPropagation();
@@ -21199,7 +21199,7 @@ var OFSelector = function OFSelector(_ref122) {
       onSaveProfile && onSaveProfile(v);
       setShowProfile(false);
     }
-  }), showBulkPdf && isAdminManager(user) && /*#__PURE__*/React.createElement(BulkPdfOptionsModal, {
+  }), showBulkPdf && /*#__PURE__*/React.createElement(BulkPdfOptionsModal, {
     rows: selectedRows,
     onCancel: function onCancel() {
       return setShowBulkPdf(false);

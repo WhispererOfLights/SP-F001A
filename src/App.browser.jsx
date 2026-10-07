@@ -7339,12 +7339,14 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         )}
       </div>
 
-      {isAdminManager(user)&&selectionMode&&<div role="toolbar" aria-label="Actions sur la sélection" style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:12,padding:"8px 10px",background:C.blue+"10",border:`1px solid ${C.blue}`,borderRadius:6}}>
+      {selectionMode&&<div role="toolbar" aria-label="Actions sur la sélection" style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:12,padding:"8px 10px",background:C.blue+"10",border:`1px solid ${C.blue}`,borderRadius:6}}>
         <strong style={{color:C.blue,fontSize:12,minWidth:105}}>{selectedRows.length} sélectionnée{selectedRows.length>1?"s":""}</strong>
         <Btn onClick={()=>setShowBulkPdf(true)} color={C.blue} small>Imprimer les dossiers</Btn>
         <Btn onClick={exportBulkComponentSheets} color={C.blue} small>Feuilles composants</Btn>
-        <Btn onClick={()=>setHomeMailKind("closure")} color={C.green} small>Clôture logistique</Btn>
-        <Btn onClick={()=>setHomeMailKind("ip")} color={C.yellow} small disabled={mixedMeetingOtp}>Inspection IP</Btn>
+        {isAdminManager(user)&&<>
+          <Btn onClick={()=>setHomeMailKind("closure")} color={C.green} small>Clôture logistique</Btn>
+          <Btn onClick={()=>setHomeMailKind("ip")} color={C.yellow} small disabled={mixedMeetingOtp}>Inspection IP</Btn>
+        </>}
         <Btn onClick={()=>setSelectedKeys([])} color={C.border} small>Annuler la sélection</Btn>
         <span style={{color:C.muted,fontSize:11,marginLeft:"auto"}}>Cliquez sur une ligne pour l’ajouter. La flèche ouvre toujours le dossier.</span>
         {mixedMeetingOtp&&<span role="alert" style={{width:"100%",fontSize:11,color:C.yellow,fontWeight:700}}>Une invitation IP ne peut contenir qu’un seul OTP.</span>}
@@ -7438,7 +7440,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
             <thead style={{position:"sticky",top:0,zIndex:6}}>
               <tr>
-                {isAdminManager(user)&&<TH w={34}><input aria-label="Sélectionner les lignes de la page" type="checkbox" checked={allPageSelected} onChange={e=>togglePageSelection(e.target.checked)}/></TH>}
+                <TH w={34}><input aria-label="Sélectionner les lignes de la page" type="checkbox" checked={allPageSelected} onChange={e=>togglePageSelection(e.target.checked)}/></TH>
                 <TH w={30}>⭐</TH>
                 {sortableTh("of","OF",120)}
                 {sortableTh("codeArticle","N° Article",110)}
@@ -7455,7 +7457,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 <TH w={isAdminManager(user)?140:80}></TH>
               </tr>
               <tr style={{background:C.raised}}>
-                {isAdminManager(user)&&<td/>}
+                <td/>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
                 {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['status','Statut OF'],['unitStatus','Statut SN'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
                 <td style={{padding:"4px 5px"}}>{columnFilter("followup","Faits / Suivi")}</td>
@@ -7490,7 +7492,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     style={{background:selected?C.yellow+"20":isFav?"#e05c0008":i%2===0?"transparent":C.stripe,cursor:selectionMode?"cell":"pointer",transition:"background .1s",borderTop:groupStart?`2px solid ${C.border}`:undefined}}
                     onMouseEnter={e=>e.currentTarget.style.background=selectionMode?C.blue+"14":"#e05c0015"}
                     onMouseLeave={e=>e.currentTarget.style.background=selected?C.yellow+"20":isFav?"#e05c0008":i%2===0?"transparent":C.stripe}>
-                    {isAdminManager(user)&&<TD center onClick={e=>{e.stopPropagation();collapsed?toggleOfSelection(o.id):toggleSelected(o);}}><input type="checkbox" aria-label={collapsed?`Sélectionner les ${summaryName} - OF ${o.of}`:`Sélectionner ${homeUnitName(o)} - OF ${o.of}`} checked={selected} onClick={e=>e.stopPropagation()} onChange={()=>collapsed?toggleOfSelection(o.id):toggleSelected(o)} style={{width:17,height:17,cursor:"pointer"}}/></TD>}
+                    <TD center onClick={e=>{e.stopPropagation();collapsed?toggleOfSelection(o.id):toggleSelected(o);}}><input type="checkbox" aria-label={collapsed?`Sélectionner les ${summaryName} - OF ${o.of}`:`Sélectionner ${homeUnitName(o)} - OF ${o.of}`} checked={selected} onClick={e=>e.stopPropagation()} onChange={()=>collapsed?toggleOfSelection(o.id):toggleSelected(o)} style={{width:17,height:17,cursor:"pointer"}}/></TD>
                     <TD center>
                       <span onClick={e=>{e.stopPropagation();toggleFav(o.id);}}
                         style={{cursor:"pointer",fontSize:14,opacity:isFav?1:.3,transition:"opacity .15s"}}
@@ -7590,7 +7592,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
       )}
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={v=>{onSaveProfile&&onSaveProfile(v);setShowProfile(false);}}/> }
-      {showBulkPdf&&isAdminManager(user)&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkPdf}/>}
+      {showBulkPdf&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkPdf}/>}
       {homeMailKind&&isAdminManager(user)&&<HomeMailModal kind={homeMailKind} rows={selectedRows} user={user} onClose={()=>setHomeMailKind(null)}
         onMarkForClosure={rows=>onBulkUnitStatusChange
           ? onBulkUnitStatusChange(rows,"a_cloturer")
