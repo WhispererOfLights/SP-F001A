@@ -7032,6 +7032,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [snLabelsById,setSnLabelsById] = useState({});
   const [loadingWorked,setLoadingWorked] = useState(true);
   const [selectedKeys,setSelectedKeys] = useState([]);
+  const [expandedOfIds,setExpandedOfIds] = useState([]);
   const [homeMailKind,setHomeMailKind] = useState(null);
   const [showBulkPdf,setShowBulkPdf] = useState(false);
   const [copiedTeamsKey,setCopiedTeamsKey] = useState("");
@@ -7140,20 +7141,34 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const searchActive=!!search.trim()||Object.values(columnFilters).some(value=>String(value).trim());
   const workedFilter=homeWorkedFilter(matching,workedIds,onlyWorked,searchActive);
   const filtered=workedFilter.rows;
-  const totalPages=Math.ceil(filtered.length/pageSize);
+  const revealMatchingUnits=searchActive||filterStatus.length>0||onlyWarnings;
+  const visibleRows=revealMatchingUnits?filtered:filtered.filter((row,index,rows)=>
+    expandedOfIds.includes(row.id)||rows.findIndex(item=>item.id===row.id)===index
+  );
+  const totalPages=Math.ceil(visibleRows.length/pageSize);
   const currentPage=Math.min(page,Math.max(0,totalPages-1));
-  const paged=filtered.slice(currentPage*pageSize,(currentPage+1)*pageSize);
+  const paged=visibleRows.slice(currentPage*pageSize,(currentPage+1)*pageSize);
   const selectedRows=allHomeRows.filter(row=>selectedKeys.includes(homeRowKey(row))).map(row=>({
     ...row,
     _homeFacts:homeFactsForUnit(dataById[row.id],row._homeUnitId)
   }));
   const selectionMode=selectedRows.length>0;
   const mixedMeetingOtp=selectedRows.length>0&&!hasSingleMeetingOtp(selectedRows);
-  const allPageSelected=!!paged.length&&paged.every(row=>selectedKeys.includes(homeRowKey(row)));
+  const isCollapsedHomeRow=row=>!revealMatchingUnits&&!expandedOfIds.includes(row.id)&&allHomeRows.filter(item=>item.id===row.id).length>1;
+  const pageSelectionKeys=[...new Set(paged.flatMap(row=>isCollapsedHomeRow(row)
+    ? allHomeRows.filter(item=>item.id===row.id).map(homeRowKey)
+    : [homeRowKey(row)]))];
+  const allPageSelected=!!pageSelectionKeys.length&&pageSelectionKeys.every(key=>selectedKeys.includes(key));
   const toggleSelected=row=>setSelectedKeys(keys=>keys.includes(homeRowKey(row))?keys.filter(key=>key!==homeRowKey(row)):[...keys,homeRowKey(row)]);
+  const toggleOfSelection=id=>setSelectedKeys(keys=>{
+    const groupKeys=allHomeRows.filter(row=>row.id===id).map(homeRowKey);
+    const allSelected=groupKeys.length&&groupKeys.every(key=>keys.includes(key));
+    return allSelected?keys.filter(key=>!groupKeys.includes(key)):[...new Set([...keys,...groupKeys])];
+  });
+  const toggleOfExpanded=id=>{setExpandedOfIds(ids=>ids.includes(id)?ids.filter(value=>value!==id):[...ids,id]);setPage(0);};
   const togglePageSelection=checked=>setSelectedKeys(keys=>checked
-    ? [...new Set([...keys,...paged.map(homeRowKey)])]
-    : keys.filter(key=>!paged.some(row=>homeRowKey(row)===key)));
+    ? [...new Set([...keys,...pageSelectionKeys])]
+    : keys.filter(key=>!pageSelectionKeys.includes(key)));
   const exportBulkPdf=async options=>{
     const logoImage=await loadPdfLogoImage("assets/logo.png");
     const grouped=new Map();
@@ -7449,19 +7464,31 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const isFav=favs.includes(o.id);
                 const isRecent=openHistory[0]===o.id;
                 const snLabels=snLabelsById[o.id]||snRowsFromHeader(o).map(snTitle);
-                const multiSn=snLabels.length>1;
-                const selected=selectedKeys.includes(homeRowKey(o));
+                const ofRows=allHomeRows.filter(row=>row.id===o.id);
+                const multiSn=ofRows.length>1;
+                const collapsed=multiSn&&!revealMatchingUnits&&!expandedOfIds.includes(o.id);
+                const selected=collapsed?ofRows.every(row=>selectedKeys.includes(homeRowKey(row))):selectedKeys.includes(homeRowKey(o));
                 const groupStart=i===0||paged[i-1].id!==o.id;
-                const polymerization=pendingHomePolymerization(dataById[o.id],consommables,o._homeUnitId,homeNow);
-                const facts=homeFactsForUnit(dataById[o.id],o._homeUnitId);
+                const displayUnitId=collapsed?null:o._homeUnitId;
+                const polymerization=pendingHomePolymerization(dataById[o.id],consommables,displayUnitId,homeNow);
+                const facts=[...(collapsed?ofRows.flatMap(row=>homeFactsForUnit(dataById[row.id],row._homeUnitId)):homeFactsForUnit(dataById[o.id],o._homeUnitId))]
+                  .filter((fact,index,list)=>list.findIndex(item=>(item.id&&item.id===fact.id)||(!item.id&&item.type===fact.type&&item.numero===fact.numero))===index);
+                const snCount=ofRows.filter(row=>row.sn).length;
+                const lotCount=ofRows.filter(row=>row.lot).length;
+                const snSummary=snCount?`${snCount} SN`:"—";
+                const lotSummary=lotCount?`${lotCount} LOT`:"—";
+                const summaryName=[snCount&&`${snCount} SN`,lotCount&&`${lotCount} LOT`].filter(Boolean).join(" / ")||`${ofRows.length} élément(s)`;
+                const groupStatuses=[...new Set(ofRows.map(row=>row.unitStatus||"en_cours"))];
+                const copyRows=collapsed?ofRows:[o];
+                const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
                 return (
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
-                    onClick={()=>selectionMode?toggleSelected(o):onSelect(o.id,o._homeUnitId)}
+                    onClick={()=>selectionMode?(collapsed?toggleOfSelection(o.id):toggleSelected(o)):onSelect(o.id,collapsed?null:o._homeUnitId)}
                     title={selectionMode?"Ajouter ou retirer cette ligne de la sélection":"Ouvrir ce dossier"}
                     style={{background:selected?C.yellow+"20":isFav?"#e05c0008":i%2===0?"transparent":C.stripe,cursor:selectionMode?"cell":"pointer",transition:"background .1s",borderTop:groupStart?`2px solid ${C.border}`:undefined}}
                     onMouseEnter={e=>e.currentTarget.style.background=selectionMode?C.blue+"14":"#e05c0015"}
                     onMouseLeave={e=>e.currentTarget.style.background=selected?C.yellow+"20":isFav?"#e05c0008":i%2===0?"transparent":C.stripe}>
-                    {isAdminManager(user)&&<TD center onClick={e=>{e.stopPropagation();toggleSelected(o);}}><input type="checkbox" aria-label={`Sélectionner ${homeUnitName(o)} - OF ${o.of}`} checked={selected} onClick={e=>e.stopPropagation()} onChange={()=>toggleSelected(o)} style={{width:17,height:17,cursor:"pointer"}}/></TD>}
+                    {isAdminManager(user)&&<TD center onClick={e=>{e.stopPropagation();collapsed?toggleOfSelection(o.id):toggleSelected(o);}}><input type="checkbox" aria-label={collapsed?`Sélectionner les ${summaryName} - OF ${o.of}`:`Sélectionner ${homeUnitName(o)} - OF ${o.of}`} checked={selected} onClick={e=>e.stopPropagation()} onChange={()=>collapsed?toggleOfSelection(o.id):toggleSelected(o)} style={{width:17,height:17,cursor:"pointer"}}/></TD>}
                     <TD center>
                       <span onClick={e=>{e.stopPropagation();toggleFav(o.id);}}
                         style={{cursor:"pointer",fontSize:14,opacity:isFav?1:.3,transition:"opacity .15s"}}
@@ -7471,17 +7498,19 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     </TD>
                     <TD>
                       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        {multiSn&&groupStart&&<button type="button" aria-label={`${collapsed?"Déplier":"Replier"} les ${summaryName} de OF ${o.of}`} title={collapsed?"Afficher les SN / LOT":"Replier les SN / LOT"} onClick={e=>{e.stopPropagation();toggleOfExpanded(o.id);}}
+                          style={{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:`1px solid ${C.blue}`,borderRadius:4,background:C.blue+"12",color:C.blue,fontSize:13,fontWeight:900,cursor:"pointer",flexShrink:0}}>{collapsed?"+":"−"}</button>}
                         <span style={{fontWeight:700,fontFamily:"monospace",color:groupStart?C.text:C.muted}}>{groupStart?o.of:`↳ ${o.of}`}</span>
-                        {multiSn&&groupStart&&<span title={`${snLabels.length} SN : ${snLabels.join(", ")}`}><Badge label="Multi-SN" color={C.blue}/></span>}
+                        {multiSn&&groupStart&&<span title={`${snLabels.length} SN / LOT : ${snLabels.join(", ")}`}><Badge label={summaryName} color={C.blue}/></span>}
                         {isRecent&&<Badge label="récent" color={C.purple}/>}
                       </div>
                     </TD>
                     <TD><span style={{fontFamily:"monospace",color:C.muted}}>{groupStart?(o.codeArticle||o.articleNo||"—"):""}</span></TD>
-                    <TD><span style={{fontFamily:"monospace",color:o.sn?C.blue:C.muted,fontWeight:700}}>{o.sn||"—"}</span></TD>
-                    <TD><span style={{fontFamily:"monospace",color:C.muted}}>{o.lot||"—"}</span></TD>
+                    <TD><span style={{fontFamily:"monospace",color:collapsed||o.sn?C.blue:C.muted,fontWeight:700}}>{collapsed?snSummary:(o.sn||"—")}</span></TD>
+                    <TD><span style={{fontFamily:"monospace",color:C.muted,fontWeight:collapsed?700:400}}>{collapsed?lotSummary:(o.lot||"—")}</span></TD>
                     <TD><span style={{color:C.text}}>{groupStart?(o.description||"—"):""}</span></TD>
                     <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{groupStart?(o.otp||o.projet||"—"):""}</span></TD>
-                    <TD onClick={e=>e.stopPropagation()}><FinishedProductSn of={o} user={user} onSave={onFinishedSnChange}/></TD>
+                    <TD onClick={e=>e.stopPropagation()}>{collapsed?<span style={{color:C.muted}}>—</span>:<FinishedProductSn of={o} user={user} onSave={onFinishedSnChange}/>}</TD>
                     <TD center><Badge label={(String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true")?"Oui":"Non"} color={String(o.ofRework||"").toLowerCase()==="oui"?C.yellow:C.border}/></TD>
                     <TD center>
                       <select disabled={!isAdminManager(user)} value={o.status||"en_cours"}
@@ -7495,7 +7524,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                       </select>
                     </TD>
                     <TD onClick={e=>e.stopPropagation()}>
-                      {o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
+                      {collapsed?<Badge label={groupStatuses.length===1?(UNIT_STATUTS[groupStatuses[0]]?.label||groupStatuses[0]):"Statuts mixtes"} color={groupStatuses.length===1?(UNIT_STATUTS[groupStatuses[0]]?.color||C.border):C.yellow}/>:o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
                         onChange={e=>onUnitStatusChange(o.id,o._homeUnitId,e.target.value).catch(error=>window.alert(`Enregistrement impossible : ${error?.message||error}`))}
                         style={{width:"100%",background:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color+"18",color:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color,border:`1px solid ${UNIT_STATUTS[o.unitStatus||"en_cours"]?.color}`,borderRadius:4,padding:"3px 5px",fontSize:12}}>
                         {Object.entries(UNIT_STATUTS).map(([value,s])=><option key={value} value={value}>{s.label}</option>)}
@@ -7503,7 +7532,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     </TD>
                     <TD center onClick={e=>e.stopPropagation()}>{(()=>{
                       try{
-                        const nei=nextEtuvageForRow(o);
+                        const nei=nextEtuvageForRow(collapsed?{...o,_homeUnitId:null}:o);
                         if(!nei.count) return <span style={{color:C.muted,fontSize:10}}>—</span>;
                         return <span style={{fontFamily:"monospace",fontSize:10,color:nei.overdue?C.red:C.blue,fontWeight:nei.overdue?700:400}}>
                           {nei.overdue?"🔴 ":"🕐 "}{nei.label}
@@ -7526,15 +7555,15 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                       </div>
                     </TD>
                     <TD center>
-                      <button title="Copier N° article, description et SN dans le presse-papier" aria-label={`Copier les informations de l'OF ${o.of} - ${homeUnitName(o)} dans le presse-papier`}
-                        onClick={e=>{e.stopPropagation();const key=homeRowKey(o);copyToClipboard(buildTeamsOfText(o,[o]));setCopiedTeamsKey(key);setTimeout(()=>setCopiedTeamsKey(current=>current===key?"":current),1800);}}
-                        style={{background:copiedTeamsKey===homeRowKey(o)?C.green:C.blue,border:"none",borderRadius:4,color:"#fff",padding:"4px 7px",cursor:"pointer",marginRight:6,fontWeight:800}}>
-                        {copiedTeamsKey===homeRowKey(o)?"✓":"📋"}
+                      <button title="Copier N° article, description et SN dans le presse-papier" aria-label={collapsed?`Copier les informations de l'OF ${o.of} dans le presse-papier`:`Copier les informations de l'OF ${o.of} - ${homeUnitName(o)} dans le presse-papier`}
+                        onClick={e=>{e.stopPropagation();copyToClipboard(buildTeamsOfText(o,copyRows));setCopiedTeamsKey(actionKey);setTimeout(()=>setCopiedTeamsKey(current=>current===actionKey?"":current),1800);}}
+                        style={{background:copiedTeamsKey===actionKey?C.green:C.blue,border:"none",borderRadius:4,color:"#fff",padding:"4px 7px",cursor:"pointer",marginRight:6,fontWeight:800}}>
+                        {copiedTeamsKey===actionKey?"✓":"📋"}
                       </button>
                       {isAdminManager(user)&&<button title="Supprimer cet OF" aria-label={`Supprimer l'OF ${o.of}`}
                         onClick={e=>{e.stopPropagation();onDelete(o.id);}}
                         style={{background:C.red,border:"none",borderRadius:4,color:"#fff",padding:"4px 8px",cursor:"pointer",marginRight:6}}>×</button>}
-                      <button aria-label={`Ouvrir OF ${o.of} - ${homeUnitName(o)}`} title="Ouvrir le dossier" onClick={e=>{e.stopPropagation();onSelect(o.id,o._homeUnitId);}}
+                      <button aria-label={collapsed?`Ouvrir OF ${o.of}`:`Ouvrir OF ${o.of} - ${homeUnitName(o)}`} title="Ouvrir le dossier" onClick={e=>{e.stopPropagation();onSelect(o.id,collapsed?null:o._homeUnitId);}}
                         style={{background:C.accent,border:"none",borderRadius:4,color:"#fff",
                           padding:"4px 10px",cursor:"pointer",fontSize:13,fontWeight:700}}>
                         →
@@ -7549,7 +7578,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
 
       {/* Pagination */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:14,color:C.muted,fontSize:12}}>
-        <span>{filtered.length} ligne(s)</span>
+        <span>{visibleRows.length} ligne(s) affichée(s){visibleRows.length!==filtered.length?` · ${filtered.length} SN / LOT`:""}</span>
         <label>Lignes par page <select value={pageSize} onChange={e=>{setPageSize(Number(e.target.value));setPage(0);}} style={{background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:4}}>{[25,50,100].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
       </div>
       {totalPages>1&&(

@@ -19313,24 +19313,28 @@ var OFSelector = function OFSelector(_ref123) {
     _useState258 = _slicedToArray(_useState257, 2),
     selectedKeys = _useState258[0],
     setSelectedKeys = _useState258[1];
-  var _useState259 = useState(null),
+  var _useState259 = useState([]),
     _useState260 = _slicedToArray(_useState259, 2),
-    homeMailKind = _useState260[0],
-    setHomeMailKind = _useState260[1];
-  var _useState261 = useState(false),
+    expandedOfIds = _useState260[0],
+    setExpandedOfIds = _useState260[1];
+  var _useState261 = useState(null),
     _useState262 = _slicedToArray(_useState261, 2),
-    showBulkPdf = _useState262[0],
-    setShowBulkPdf = _useState262[1];
-  var _useState263 = useState(""),
+    homeMailKind = _useState262[0],
+    setHomeMailKind = _useState262[1];
+  var _useState263 = useState(false),
     _useState264 = _slicedToArray(_useState263, 2),
-    copiedTeamsKey = _useState264[0],
-    setCopiedTeamsKey = _useState264[1];
-  var _useState265 = useState(function () {
+    showBulkPdf = _useState264[0],
+    setShowBulkPdf = _useState264[1];
+  var _useState265 = useState(""),
+    _useState266 = _slicedToArray(_useState265, 2),
+    copiedTeamsKey = _useState266[0],
+    setCopiedTeamsKey = _useState266[1];
+  var _useState267 = useState(function () {
       return new Date();
     }),
-    _useState266 = _slicedToArray(_useState265, 2),
-    homeNow = _useState266[0],
-    setHomeNow = _useState266[1];
+    _useState268 = _slicedToArray(_useState267, 2),
+    homeNow = _useState268[0],
+    setHomeNow = _useState268[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setHomeNow(new Date());
@@ -19449,34 +19453,34 @@ var OFSelector = function OFSelector(_ref123) {
       cancelled = true;
     };
   }, [ofList, user.trigram, consommables]);
-  var _useState267 = useState(true),
-    _useState268 = _slicedToArray(_useState267, 2),
-    hideCloture = _useState268[0],
-    setHideCloture = _useState268[1];
-  var _useState269 = useState(false),
+  var _useState269 = useState(true),
     _useState270 = _slicedToArray(_useState269, 2),
-    showNew = _useState270[0],
-    setShowNew = _useState270[1];
+    hideCloture = _useState270[0],
+    setHideCloture = _useState270[1];
   var _useState271 = useState(false),
     _useState272 = _slicedToArray(_useState271, 2),
-    showProfile = _useState272[0],
-    setShowProfile = _useState272[1];
-  var _useState273 = useState([]),
+    showNew = _useState272[0],
+    setShowNew = _useState272[1];
+  var _useState273 = useState(false),
     _useState274 = _slicedToArray(_useState273, 2),
-    favs = _useState274[0],
-    setFavs = _useState274[1];
-  var _useState275 = useState(blankForm),
+    showProfile = _useState274[0],
+    setShowProfile = _useState274[1];
+  var _useState275 = useState([]),
     _useState276 = _slicedToArray(_useState275, 2),
-    form = _useState276[0],
-    setForm = _useState276[1];
-  var _useState277 = useState(""),
+    favs = _useState276[0],
+    setFavs = _useState276[1];
+  var _useState277 = useState(blankForm),
     _useState278 = _slicedToArray(_useState277, 2),
-    importText = _useState278[0],
-    setImportText = _useState278[1];
+    form = _useState278[0],
+    setForm = _useState278[1];
   var _useState279 = useState(""),
     _useState280 = _slicedToArray(_useState279, 2),
-    importMsg = _useState280[0],
-    setImportMsg = _useState280[1];
+    importText = _useState280[0],
+    setImportText = _useState280[1];
+  var _useState281 = useState(""),
+    _useState282 = _slicedToArray(_useState281, 2),
+    importMsg = _useState282[0],
+    setImportMsg = _useState282[1];
 
   // Charger les favs de cet user
   useEffect(function () {
@@ -19625,9 +19629,15 @@ var OFSelector = function OFSelector(_ref123) {
   });
   var workedFilter = homeWorkedFilter(matching, workedIds, onlyWorked, searchActive);
   var filtered = workedFilter.rows;
-  var totalPages = Math.ceil(filtered.length / pageSize);
+  var revealMatchingUnits = searchActive || filterStatus.length > 0 || onlyWarnings;
+  var visibleRows = revealMatchingUnits ? filtered : filtered.filter(function (row, index, rows) {
+    return expandedOfIds.includes(row.id) || rows.findIndex(function (item) {
+      return item.id === row.id;
+    }) === index;
+  });
+  var totalPages = Math.ceil(visibleRows.length / pageSize);
   var currentPage = Math.min(page, Math.max(0, totalPages - 1));
-  var paged = filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+  var paged = visibleRows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   var selectedRows = allHomeRows.filter(function (row) {
     return selectedKeys.includes(homeRowKey(row));
   }).map(function (row) {
@@ -19637,8 +19647,18 @@ var OFSelector = function OFSelector(_ref123) {
   });
   var selectionMode = selectedRows.length > 0;
   var mixedMeetingOtp = selectedRows.length > 0 && !hasSingleMeetingOtp(selectedRows);
-  var allPageSelected = !!paged.length && paged.every(function (row) {
-    return selectedKeys.includes(homeRowKey(row));
+  var isCollapsedHomeRow = function isCollapsedHomeRow(row) {
+    return !revealMatchingUnits && !expandedOfIds.includes(row.id) && allHomeRows.filter(function (item) {
+      return item.id === row.id;
+    }).length > 1;
+  };
+  var pageSelectionKeys = _toConsumableArray(new Set(paged.flatMap(function (row) {
+    return isCollapsedHomeRow(row) ? allHomeRows.filter(function (item) {
+      return item.id === row.id;
+    }).map(homeRowKey) : [homeRowKey(row)];
+  })));
+  var allPageSelected = !!pageSelectionKeys.length && pageSelectionKeys.every(function (key) {
+    return selectedKeys.includes(key);
   });
   var toggleSelected = function toggleSelected(row) {
     return setSelectedKeys(function (keys) {
@@ -19647,12 +19667,31 @@ var OFSelector = function OFSelector(_ref123) {
       }) : [].concat(_toConsumableArray(keys), [homeRowKey(row)]);
     });
   };
+  var toggleOfSelection = function toggleOfSelection(id) {
+    return setSelectedKeys(function (keys) {
+      var groupKeys = allHomeRows.filter(function (row) {
+        return row.id === id;
+      }).map(homeRowKey);
+      var allSelected = groupKeys.length && groupKeys.every(function (key) {
+        return keys.includes(key);
+      });
+      return allSelected ? keys.filter(function (key) {
+        return !groupKeys.includes(key);
+      }) : _toConsumableArray(new Set([].concat(_toConsumableArray(keys), _toConsumableArray(groupKeys))));
+    });
+  };
+  var toggleOfExpanded = function toggleOfExpanded(id) {
+    setExpandedOfIds(function (ids) {
+      return ids.includes(id) ? ids.filter(function (value) {
+        return value !== id;
+      }) : [].concat(_toConsumableArray(ids), [id]);
+    });
+    setPage(0);
+  };
   var togglePageSelection = function togglePageSelection(checked) {
     return setSelectedKeys(function (keys) {
-      return checked ? _toConsumableArray(new Set([].concat(_toConsumableArray(keys), _toConsumableArray(paged.map(homeRowKey))))) : keys.filter(function (key) {
-        return !paged.some(function (row) {
-          return homeRowKey(row) === key;
-        });
+      return checked ? _toConsumableArray(new Set([].concat(_toConsumableArray(keys), _toConsumableArray(pageSelectionKeys)))) : keys.filter(function (key) {
+        return !pageSelectionKeys.includes(key);
       });
     });
   };
@@ -20698,19 +20737,46 @@ var OFSelector = function OFSelector(_ref123) {
       padding: "4px 5px"
     }
   }, columnFilter("followup", "Faits / Suivi")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
-    var _STATUTS12, _STATUTS13, _STATUTS14, _UNIT_STATUTS4, _UNIT_STATUTS5, _UNIT_STATUTS6, _warningsById$o$id4, _warningsById$o$id5;
+    var _STATUTS12, _STATUTS13, _STATUTS14, _UNIT_STATUTS$groupSt, _UNIT_STATUTS$groupSt2, _UNIT_STATUTS4, _UNIT_STATUTS5, _UNIT_STATUTS6, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
     var isRecent = openHistory[0] === o.id;
     var snLabels = snLabelsById[o.id] || snRowsFromHeader(o).map(snTitle);
-    var multiSn = snLabels.length > 1;
-    var selected = selectedKeys.includes(homeRowKey(o));
+    var ofRows = allHomeRows.filter(function (row) {
+      return row.id === o.id;
+    });
+    var multiSn = ofRows.length > 1;
+    var collapsed = multiSn && !revealMatchingUnits && !expandedOfIds.includes(o.id);
+    var selected = collapsed ? ofRows.every(function (row) {
+      return selectedKeys.includes(homeRowKey(row));
+    }) : selectedKeys.includes(homeRowKey(o));
     var groupStart = i === 0 || paged[i - 1].id !== o.id;
-    var polymerization = pendingHomePolymerization(dataById[o.id], consommables, o._homeUnitId, homeNow);
-    var facts = homeFactsForUnit(dataById[o.id], o._homeUnitId);
+    var displayUnitId = collapsed ? null : o._homeUnitId;
+    var polymerization = pendingHomePolymerization(dataById[o.id], consommables, displayUnitId, homeNow);
+    var facts = _toConsumableArray(collapsed ? ofRows.flatMap(function (row) {
+      return homeFactsForUnit(dataById[row.id], row._homeUnitId);
+    }) : homeFactsForUnit(dataById[o.id], o._homeUnitId)).filter(function (fact, index, list) {
+      return list.findIndex(function (item) {
+        return item.id && item.id === fact.id || !item.id && item.type === fact.type && item.numero === fact.numero;
+      }) === index;
+    });
+    var snCount = ofRows.filter(function (row) {
+      return row.sn;
+    }).length;
+    var lotCount = ofRows.filter(function (row) {
+      return row.lot;
+    }).length;
+    var snSummary = snCount ? "".concat(snCount, " SN") : "—";
+    var lotSummary = lotCount ? "".concat(lotCount, " LOT") : "—";
+    var summaryName = [snCount && "".concat(snCount, " SN"), lotCount && "".concat(lotCount, " LOT")].filter(Boolean).join(" / ") || "".concat(ofRows.length, " \xE9l\xE9ment(s)");
+    var groupStatuses = _toConsumableArray(new Set(ofRows.map(function (row) {
+      return row.unitStatus || "en_cours";
+    })));
+    var copyRows = collapsed ? ofRows : [o];
+    var actionKey = collapsed ? "".concat(o.id, ":all") : homeRowKey(o);
     return /*#__PURE__*/React.createElement("tr", {
       key: "".concat(o.id, ":").concat(o._homeUnitId || "global"),
       onClick: function onClick() {
-        return selectionMode ? toggleSelected(o) : onSelect(o.id, o._homeUnitId);
+        return selectionMode ? collapsed ? toggleOfSelection(o.id) : toggleSelected(o) : onSelect(o.id, collapsed ? null : o._homeUnitId);
       },
       title: selectionMode ? "Ajouter ou retirer cette ligne de la sélection" : "Ouvrir ce dossier",
       style: {
@@ -20729,17 +20795,17 @@ var OFSelector = function OFSelector(_ref123) {
       center: true,
       onClick: function onClick(e) {
         e.stopPropagation();
-        toggleSelected(o);
+        collapsed ? toggleOfSelection(o.id) : toggleSelected(o);
       }
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
-      "aria-label": "S\xE9lectionner ".concat(homeUnitName(o), " - OF ").concat(o.of),
+      "aria-label": collapsed ? "S\xE9lectionner les ".concat(summaryName, " - OF ").concat(o.of) : "S\xE9lectionner ".concat(homeUnitName(o), " - OF ").concat(o.of),
       checked: selected,
       onClick: function onClick(e) {
         return e.stopPropagation();
       },
       onChange: function onChange() {
-        return toggleSelected(o);
+        return collapsed ? toggleOfSelection(o.id) : toggleSelected(o);
       },
       style: {
         width: 17,
@@ -20767,16 +20833,40 @@ var OFSelector = function OFSelector(_ref123) {
         gap: 6,
         flexWrap: "wrap"
       }
-    }, /*#__PURE__*/React.createElement("span", {
+    }, multiSn && groupStart && /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      "aria-label": "".concat(collapsed ? "Déplier" : "Replier", " les ").concat(summaryName, " de OF ").concat(o.of),
+      title: collapsed ? "Afficher les SN / LOT" : "Replier les SN / LOT",
+      onClick: function onClick(e) {
+        e.stopPropagation();
+        toggleOfExpanded(o.id);
+      },
+      style: {
+        width: 20,
+        height: 20,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
+        border: "1px solid ".concat(C.blue),
+        borderRadius: 4,
+        background: C.blue + "12",
+        color: C.blue,
+        fontSize: 13,
+        fontWeight: 900,
+        cursor: "pointer",
+        flexShrink: 0
+      }
+    }, collapsed ? "+" : "−"), /*#__PURE__*/React.createElement("span", {
       style: {
         fontWeight: 700,
         fontFamily: "monospace",
         color: groupStart ? C.text : C.muted
       }
     }, groupStart ? o.of : "\u21B3 ".concat(o.of)), multiSn && groupStart && /*#__PURE__*/React.createElement("span", {
-      title: "".concat(snLabels.length, " SN : ").concat(snLabels.join(", "))
+      title: "".concat(snLabels.length, " SN / LOT : ").concat(snLabels.join(", "))
     }, /*#__PURE__*/React.createElement(Badge, {
-      label: "Multi-SN",
+      label: summaryName,
       color: C.blue
     })), isRecent && /*#__PURE__*/React.createElement(Badge, {
       label: "r\xE9cent",
@@ -20789,15 +20879,16 @@ var OFSelector = function OFSelector(_ref123) {
     }, groupStart ? o.codeArticle || o.articleNo || "—" : "")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "monospace",
-        color: o.sn ? C.blue : C.muted,
+        color: collapsed || o.sn ? C.blue : C.muted,
         fontWeight: 700
       }
-    }, o.sn || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+    }, collapsed ? snSummary : o.sn || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "monospace",
-        color: C.muted
+        color: C.muted,
+        fontWeight: collapsed ? 700 : 400
       }
-    }, o.lot || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+    }, collapsed ? lotSummary : o.lot || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         color: C.text
       }
@@ -20812,7 +20903,11 @@ var OFSelector = function OFSelector(_ref123) {
       onClick: function onClick(e) {
         return e.stopPropagation();
       }
-    }, /*#__PURE__*/React.createElement(FinishedProductSn, {
+    }, collapsed ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014") : /*#__PURE__*/React.createElement(FinishedProductSn, {
       of: o,
       user: user,
       onSave: onFinishedSnChange
@@ -20856,7 +20951,10 @@ var OFSelector = function OFSelector(_ref123) {
       onClick: function onClick(e) {
         return e.stopPropagation();
       }
-    }, o._homeUnitId ? /*#__PURE__*/React.createElement("select", {
+    }, collapsed ? /*#__PURE__*/React.createElement(Badge, {
+      label: groupStatuses.length === 1 ? ((_UNIT_STATUTS$groupSt = UNIT_STATUTS[groupStatuses[0]]) === null || _UNIT_STATUTS$groupSt === void 0 ? void 0 : _UNIT_STATUTS$groupSt.label) || groupStatuses[0] : "Statuts mixtes",
+      color: groupStatuses.length === 1 ? ((_UNIT_STATUTS$groupSt2 = UNIT_STATUTS[groupStatuses[0]]) === null || _UNIT_STATUTS$groupSt2 === void 0 ? void 0 : _UNIT_STATUTS$groupSt2.color) || C.border : C.yellow
+    }) : o._homeUnitId ? /*#__PURE__*/React.createElement("select", {
       "aria-label": "Statut SN ".concat(o.sn || o.lot, " - OF ").concat(o.of),
       disabled: !isAdminManager(user),
       value: o.unitStatus || "en_cours",
@@ -20889,7 +20987,9 @@ var OFSelector = function OFSelector(_ref123) {
       }
     }, function () {
       try {
-        var nei = nextEtuvageForRow(o);
+        var nei = nextEtuvageForRow(collapsed ? _objectSpread(_objectSpread({}, o), {}, {
+          _homeUnitId: null
+        }) : o);
         if (!nei.count) return /*#__PURE__*/React.createElement("span", {
           style: {
             color: C.muted,
@@ -20980,20 +21080,19 @@ var OFSelector = function OFSelector(_ref123) {
       center: true
     }, /*#__PURE__*/React.createElement("button", {
       title: "Copier N\xB0 article, description et SN dans le presse-papier",
-      "aria-label": "Copier les informations de l'OF ".concat(o.of, " - ").concat(homeUnitName(o), " dans le presse-papier"),
+      "aria-label": collapsed ? "Copier les informations de l'OF ".concat(o.of, " dans le presse-papier") : "Copier les informations de l'OF ".concat(o.of, " - ").concat(homeUnitName(o), " dans le presse-papier"),
       onClick: function onClick(e) {
         e.stopPropagation();
-        var key = homeRowKey(o);
-        copyToClipboard(buildTeamsOfText(o, [o]));
-        setCopiedTeamsKey(key);
+        copyToClipboard(buildTeamsOfText(o, copyRows));
+        setCopiedTeamsKey(actionKey);
         setTimeout(function () {
           return setCopiedTeamsKey(function (current) {
-            return current === key ? "" : current;
+            return current === actionKey ? "" : current;
           });
         }, 1800);
       },
       style: {
-        background: copiedTeamsKey === homeRowKey(o) ? C.green : C.blue,
+        background: copiedTeamsKey === actionKey ? C.green : C.blue,
         border: "none",
         borderRadius: 4,
         color: "#fff",
@@ -21002,7 +21101,7 @@ var OFSelector = function OFSelector(_ref123) {
         marginRight: 6,
         fontWeight: 800
       }
-    }, copiedTeamsKey === homeRowKey(o) ? "✓" : "📋"), isAdminManager(user) && /*#__PURE__*/React.createElement("button", {
+    }, copiedTeamsKey === actionKey ? "✓" : "📋"), isAdminManager(user) && /*#__PURE__*/React.createElement("button", {
       title: "Supprimer cet OF",
       "aria-label": "Supprimer l'OF ".concat(o.of),
       onClick: function onClick(e) {
@@ -21019,11 +21118,11 @@ var OFSelector = function OFSelector(_ref123) {
         marginRight: 6
       }
     }, "\xD7"), /*#__PURE__*/React.createElement("button", {
-      "aria-label": "Ouvrir OF ".concat(o.of, " - ").concat(homeUnitName(o)),
+      "aria-label": collapsed ? "Ouvrir OF ".concat(o.of) : "Ouvrir OF ".concat(o.of, " - ").concat(homeUnitName(o)),
       title: "Ouvrir le dossier",
       onClick: function onClick(e) {
         e.stopPropagation();
-        onSelect(o.id, o._homeUnitId);
+        onSelect(o.id, collapsed ? null : o._homeUnitId);
       },
       style: {
         background: C.accent,
@@ -21046,7 +21145,7 @@ var OFSelector = function OFSelector(_ref123) {
       color: C.muted,
       fontSize: 12
     }
-  }, /*#__PURE__*/React.createElement("span", null, filtered.length, " ligne(s)"), /*#__PURE__*/React.createElement("label", null, "Lignes par page ", /*#__PURE__*/React.createElement("select", {
+  }, /*#__PURE__*/React.createElement("span", null, visibleRows.length, " ligne(s) affich\xE9e(s)", visibleRows.length !== filtered.length ? " \xB7 ".concat(filtered.length, " SN / LOT") : ""), /*#__PURE__*/React.createElement("label", null, "Lignes par page ", /*#__PURE__*/React.createElement("select", {
     value: pageSize,
     onChange: function onChange(e) {
       setPageSize(Number(e.target.value));
@@ -21156,9 +21255,9 @@ var TABS = [{
 }];
 function App() {
   var _ofData$units9, _ofData$etuvage2, _ofData$testequip3;
-  var _useState281 = useState(0),
-    _useState282 = _slicedToArray(_useState281, 2),
-    setThemeRevision = _useState282[1];
+  var _useState283 = useState(0),
+    _useState284 = _slicedToArray(_useState283, 2),
+    setThemeRevision = _useState284[1];
   useEffect(function () {
     var refresh = function refresh() {
       return setThemeRevision(function (n) {
@@ -21170,27 +21269,27 @@ function App() {
       return window.removeEventListener("sp-f001-theme-change", refresh);
     };
   }, []);
-  var _useState283 = useState(null),
-    _useState284 = _slicedToArray(_useState283, 2),
-    user = _useState284[0],
-    setUser = _useState284[1];
-  var homeSaveQueue = React.useRef(Promise.resolve());
-  var _useState285 = useState([]),
+  var _useState285 = useState(null),
     _useState286 = _slicedToArray(_useState285, 2),
-    ofList = _useState286[0],
-    setOfList = _useState286[1];
-  var _useState287 = useState(null),
+    user = _useState286[0],
+    setUser = _useState286[1];
+  var homeSaveQueue = React.useRef(Promise.resolve());
+  var _useState287 = useState([]),
     _useState288 = _slicedToArray(_useState287, 2),
-    currentId = _useState288[0],
-    setCurrentId = _useState288[1];
-  var _useState289 = useState(DEFAULT_CONSOMMABLES),
+    ofList = _useState288[0],
+    setOfList = _useState288[1];
+  var _useState289 = useState(null),
     _useState290 = _slicedToArray(_useState289, 2),
-    consommables = _useState290[0],
-    setConsommables = _useState290[1];
-  var _useState291 = useState(false),
+    currentId = _useState290[0],
+    setCurrentId = _useState290[1];
+  var _useState291 = useState(DEFAULT_CONSOMMABLES),
     _useState292 = _slicedToArray(_useState291, 2),
-    showConsoEditor = _useState292[0],
-    setShowConsoEditor = _useState292[1];
+    consommables = _useState292[0],
+    setConsommables = _useState292[1];
+  var _useState293 = useState(false),
+    _useState294 = _slicedToArray(_useState293, 2),
+    showConsoEditor = _useState294[0],
+    setShowConsoEditor = _useState294[1];
   var catalogRead = React.useRef(null);
   var catalogEditBase = React.useRef(null);
   var readConsommables = useCallback(function () {
@@ -21239,96 +21338,96 @@ function App() {
     }
     return catalogRead.current;
   }, []);
-  var _useState293 = useState(DEFAULT_FAIT_TYPES),
-    _useState294 = _slicedToArray(_useState293, 2),
-    faitTypes = _useState294[0],
-    setFaitTypes = _useState294[1];
-  var _useState295 = useState(false),
+  var _useState295 = useState(DEFAULT_FAIT_TYPES),
     _useState296 = _slicedToArray(_useState295, 2),
-    showFaitTypes = _useState296[0],
-    setShowFaitTypes = _useState296[1];
-  var _useState297 = useState(function () {
+    faitTypes = _useState296[0],
+    setFaitTypes = _useState296[1];
+  var _useState297 = useState(false),
+    _useState298 = _slicedToArray(_useState297, 2),
+    showFaitTypes = _useState298[0],
+    setShowFaitTypes = _useState298[1];
+  var _useState299 = useState(function () {
       return normalizeStatusTypes(DEFAULT_STATUS_TYPES);
     }),
-    _useState298 = _slicedToArray(_useState297, 2),
-    statusTypes = _useState298[0],
-    setStatusTypes = _useState298[1];
-  var _useState299 = useState(false),
     _useState300 = _slicedToArray(_useState299, 2),
-    showStatusTypes = _useState300[0],
-    setShowStatusTypes = _useState300[1];
-  var _useState301 = useState(null),
+    statusTypes = _useState300[0],
+    setStatusTypes = _useState300[1];
+  var _useState301 = useState(false),
     _useState302 = _slicedToArray(_useState301, 2),
-    ofData = _useState302[0],
-    setOfData = _useState302[1];
-  var _useState303 = useState("rework"),
+    showStatusTypes = _useState302[0],
+    setShowStatusTypes = _useState302[1];
+  var _useState303 = useState(null),
     _useState304 = _slicedToArray(_useState303, 2),
-    activeTab = _useState304[0],
-    setActiveTab = _useState304[1];
-  var _useState305 = useState(false),
+    ofData = _useState304[0],
+    setOfData = _useState304[1];
+  var _useState305 = useState("rework"),
     _useState306 = _slicedToArray(_useState305, 2),
-    saving = _useState306[0],
-    setSaving = _useState306[1];
+    activeTab = _useState306[0],
+    setActiveTab = _useState306[1];
   var _useState307 = useState(false),
     _useState308 = _slicedToArray(_useState307, 2),
-    godMode = _useState308[0],
-    setGodMode = _useState308[1];
-  var _useState309 = useState(null),
+    saving = _useState308[0],
+    setSaving = _useState308[1];
+  var _useState309 = useState(false),
     _useState310 = _slicedToArray(_useState309, 2),
-    lastSaved = _useState310[0],
-    setLastSaved = _useState310[1];
-  var _useState311 = useState(""),
+    godMode = _useState310[0],
+    setGodMode = _useState310[1];
+  var _useState311 = useState(null),
     _useState312 = _slicedToArray(_useState311, 2),
-    saveError = _useState312[0],
-    setSaveError = _useState312[1];
-  var _useState313 = useState(null),
+    lastSaved = _useState312[0],
+    setLastSaved = _useState312[1];
+  var _useState313 = useState(""),
     _useState314 = _slicedToArray(_useState313, 2),
-    pendingSave = _useState314[0],
-    setPendingSave = _useState314[1];
-  var _useState315 = useState(false),
+    saveError = _useState314[0],
+    setSaveError = _useState314[1];
+  var _useState315 = useState(null),
     _useState316 = _slicedToArray(_useState315, 2),
-    loaded = _useState316[0],
-    setLoaded = _useState316[1];
-  var _useState317 = useState([]),
+    pendingSave = _useState316[0],
+    setPendingSave = _useState316[1];
+  var _useState317 = useState(false),
     _useState318 = _slicedToArray(_useState317, 2),
-    openHistory = _useState318[0],
-    setOpenHistory = _useState318[1]; // IDs des OF récemment ouverts
-  var _useState319 = useState(false),
+    loaded = _useState318[0],
+    setLoaded = _useState318[1];
+  var _useState319 = useState([]),
     _useState320 = _slicedToArray(_useState319, 2),
-    showAdminUsers = _useState320[0],
-    setShowAdminUsers = _useState320[1];
-  var _useState321 = useState(null),
+    openHistory = _useState320[0],
+    setOpenHistory = _useState320[1]; // IDs des OF récemment ouverts
+  var _useState321 = useState(false),
     _useState322 = _slicedToArray(_useState321, 2),
-    copyAcrossRow = _useState322[0],
-    setCopyAcrossRow = _useState322[1];
-  var _useState323 = useState(false),
+    showAdminUsers = _useState322[0],
+    setShowAdminUsers = _useState322[1];
+  var _useState323 = useState(null),
     _useState324 = _slicedToArray(_useState323, 2),
-    copiedOfInfo = _useState324[0],
-    setCopiedOfInfo = _useState324[1];
+    copyAcrossRow = _useState324[0],
+    setCopyAcrossRow = _useState324[1];
   var _useState325 = useState(false),
     _useState326 = _slicedToArray(_useState325, 2),
-    printAll = _useState326[0],
-    setPrintAll = _useState326[1];
+    copiedOfInfo = _useState326[0],
+    setCopiedOfInfo = _useState326[1];
   var _useState327 = useState(false),
     _useState328 = _slicedToArray(_useState327, 2),
-    pdfIncludeHistory = _useState328[0],
-    setPdfIncludeHistory = _useState328[1];
+    printAll = _useState328[0],
+    setPrintAll = _useState328[1];
   var _useState329 = useState(false),
     _useState330 = _slicedToArray(_useState329, 2),
-    showPdfOptions = _useState330[0],
-    setShowPdfOptions = _useState330[1];
-  var _useState331 = useState("all"),
+    pdfIncludeHistory = _useState330[0],
+    setPdfIncludeHistory = _useState330[1];
+  var _useState331 = useState(false),
     _useState332 = _slicedToArray(_useState331, 2),
-    activeUnitId = _useState332[0],
-    setActiveUnitId = _useState332[1];
-  var _useState333 = useState(""),
+    showPdfOptions = _useState332[0],
+    setShowPdfOptions = _useState332[1];
+  var _useState333 = useState("all"),
     _useState334 = _slicedToArray(_useState333, 2),
-    entryUnitId = _useState334[0],
-    setEntryUnitId = _useState334[1];
-  var _useState335 = useState("dossier"),
+    activeUnitId = _useState334[0],
+    setActiveUnitId = _useState334[1];
+  var _useState335 = useState(""),
     _useState336 = _slicedToArray(_useState335, 2),
-    headerPanel = _useState336[0],
-    setHeaderPanel = _useState336[1];
+    entryUnitId = _useState336[0],
+    setEntryUnitId = _useState336[1];
+  var _useState337 = useState("dossier"),
+    _useState338 = _slicedToArray(_useState337, 2),
+    headerPanel = _useState338[0],
+    setHeaderPanel = _useState338[1];
   var perms = {
     godMode: godMode && isAdminManager(user),
     role: normalizeRole(user),
@@ -21638,10 +21737,10 @@ function App() {
     }
     return handleSaveProfile;
   }();
-  var _useState337 = useState(false),
-    _useState338 = _slicedToArray(_useState337, 2),
-    showProfile = _useState338[0],
-    setShowProfile = _useState338[1];
+  var _useState339 = useState(false),
+    _useState340 = _slicedToArray(_useState339, 2),
+    showProfile = _useState340[0],
+    setShowProfile = _useState340[1];
   var handleLogout = /*#__PURE__*/function () {
     var _handleLogout = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee38() {
       var _t61, _t62;

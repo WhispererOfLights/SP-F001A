@@ -48,7 +48,13 @@ async function waitFor(check) {
       localStorage.setItem('sp-f001-last-activity',String(Date.now()));
     },user);
     await page.goto(base);
-    await page.getByRole('cell',{name:'SN1',exact:true}).first().click();
+    const openSn1=async()=>{
+      const expand=page.getByRole('button',{name:'Déplier les 2 SN de OF 100TEST',exact:true});
+      const snCell=page.getByRole('cell',{name:'SN1',exact:true}).first();
+      if(!(await snCell.count())){await expand.waitFor();await expand.click();}
+      await snCell.click();
+    };
+    await openSn1();
     await page.getByRole('button',{name:'Mating',exact:true}).click();
     await page.getByRole('button',{name:'+ Connecteur',exact:true}).click();
     await page.getByRole('button',{name:'Demating J20',exact:true}).click();
@@ -57,7 +63,7 @@ async function waitFor(check) {
       return record.demating.connectors.some(c=>c.nConect==='J20'&&c.events.at(-1)?.action==='Demating');
     });
     await page.reload();
-    await page.getByRole('cell',{name:'SN1',exact:true}).first().click();
+    await openSn1();
     await page.getByRole('button',{name:'Mating',exact:true}).click();
     assert.ok(await page.getByRole('button',{name:'Mating J20',exact:true}).isEnabled());
     assert.ok(await page.getByRole('button',{name:'Demating J20',exact:true}).isDisabled());

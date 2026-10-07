@@ -64,6 +64,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(!(await page.getByRole('checkbox',{name:'Mes OF travaillés',exact:true}).isChecked()));
     await homeSearch.fill('');
     await page.waitForFunction(()=>Array.from(document.querySelectorAll('label')).find(el=>el.textContent==='Mes OF travaillés')?.querySelector('input')?.checked);
+    const expandHomeOf=page.getByRole('button',{name:'Déplier les 2 SN / 1 LOT de OF 100TEST',exact:true});
+    await expandHomeOf.waitFor();
+    assert.equal(await page.getByRole('cell',{name:'2 SN',exact:true}).count()>0,true);
+    assert.equal(await page.getByRole('cell',{name:'1 LOT',exact:true}).count()>0,true);
+    await expandHomeOf.click();
     await page.getByRole('button',{name:'Trier SN de A à Z',exact:true}).click();
     let sortedHomeRows=await page.locator('tbody input[aria-label^="Sélectionner "]').evaluateAll(inputs=>inputs.map(input=>input.getAttribute('aria-label')));
     assert.ok(sortedHomeRows[0].startsWith('Sélectionner SN1'));
