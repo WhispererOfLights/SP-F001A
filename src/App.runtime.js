@@ -375,6 +375,7 @@ var canControlRework = function canControlRework(user) {
 var canTraceability = function canTraceability(user) {
   return ["Admin", "Manager", "Logistique"].includes(normalizeRole(user));
 };
+var LOGISTICS_DIRECTORY_RECIPIENT = "CH - NHL - Logistique CH";
 var canRecordMating = function canRecordMating(user, connector) {
   return !!(user !== null && user !== void 0 && user.trigram) && ["Opérateur", "Contrôleur", "Manager", "Admin"].includes(normalizeRole(user)) && !!(connector !== null && connector !== void 0 && connector.validated) && !connector.deleted;
 };
@@ -6562,7 +6563,7 @@ var MaterialRequestModal = function MaterialRequestModal(_ref67) {
     _useState64 = _slicedToArray(_useState63, 2),
     draft = _useState64[0],
     setDraft = _useState64[1];
-  var _useState65 = useState("logistique.ch@safran-timing.safrangroup.com"),
+  var _useState65 = useState(LOGISTICS_DIRECTORY_RECIPIENT),
     _useState66 = _slicedToArray(_useState65, 2),
     recipient = _useState66[0],
     setRecipient = _useState66[1];
@@ -6695,8 +6696,9 @@ var MaterialRequestModal = function MaterialRequestModal(_ref67) {
       marginTop: 4,
       padding: 7,
       background: C.input,
-      color: C.text,
-      border: "1px solid ".concat(C.border),
+      color: C.blue,
+      fontWeight: 700,
+      border: "1px solid ".concat(C.blue),
       borderRadius: 4
     }
   })), /*#__PURE__*/React.createElement(ManagerCcPicker, {
@@ -18640,7 +18642,7 @@ var HomeMailModal = function HomeMailModal(_ref121) {
     _useState194 = _slicedToArray(_useState193, 2),
     ipName = _useState194[0],
     setIpName = _useState194[1];
-  var _useState195 = useState(isIp ? "" : "logistique.ch@safran-timing.safrangroup.com"),
+  var _useState195 = useState(isIp ? "" : LOGISTICS_DIRECTORY_RECIPIENT),
     _useState196 = _slicedToArray(_useState195, 2),
     recipient = _useState196[0],
     setRecipient = _useState196[1];
@@ -18985,8 +18987,9 @@ var HomeMailModal = function HomeMailModal(_ref121) {
       marginTop: 4,
       padding: 7,
       background: C.input,
-      color: C.text,
-      border: "1px solid ".concat(C.border),
+      color: C.blue,
+      fontWeight: 700,
+      border: "1px solid ".concat(C.blue),
       borderRadius: 4
     }
   })), isIp && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(ManagerCcPicker, {

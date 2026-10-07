@@ -102,7 +102,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await bulkPdfDialog.waitFor({state:'detached'});
     await page.getByRole('button',{name:'Clôture logistique',exact:true}).click();
     let homeMailDialog=page.getByRole('dialog');
-    assert.equal(await homeMailDialog.getByLabel('Destinataire',{exact:true}).inputValue(),'logistique.ch@safran-timing.safrangroup.com');
+    assert.equal(await homeMailDialog.getByLabel('Destinataire',{exact:true}).inputValue(),'CH - NHL - Logistique CH');
     assert.ok(await homeMailDialog.getByRole('checkbox',{name:'Passer les éléments sélectionnés au statut « À clôturer »',exact:true}).isChecked());
     await homeMailDialog.getByRole('checkbox',{name:'Mettre MGR en copie',exact:true}).check();
     assert.equal(await homeMailDialog.getByText('MGR',{exact:true}).count(),1);
@@ -213,7 +213,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button', {name: 'Demande matière (1)', exact: true}).click();
     const dialog = page.getByRole('dialog', {name: 'Demande matière - Logistique'});
     await dialog.waitFor();
-    assert.equal(await dialog.getByLabel('Destinataire',{exact:true}).inputValue(),'logistique.ch@safran-timing.safrangroup.com');
+    assert.equal(await dialog.getByLabel('Destinataire',{exact:true}).inputValue(),'CH - NHL - Logistique CH');
     await dialog.getByRole('checkbox',{name:'Mettre MGR en copie',exact:true}).check();
     await dialog.getByRole('checkbox',{name:'Mettre JGR en copie',exact:true}).check();
     assert.ok(await dialog.getByRole('checkbox',{name:'Mettre EMPTY en copie',exact:true}).isDisabled());

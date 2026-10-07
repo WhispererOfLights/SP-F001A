@@ -110,6 +110,7 @@ const canManageUsers = user => isAdminManager(user);
 const canManageLists = user => isAdminManager(user);
 const canControlRework = user => ["Admin","Manager","Contrôleur"].includes(normalizeRole(user));
 const canTraceability = user => ["Admin","Manager","Logistique"].includes(normalizeRole(user));
+const LOGISTICS_DIRECTORY_RECIPIENT = "CH - NHL - Logistique CH";
 const canRecordMating = (user,connector) => !!user?.trigram&&["Opérateur","Contrôleur","Manager","Admin"].includes(normalizeRole(user))&&!!connector?.validated&&!connector.deleted;
 const canComment = user => !!user?.trigram;
 const canEditLine = (user,row={}) => {
@@ -2729,7 +2730,7 @@ const ManagerCcPicker = ({managers,copyTo,onChange,required=false,error="",legen
 };
 const MaterialRequestModal = ({header,rows,user,onClose}) => {
   const [draft,setDraft]=useState(()=>buildMaterialRequest({header,rows,user}));
-  const [recipient,setRecipient]=useState("logistique.ch@safran-timing.safrangroup.com");
+  const [recipient,setRecipient]=useState(LOGISTICS_DIRECTORY_RECIPIENT);
   const [copyTo,setCopyTo]=useState([]);
   const {managers,error:ccError}=useCcManagers();
   const ccRequired=materialCcRequired(user);
@@ -2755,7 +2756,7 @@ const MaterialRequestModal = ({header,rows,user,onClose}) => {
         <h2 id="material-request-title" style={{margin:0,fontSize:16}}>Demande matière - Logistique</h2>
         <button type="button" aria-label="Fermer" title="Fermer" onClick={onClose} style={{border:0,background:"transparent",color:C.muted,fontSize:20,cursor:"pointer"}}>×</button>
       </div>
-      <label style={{display:"block",marginBottom:10,fontSize:12}}>Destinataire<input aria-label="Destinataire" value={recipient} onChange={e=>setRecipient(e.target.value)} style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/></label>
+      <label style={{display:"block",marginBottom:10,fontSize:12}}>Destinataire<input aria-label="Destinataire" value={recipient} onChange={e=>setRecipient(e.target.value)} style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.blue,fontWeight:700,border:`1px solid ${C.blue}`,borderRadius:4}}/></label>
       <ManagerCcPicker managers={managers} copyTo={copyTo} onChange={setCopyTo} required={ccRequired} error={ccError}/>
       <label style={{display:"block",marginBottom:10,fontSize:12}}>Objet<input aria-label="Objet" value={draft.subject} onChange={e=>setDraft(d=>({...d,subject:e.target.value}))} style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/></label>
       <label style={{display:"block",fontSize:12}}>Message<textarea aria-label="Message" value={draft.body} onChange={e=>setDraft(d=>({...d,body:e.target.value}))} style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:4,height:320,maxHeight:"55vh",resize:"vertical",padding:10,fontFamily:"monospace",fontSize:13,lineHeight:1.5,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/></label>
@@ -6877,7 +6878,7 @@ const downloadOutlookMeeting = ({draft,date,time,duration,location,requiredRecip
 const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
   const isIp=kind==="ip";
   const [ipName,setIpName]=useState("");
-  const [recipient,setRecipient]=useState(isIp?"":"logistique.ch@safran-timing.safrangroup.com");
+  const [recipient,setRecipient]=useState(isIp?"":LOGISTICS_DIRECTORY_RECIPIENT);
   const [meetingSlot]=useState(defaultMeetingSlot);
   const [meetingDate,setMeetingDate]=useState(meetingSlot.date);
   const [meetingTime,setMeetingTime]=useState(meetingSlot.time);
@@ -6948,7 +6949,7 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
       </div>}
       {!isIp&&<label style={{display:"block",marginBottom:10,fontSize:12}}>Destinataire
         <input aria-label="Destinataire" value={recipient} onChange={e=>setRecipient(e.target.value)}
-          style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/>
+          style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.blue,fontWeight:700,border:`1px solid ${C.blue}`,borderRadius:4}}/>
       </label>}
       {isIp&&<>
         <ManagerCcPicker managers={projectAccounts} copyTo={inviteProjectTo} onChange={setInviteProjectTo} required error={inviteAccountsError}
