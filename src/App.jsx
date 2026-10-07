@@ -6354,18 +6354,16 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
         {isIp?<Btn disabled={!ipName.trim()||!meetingDate||!meetingTime||!projectMeetingEmails.length||!assuranceMeetingEmails.length||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
           downloadOutlookMeeting({draft,date:meetingDate,time:meetingTime,duration:meetingDuration,location:[meetingRoom,meetingPlace].map(value=>value.trim()).filter(Boolean).join(" "),requiredRecipients:requiredMeetingEmails,optionalRecipients:optionalMeetingEmails,user});
           setMessage("Brouillon Outlook créé : ouvrez-le, modifiez-le puis cliquez sur Inviter des participants pour l’envoyer.");
-        }} color={color} small>Créer le brouillon Outlook</Btn>:<Btn disabled={sending||!recipient.trim()||!draft.subject.trim()||!draft.body.trim()} onClick={async()=>{
-          setMessage("");
+        }} color={color} small>Créer le brouillon Outlook</Btn>:<Btn disabled={sending||!recipient.trim()||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
+          const cc=ccEmails.length?`&cc=${encodeURIComponent(ccEmails.join(","))}`:"";
+          window.location.href=`mailto:${encodeURIComponent(recipient.trim())}?subject=${encodeURIComponent(draft.subject)}${cc}&body=${encodeURIComponent(draft.body)}`;
+          if(!markForClosure||!onMarkForClosure){setMessage("Brouillon Outlook ouvert.");return;}
           setSending(true);
-          try{
-            if(markForClosure&&onMarkForClosure) await onMarkForClosure(rows);
-            const cc=ccEmails.length?`&cc=${encodeURIComponent(ccEmails.join(","))}`:"";
-            window.location.href=`mailto:${encodeURIComponent(recipient.trim())}?subject=${encodeURIComponent(draft.subject)}${cc}&body=${encodeURIComponent(draft.body)}`;
-          }catch(error){
-            setMessage(`Statut non modifié : ${error?.message||error}`);
-          }finally{
-            setSending(false);
-          }
+          setMessage("Brouillon Outlook ouvert. Mise à jour des statuts en cours…");
+          setTimeout(()=>Promise.resolve(onMarkForClosure(rows))
+            .then(()=>setMessage("Brouillon Outlook ouvert. Statuts passés à « À clôturer »."))
+            .catch(error=>setMessage(`Brouillon ouvert, mais statuts non modifiés : ${error?.message||error}`))
+            .finally(()=>setSending(false)),0);
         }} color={color} small>{sending?"Mise à jour…":"Ouvrir la messagerie"}</Btn>}
       </div>
     </div>
@@ -6389,7 +6387,7 @@ const homeFactsForUnit = (data,unitId) => {
 const homeFactSearchText = facts => (facts||[]).map(fact=>[
   fact.type,fact.numero,fact.commentaires,fact.date,fact.visa,fact.closedDate,fact.closedVisa,
 ].filter(Boolean).join(" ")).join(" ");
-const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageUsers,onManageStatuses}) => {
+const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageUsers,onManageStatuses}) => {
   const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
   const [search,setSearch]          = useState("");
   const [page,setPage]               = useState(0);
@@ -6965,7 +6963,9 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={v=>{onSaveProfile&&onSaveProfile(v);setShowProfile(false);}}/> }
       {showBulkPdf&&isAdminManager(user)&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkPdf}/>}
       {homeMailKind&&isAdminManager(user)&&<HomeMailModal kind={homeMailKind} rows={selectedRows} user={user} onClose={()=>setHomeMailKind(null)}
-        onMarkForClosure={rows=>Promise.all(rows.filter(row=>row._homeUnitId).map(row=>onUnitStatusChange(row.id,row._homeUnitId,"a_cloturer")))}/>}
+        onMarkForClosure={rows=>onBulkUnitStatusChange
+          ? onBulkUnitStatusChange(rows,"a_cloturer")
+          : Promise.all(rows.filter(row=>row._homeUnitId).map(row=>onUnitStatusChange(row.id,row._homeUnitId,"a_cloturer")))}/>}
     </div>
   );
 };
@@ -7223,6 +7223,29 @@ export default function App(){
     const r=await window.storage.get(`of:${id}`,true);
     if(!r) throw new Error("OF introuvable");
     await persistHomeData(id,patchTrackedUnit(JSON.parse(r.value),unitId,fields));
+  });
+  const updateHomeUnitsStatus=(rows,status)=>enqueueHomeSave(async()=>{
+    if(!isAdminManager(user)) return;
+    const groups=new Map();
+    (rows||[]).filter(row=>row.id&&row._homeUnitId).forEach(row=>{
+      if(!groups.has(row.id)) groups.set(row.id,new Set());
+      groups.get(row.id).add(row._homeUnitId);
+    });
+    if(!groups.size) return;
+    const records=await Promise.all([...groups].map(async([id,unitIds])=>{
+      const record=await window.storage.get(`of:${id}`,true);
+      if(!record) throw new Error(`OF ${id} introuvable`);
+      let data=JSON.parse(record.value);
+      unitIds.forEach(unitId=>{data=patchTrackedUnit(data,unitId,{status});});
+      return {id,data:withUnitMetadata(data)};
+    }));
+    await Promise.all(records.map(record=>window.storage.set(`of:${record.id}`,JSON.stringify(record.data),true)));
+    const stored=await window.storage.get("of-list",true);
+    const list=stored?JSON.parse(stored.value):ofList;
+    const byId=Object.fromEntries(records.map(record=>[record.id,record.data]));
+    const nextList=list.map(entry=>byId[entry.id]?{...entry,...byId[entry.id].header}:entry);
+    await window.storage.set("of-list",JSON.stringify(nextList),true);
+    setOfList(nextList);
   });
   const updateHomeStatus=(id,status)=>enqueueHomeSave(async()=>{
     if(!isAdminManager(user)) return;
@@ -7675,6 +7698,7 @@ export default function App(){
       <OFSelector ofList={ofList} consommables={consommables} onSelect={selectOf} onCreate={createOf} onDelete={deleteOf} onImportOFs={importOFs}
         onFinishedSnChange={(id,unitId,value)=>updateHomeUnit(id,unitId,{snProduitFini:value})}
         onUnitStatusChange={(id,unitId,status)=>updateHomeUnit(id,unitId,{status})}
+        onBulkUnitStatusChange={updateHomeUnitsStatus}
         user={user} onLogout={handleLogout} openHistory={openHistory}
         onSaveProfile={handleSaveProfile}
         onManageUsers={()=>setShowAdminUsers(true)}
