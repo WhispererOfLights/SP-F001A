@@ -103,7 +103,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button',{name:'Clôture logistique',exact:true}).click();
     let homeMailDialog=page.getByRole('dialog');
     assert.equal(await homeMailDialog.getByLabel('Destinataire',{exact:true}).inputValue(),'CH - NHL - Logistique CH');
-    assert.ok(await homeMailDialog.getByRole('checkbox',{name:'Passer les éléments sélectionnés au statut « À clôturer »',exact:true}).isChecked());
+    assert.equal(await homeMailDialog.getByRole('checkbox',{name:'Passer les éléments sélectionnés au statut « À clôturer »',exact:true}).count(),0);
     await homeMailDialog.getByRole('checkbox',{name:'Mettre MGR en copie',exact:true}).check();
     assert.equal(await homeMailDialog.getByText('MGR',{exact:true}).count(),1);
     assert.equal(await homeMailDialog.getByLabel('Objet',{exact:true}).inputValue(),'Clôture | OF 100TEST | OTP 7400-TEST');

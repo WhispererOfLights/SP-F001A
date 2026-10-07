@@ -6277,7 +6277,7 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
   const makeDraft=()=>isIp?buildIpInvitation({rows,user,ipName}):buildClosureRequest({rows,user});
   const [draft,setDraft]=useState(makeDraft);
   const [message,setMessage]=useState("");
-  const [markForClosure,setMarkForClosure]=useState(!isIp);
+  const [draftOpened,setDraftOpened]=useState(false);
   const [sending,setSending]=useState(false);
   useEffect(()=>{if(isIp)setDraft(buildIpInvitation({rows,user,ipName}));},[ipName]);
   const color=isIp?C.yellow:C.green;
@@ -6286,11 +6286,24 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
     try{await navigator.clipboard.writeText(text);setMessage("Brouillon copié");}
     catch{setMessage("Copie impossible");}
   };
+  const closeModal=async()=>{
+    if(isIp||!draftOpened||!onMarkForClosure){onClose();return;}
+    if(!window.confirm(`Mettre les ${rows.length} SN / LOT sélectionné${rows.length>1?"s":""} au statut « À clôturer » ?`)){onClose();return;}
+    setSending(true);
+    setMessage("Mise à jour des statuts en cours…");
+    try{
+      await onMarkForClosure(rows);
+      onClose();
+    }catch(error){
+      setMessage(`Mise à jour impossible : ${error?.message||error}`);
+      setSending(false);
+    }
+  };
   return <div style={{position:"fixed",inset:0,zIndex:340,background:"#000000aa",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div role="dialog" aria-modal="true" aria-labelledby="home-mail-title" style={{width:850,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",background:C.surface,color:C.text,border:`2px solid ${color}`,borderRadius:6,padding:18,boxShadow:`0 0 0 4px ${color}18`}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <h2 id="home-mail-title" style={{margin:0,fontSize:16,color}}>{isIp?"Séance IP":"Clôture logistique"} — {rows.length} sous-ensemble{rows.length>1?"s":""}</h2>
-        <button type="button" aria-label="Fermer" title="Fermer" onClick={onClose} style={{border:0,background:"transparent",color:C.muted,fontSize:20,cursor:"pointer"}}>×</button>
+        <button type="button" aria-label="Fermer" title="Fermer" disabled={sending} onClick={closeModal} style={{border:0,background:"transparent",color:C.muted,fontSize:20,cursor:sending?"wait":"pointer"}}>×</button>
       </div>
       {isIp&&<label style={{display:"block",marginBottom:10,fontSize:12,fontWeight:700,color:C.yellow}}>Nom de l’IP
         <input aria-label="Nom de l’IP" autoFocus value={ipName} onChange={e=>setIpName(e.target.value)} placeholder="Ex. RX-IP-800 (selon fiche suiveuse)"
@@ -6335,10 +6348,6 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
           legend="CC - Managers"/>
       </>}
       {!isIp&&<ManagerCcPicker managers={managers} copyTo={copyTo} onChange={setCopyTo} error={ccError}/>}
-      {!isIp&&<label style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,padding:"8px 10px",fontSize:12,fontWeight:700,color:markForClosure?C.green:C.muted,background:C.green+"0d",border:`1px solid ${markForClosure?C.green:C.border}`,borderRadius:4,cursor:"pointer"}}>
-        <input type="checkbox" checked={markForClosure} onChange={e=>setMarkForClosure(e.target.checked)}/>
-        Passer les éléments sélectionnés au statut « À clôturer »
-      </label>}
       <label style={{display:"block",marginBottom:10,fontSize:12}}>Objet
         <input aria-label="Objet" value={draft.subject} onChange={e=>setDraft(d=>({...d,subject:e.target.value}))}
           style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/>
@@ -6348,8 +6357,8 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
           style={{display:"block",width:"100%",boxSizing:"border-box",marginTop:4,height:330,maxHeight:"50vh",resize:"vertical",padding:10,fontFamily:"system-ui,sans-serif",fontSize:13,lineHeight:1.5,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/>
       </label>
       <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",gap:8,marginTop:12,flexWrap:"wrap"}}>
-        <span role="status" style={{fontSize:12,color:C.green}}>{message}</span>
-        <Btn onClick={onClose} color={C.border} small>Fermer</Btn>
+        <span role="status" style={{fontSize:12,color:message.includes("impossible")?C.red:C.green}}>{message}</span>
+        <Btn onClick={closeModal} disabled={sending} color={C.border} small>{sending?"Mise à jour…":"Fermer"}</Btn>
         <Btn onClick={copy} color={C.border} small>Copier le brouillon</Btn>
         {isIp?<Btn disabled={!ipName.trim()||!meetingDate||!meetingTime||!projectMeetingEmails.length||!assuranceMeetingEmails.length||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
           downloadOutlookMeeting({draft,date:meetingDate,time:meetingTime,duration:meetingDuration,location:[meetingRoom,meetingPlace].map(value=>value.trim()).filter(Boolean).join(" "),requiredRecipients:requiredMeetingEmails,optionalRecipients:optionalMeetingEmails,user});
@@ -6357,14 +6366,9 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
         }} color={color} small>Créer le brouillon Outlook</Btn>:<Btn disabled={sending||!recipient.trim()||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
           const cc=ccEmails.length?`&cc=${encodeURIComponent(ccEmails.join(","))}`:"";
           window.location.href=`mailto:${encodeURIComponent(recipient.trim())}?subject=${encodeURIComponent(draft.subject)}${cc}&body=${encodeURIComponent(draft.body)}`;
-          if(!markForClosure||!onMarkForClosure){setMessage("Brouillon Outlook ouvert.");return;}
-          setSending(true);
-          setMessage("Brouillon Outlook ouvert. Mise à jour des statuts en cours…");
-          setTimeout(()=>Promise.resolve(onMarkForClosure(rows))
-            .then(()=>setMessage("Brouillon Outlook ouvert. Statuts passés à « À clôturer »."))
-            .catch(error=>setMessage(`Brouillon ouvert, mais statuts non modifiés : ${error?.message||error}`))
-            .finally(()=>setSending(false)),0);
-        }} color={color} small>{sending?"Mise à jour…":"Ouvrir la messagerie"}</Btn>}
+          setDraftOpened(true);
+          setMessage("Brouillon Outlook ouvert. Le statut sera proposé à la fermeture.");
+        }} color={color} small>Ouvrir la messagerie</Btn>}
       </div>
     </div>
   </div>;
