@@ -262,6 +262,23 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       assert.equal(await row.locator('xpath=following-sibling::tr[1]').getByText('Traçabilité à compléter',{exact:false}).count(),0);
     }
     await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
+    const observationMain=page.locator('[data-rework-row]').first();
+    const observationId=await observationMain.getAttribute('data-rework-row');
+    await observationMain.locator('[data-entry-field="repere"]').fill('C100');
+    await observationMain.locator('[data-entry-field="action1"]').selectOption('O');
+    const observationDetail=page.locator(`tr[data-rework-row="${observationId}"] + tr`);
+    await observationDetail.getByText('Observation',{exact:true}).waitFor();
+    assert.ok(await observationMain.locator('[data-entry-field="codeERP"]').isEditable()===false);
+    assert.ok(await observationMain.getByText('N/A',{exact:true}).count()>=2);
+    let missingObservationMessage='';
+    page.once('dialog',async dialog=>{missingObservationMessage=dialog.message();await dialog.accept();});
+    await observationMain.getByTitle('Valider',{exact:true}).click();
+    await page.waitForFunction(id=>window.testRecords['of:test-of'].rework.rows.some(row=>row.id===id&&!row.validated&&row.validError?.includes('Observation')),observationId);
+    assert.ok(missingObservationMessage.includes('Observation'));
+    await observationDetail.locator('[data-entry-field="remarques"]').fill('C100 vérifié, laissé en état');
+    await observationMain.getByTitle('Valider',{exact:true}).click();
+    await page.waitForFunction(id=>window.testRecords['of:test-of'].rework.rows.some(row=>row.id===id&&row.validated&&row.remarques==='C100 vérifié, laissé en état'),observationId);
+    await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
     const pointedNoValue=page.locator('[data-rework-row]').first();
     await pointedNoValue.locator('[data-entry-field="repere"]').fill('P-NOVALUE');
     await pointedNoValue.locator('[data-entry-field="action1"]').selectOption('P');

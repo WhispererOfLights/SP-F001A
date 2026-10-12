@@ -31,6 +31,7 @@ const ofData = {
     rework('r5','R3','P','ARTICLE-P','01/05/2026 10:00',{sn:'SN-COMP',qty:'2',lot:'LOT-P'}),
     rework('r6','R4','M','ARTICLE-M','01/05/2026 11:00',{qty:'3'}),
     rework('r7','R5','R','ARTICLE-R','01/05/2026 12:00'),
+    rework('r8','C100','O','','01/05/2026 12:30',{remarques:'Constat vérifié, laissé en l’état'}),
     rework('draft','R6','S','DRAFT','01/05/2026 13:00',{validated:false}),
   ]},
   consommables:{ops:[{
@@ -59,7 +60,15 @@ assert.deepEqual(Array.from(rows.CO02,row=>row[0]),['ARTICLE-A','ARTICLE-B','ART
 assert.deepEqual(Array.from(rows.CO02[0].slice(4,9)),['L','0010','0','7700','PRD3']);
 assert.equal(rows.CO02.at(-1)[11],'0000020452');
 assert.equal(rows.CO02.some(row=>row.includes('NC-001')||row.includes('DM-001')||row.includes('ISS-001')),false,'Les faits techniques sont exclus de CO02');
+assert.equal(rows.IB52.some(row=>row.includes('Constat vérifié, laissé en l’état')),false,'Les observations sont exclues de IB52');
+assert.equal(rows.CO02.some(row=>row.includes('Constat vérifié, laissé en l’état')),false,'Les observations sont exclues de CO02');
 assert.ok(rows.FULL.every(row=>row.length===27));
+const fullObservation=rows.FULL.find(row=>row[8]==='Observation');
+assert.equal(fullObservation[7],'C100');
+assert.equal(fullObservation[9],'');
+assert.equal(fullObservation[11],'');
+assert.equal(fullObservation[12],'');
+assert.equal(fullObservation[22],'Constat vérifié, laissé en l’état');
 const fullFacts=rows.FULL.filter(row=>row[0]==='Fait technique');
 assert.deepEqual(Array.from(fullFacts,row=>[row[7],row[11],row[13]]),[
   ['NC','2920000656','NC-001'],['DM','2920000657','DM-001'],['ISS','2920000656','ISS-001'],

@@ -2624,7 +2624,8 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
       var repere = quantity && Number(quantity) !== 1 ? "".concat(quantity, "x ").concat(pdfValue(r.repere)) : pdfValue(r.repere);
       var controlRequired = ["S", "R"].includes(r.action1);
       var controlVisa = r.visaCtrl || (controlRequired ? "Contrôle à faire" : "N/A");
-      return _objectSpread(_objectSpread({}, rowPdf([repere, r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), pdfValue(r.codeERP), pdfValue(r.valeur), pdfValue(r.lot), pdfValue(r.dc), pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r)), {}, {
+      var observation = r.action1 === "O" ? pdfValue(r.remarques) : pdfValue(r.valeur);
+      return _objectSpread(_objectSpread({}, rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), observation, r.action1 === "O" ? "N/A" : pdfValue(r.lot), r.action1 === "O" ? "N/A" : pdfValue(r.dc), r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r)), {}, {
         cellStyles: _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, hdArticles.some(function (hd) {
           return hd.id === r.id;
         }) ? {
@@ -2773,7 +2774,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
     var sectionKey = p.section || p.context || "Rapport";
     sectionSeen[sectionKey] = (sectionSeen[sectionKey] || 0) + 1;
     var footerY = 14;
-    var actionLegend = "Actions : S = Soudé | D = Dessoudé | P = Pointé | M = Matière | R = Rework";
+    var actionLegend = "Actions : S = Soudé | D = Dessoudé | P = Pointé | M = Matière | R = Rework | O = Observation";
     var showActionLegend = String(p.section || p.context || "").includes("Adjust / Rework");
     var pageText = "Page ".concat(sectionSeen[sectionKey], " / ").concat(sectionCounts[sectionKey]);
     p.ops.push("q ".concat(setStroke(color.blue), " .55 w ").concat(M.toFixed(2), " 28 m ").concat((W - M).toFixed(2), " 28 l S Q"));
@@ -4595,7 +4596,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref50) {
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
   (((_ofData$rework3 = ofData.rework) === null || _ofData$rework3 === void 0 ? void 0 : _ofData$rework3.rows) || []).forEach(function (row) {
     return targetRows(row).forEach(function (target) {
-      return full.push(["Adjust/Rework", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", row.fiche || "", row.etape || "", row.repere || "", ACTION_LABELS[row.action1] || row.action1 || "", row.qty || "", row.sn || "", article(row.codeERP), row.valeur || "", row.lot || "", row.dc || "", visaStamp(row.visaCtrl, row.dateCtrl), visaStamp(row.visaTraca, row.dateTraca), "", "", "", "", "", ""].concat(_toConsumableArray(deletedInfo(row))));
+      return full.push(["Adjust/Rework", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", row.fiche || "", row.etape || "", row.repere || "", ACTION_LABELS[row.action1] || row.action1 || "", row.action1 === "O" ? "" : row.qty || "", row.action1 === "O" ? "" : row.sn || "", row.action1 === "O" ? "" : article(row.codeERP), row.action1 === "O" ? "" : row.valeur || "", row.action1 === "O" ? "" : row.lot || "", row.action1 === "O" ? "" : row.dc || "", row.action1 === "O" ? "" : visaStamp(row.visaCtrl, row.dateCtrl), row.action1 === "O" ? "" : visaStamp(row.visaTraca, row.dateTraca), "", "", "", "", "", [row.remarques || "", comments(row.comments)].filter(Boolean).join(" | ")].concat(_toConsumableArray(deletedInfo(row))));
     });
   });
   (((_ofData$consommables2 = ofData.consommables) === null || _ofData$consommables2 === void 0 ? void 0 : _ofData$consommables2.ops) || []).forEach(function (op) {
@@ -6189,13 +6190,14 @@ var CommentBtn = function CommentBtn(_ref62) {
 };
 
 // ─── 1. Adjust / Rework — auto-visa Opér. ──────────────────────────────────
-var ACTIONS = ["S", "D", "P", "M", "R"];
+var ACTIONS = ["S", "D", "P", "M", "R", "O"];
 var ACTION_LABELS = {
   S: "Soudé",
   D: "Désoudé",
   P: "Pointé",
   M: "Matière",
-  R: "Rework"
+  R: "Rework",
+  O: "Observation"
 };
 var REWORK_EDIT_FIELDS = [{
   key: "createdDT",
@@ -6239,7 +6241,43 @@ var REWORK_EDIT_FIELDS = [{
 }, {
   key: "etape",
   label: "OP"
+}, {
+  key: "remarques",
+  label: "Observation"
 }];
+var reworkRequiredFields = function reworkRequiredFields(action) {
+  return action === "O" ? [{
+    key: "repere",
+    label: "Repère TOPO"
+  }, {
+    key: "action1",
+    label: "Action"
+  }, {
+    key: "remarques",
+    label: "Observation"
+  }] : [{
+    key: "repere",
+    label: "Repère TOPO"
+  }, {
+    key: "action1",
+    label: "Action"
+  }, {
+    key: "qty",
+    label: "QTÉ"
+  }, {
+    key: "fiche",
+    label: "Fiche suiveuse"
+  }, {
+    key: "etape",
+    label: "OP"
+  }].concat(_toConsumableArray(["S", "D", "P"].includes(action) ? [{
+    key: "valeur",
+    label: "Valeur"
+  }] : []), _toConsumableArray(["S", "P", "M"].includes(action) ? [{
+    key: "codeERP",
+    label: "Code article"
+  }] : []));
+};
 var parseActivityDate = function parseActivityDate(raw) {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;
   var value = String(raw || "").trim();
@@ -6840,7 +6878,7 @@ var copyReworkToUnit = function copyReworkToUnit(row, user, unit) {
   if (!canWriteData(user)) throw new Error("Accès en écriture requis");
   if (includeChecks && !sameOperation && (!canControlRework(user) || !canTraceability(user))) throw new Error("Droits CTRL et TRA requis");
   if (includeChecks && !sameOperation && row.visaCtrl === user.trigram && !isAdminManager(user)) throw new Error("Autocontrôle interdit");
-  var fields = ["repere", "qty", "action1", "codeERP", "valeur", "lot", "dc", "sn", "fiche", "etape", "isAdjust"];
+  var fields = ["repere", "qty", "action1", "codeERP", "valeur", "lot", "dc", "sn", "fiche", "etape", "isAdjust", "remarques"];
   var copied = duplicateRow({}, user, _objectSpread(_objectSpread({}, Object.fromEntries(fields.map(function (key) {
     var _row$key;
     return [key, (_row$key = row[key]) !== null && _row$key !== void 0 ? _row$key : key === "isAdjust" ? false : ""];
@@ -6854,7 +6892,6 @@ var copyReworkToUnit = function copyReworkToUnit(row, user, unit) {
     visaOper: user.trigram,
     dateOper: now(),
     sortieVisa: "",
-    remarques: "",
     copyOrigin: copyOrigin,
     visaCtrl: effectiveChecks ? row.visaCtrl || "" : "",
     dateCtrl: effectiveChecks ? row.dateCtrl || "" : "",
@@ -6977,7 +7014,7 @@ var copySourceKey = function copySourceKey(tab, row) {
 var copySourceLabel = function copySourceLabel(tab, row) {
   var _row$items5, _row$items6;
   return ({
-    rework: [row.repere, row.action1, row.codeERP, row.valeur],
+    rework: [row.repere, row.action1, row.codeERP, row.valeur, row.remarques],
     consommables: [row.fiche, row.op, (_row$items5 = row.items) === null || _row$items5 === void 0 || (_row$items5 = _row$items5[0]) === null || _row$items5 === void 0 ? void 0 : _row$items5.consoId, (_row$items6 = row.items) === null || _row$items6 === void 0 || (_row$items6 = _row$items6[0]) === null || _row$items6 === void 0 ? void 0 : _row$items6.lot],
     testequip: [row.nInv, row.type, row.designation],
     faits: [row.type, row.numero],
@@ -8015,7 +8052,7 @@ var TabRework = function TabRework(_ref71) {
     return r.deleted;
   }).length;
   var isAchevee = function isAchevee(r) {
-    return r.action1 !== "P" && (!["S", "R"].includes(r.action1) || !!r.visaCtrl) && !!r.tracaOk && missingReworkTrace(r, true).length === 0;
+    return r.action1 === "O" ? !!r.validated : r.action1 !== "P" && (!["S", "R"].includes(r.action1) || !!r.visaCtrl) && !!r.tracaOk && missingReworkTrace(r, true).length === 0;
   };
   var acheveesCount = rows.filter(function (r) {
     return !r.deleted && isAchevee(r);
@@ -8030,7 +8067,7 @@ var TabRework = function TabRework(_ref71) {
     if (filters.repere && !txt("repere").includes(filters.repere.toUpperCase())) return false;
     if (!filterMatches(filters.action1, r.action1)) return false;
     if (filters.codeERP && !txt("codeERP").includes(filters.codeERP.toUpperCase())) return false;
-    if (filters.valeur && !txt("valeur").includes(filters.valeur.toUpperCase())) return false;
+    if (filters.valeur && !"".concat(txt("valeur"), " ").concat(txt("remarques")).includes(filters.valeur.toUpperCase())) return false;
     if (filters.lot && !txt("lot").includes(filters.lot.toUpperCase())) return false;
     if (filters.dc && !txt("dc").includes(filters.dc.toUpperCase())) return false;
     if (filters.sn && !txt("sn").includes(filters.sn.toUpperCase())) return false;
@@ -8157,22 +8194,6 @@ var TabRework = function TabRework(_ref71) {
       })
     });
   };
-  var REQUIRED = [{
-    key: "repere",
-    label: "Repère TOPO"
-  }, {
-    key: "action1",
-    label: "Action"
-  }, {
-    key: "qty",
-    label: "QTÉ"
-  }, {
-    key: "fiche",
-    label: "Fiche suiveuse"
-  }, {
-    key: "etape",
-    label: "OP"
-  }];
   var validateRow = function validateRow(id) {
     var r = rows.find(function (x) {
       return x.id === id;
@@ -8182,13 +8203,7 @@ var TabRework = function TabRework(_ref71) {
       upd(id, "validError", message);
       window.alert("Ligne non valid\xE9e :\n\n".concat(message));
     };
-    var required = [].concat(REQUIRED, _toConsumableArray(["S", "D", "P"].includes(r === null || r === void 0 ? void 0 : r.action1) ? [{
-      key: "valeur",
-      label: "Valeur"
-    }] : []), _toConsumableArray(["S", "P", "M"].includes(r === null || r === void 0 ? void 0 : r.action1) ? [{
-      key: "codeERP",
-      label: "Code article"
-    }] : []));
+    var required = reworkRequiredFields(r === null || r === void 0 ? void 0 : r.action1);
     var miss = checkRequired(r, required);
     if (miss.length) {
       refuse("Champs requis manquants : " + miss.join(", "));
@@ -8622,6 +8637,7 @@ var TabRework = function TabRework(_ref71) {
       fontWeight: 800
     }
   }, "\xD7")))), /*#__PURE__*/React.createElement("tbody", null, visibleRows.flatMap(function (r, i) {
+    var isObservation = r.action1 === "O";
     var dc = ["S", "P", "M"].includes(r.action1) ? dcCheck(r.dc, r.createdDT) : null;
     var traceMissing = missingReworkTrace(r, true);
     var missingStyle = {
@@ -8697,7 +8713,7 @@ var TabRework = function TabRework(_ref71) {
       "data-entry-field": "isAdjust",
       type: "checkbox",
       checked: isAdjustRow(r),
-      disabled: locked,
+      disabled: locked || isObservation,
       onChange: function onChange(e) {
         return updAdjust(r.id, e.target.checked);
       },
@@ -8708,7 +8724,7 @@ var TabRework = function TabRework(_ref71) {
         accentColor: C.accent,
         cursor: locked ? "default" : "pointer"
       }
-    })), /*#__PURE__*/React.createElement(TD, null, r.action1 === "M" || !r.repere ? /*#__PURE__*/React.createElement(Input, {
+    })), /*#__PURE__*/React.createElement(TD, null, !isObservation && (r.action1 === "M" || !r.repere) ? /*#__PURE__*/React.createElement(Input, {
       entryField: "qty",
       value: r.qty,
       onChange: function onChange(v) {
@@ -8741,38 +8757,39 @@ var TabRework = function TabRework(_ref71) {
       title: "Copier code article"
     }, /*#__PURE__*/React.createElement(Input, {
       entryField: "codeERP",
-      value: r.codeERP,
+      value: isObservation ? "" : r.codeERP,
       onChange: function onChange(v) {
         return upd(r.id, "codeERP", v);
       },
       small: true,
-      readOnly: locked,
+      readOnly: locked || isObservation,
       style: _objectSpread({
         width: "100%",
         fontFamily: "monospace"
-      }, locked ? LOCKED_INPUT_STYLE : {}),
-      title: "Code article ou texte libre",
-      placeholder: "Code article"
+      }, locked || isObservation ? LOCKED_INPUT_STYLE : {}),
+      title: isObservation ? "Non applicable à une observation" : "Code article ou texte libre",
+      placeholder: isObservation ? "N/A" : "Code article"
     }))), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(Input, {
       entryField: "valeur",
-      value: r.valeur,
+      value: isObservation ? "" : r.valeur,
       onChange: function onChange(v) {
         return upd(r.id, "valeur", v);
       },
       small: true,
-      readOnly: locked,
+      readOnly: locked || isObservation,
       title: coherenceIssues.length ? coherenceIssues.map(function (w) {
         return "Coh\xE9rence valeur : ".concat(w.previous.action1, " ").concat(w.previous.valeur || "?", " \u2260 ").concat(w.current.action1, " ").concat(w.current.valeur || "?");
       }).join("\n") : "Valeur du composant",
+      placeholder: isObservation ? "N/A" : "",
       style: _objectSpread(_objectSpread({
         width: "100%"
-      }, locked ? LOCKED_INPUT_STYLE : {}), coherenceStyle)
+      }, locked || isObservation ? LOCKED_INPUT_STYLE : {}), coherenceStyle)
     })), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(CopyCell, {
       value: r.lot,
       title: "Copier LOT"
     }, /*#__PURE__*/React.createElement(Input, {
       entryField: "lot",
-      value: r.lot,
+      value: isObservation ? "" : r.lot,
       onChange: function onChange(v) {
         return upd(r.id, "lot", v.toUpperCase().slice(0, 12));
       },
@@ -8780,12 +8797,13 @@ var TabRework = function TabRework(_ref71) {
         return upd(r.id, "lot", normLot(e.target.value));
       },
       small: true,
-      readOnly: locked,
-      title: "Lot : num\xE9rique sur 10 chiffres, ou texte libre / N/A",
+      readOnly: locked || isObservation,
+      placeholder: isObservation ? "N/A" : "",
+      title: isObservation ? "Non applicable à une observation" : "Lot : numérique sur 10 chiffres, ou texte libre / N/A",
       style: _objectSpread(_objectSpread({
         width: "100%",
         fontFamily: "monospace"
-      }, locked ? LOCKED_INPUT_STYLE : {}), traceMissing.includes("LOT") ? missingStyle : {})
+      }, locked || isObservation ? LOCKED_INPUT_STYLE : {}), traceMissing.includes("LOT") ? missingStyle : {})
     }))), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
@@ -8800,17 +8818,18 @@ var TabRework = function TabRework(_ref71) {
       }
     }, /*#__PURE__*/React.createElement(Input, {
       entryField: "dc",
-      value: r.dc,
+      value: isObservation ? "" : r.dc,
       onChange: function onChange(v) {
         return upd(r.id, "dc", v.toUpperCase().slice(0, 6));
       },
       small: true,
-      readOnly: locked,
-      title: dc && !dc.ok ? "Anomalie : DC ".concat(r.dc, " \u2014 ").concat(dc.label, " \xE0 la date de la ligne") : (dc === null || dc === void 0 ? void 0 : dc.label) || "DC (ex: 2552R1) ou N/A si non disponible",
+      readOnly: locked || isObservation,
+      placeholder: isObservation ? "N/A" : "",
+      title: isObservation ? "Non applicable à une observation" : dc && !dc.ok ? "Anomalie : DC ".concat(r.dc, " \u2014 ").concat(dc.label, " \xE0 la date de la ligne") : (dc === null || dc === void 0 ? void 0 : dc.label) || "DC (ex: 2552R1) ou N/A si non disponible",
       style: _objectSpread(_objectSpread({
         width: "100%",
         fontFamily: "monospace"
-      }, locked ? LOCKED_INPUT_STYLE : {}), {}, {
+      }, locked || isObservation ? LOCKED_INPUT_STYLE : {}), {}, {
         borderColor: dc && !dc.ok ? C.red : dc !== null && dc !== void 0 && dc.ok ? C.green : undefined,
         color: dc && !dc.ok ? C.red : dc !== null && dc !== void 0 && dc.ok ? C.green : undefined
       }, traceMissing.includes("DC") ? missingStyle : {})
@@ -8819,15 +8838,16 @@ var TabRework = function TabRework(_ref71) {
       title: "Copier SN"
     }, /*#__PURE__*/React.createElement(Input, {
       entryField: "sn",
-      value: r.sn,
+      value: isObservation ? "" : r.sn,
       onChange: function onChange(v) {
         return upd(r.id, "sn", v);
       },
       small: true,
-      readOnly: locked,
+      readOnly: locked || isObservation,
+      placeholder: isObservation ? "N/A" : "",
       style: _objectSpread({
         width: "100%"
-      }, locked ? LOCKED_INPUT_STYLE : {})
+      }, locked || isObservation ? LOCKED_INPUT_STYLE : {})
     }))), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(Input, {
       entryField: "fiche",
       value: r.fiche,
@@ -8888,7 +8908,14 @@ var TabRework = function TabRework(_ref71) {
       disabled: !canCtrlRow(r)
     })), /*#__PURE__*/React.createElement(TD, {
       center: true
-    }, /*#__PURE__*/React.createElement(StampStatus, {
+    }, isObservation ? /*#__PURE__*/React.createElement("span", {
+      title: "Tra\xE7abilit\xE9 composant non applicable \xE0 une observation",
+      style: {
+        fontFamily: "monospace",
+        fontSize: 10,
+        color: C.muted
+      }
+    }, "N/A") : /*#__PURE__*/React.createElement(StampStatus, {
       done: !!r.tracaOk,
       visa: r.visaTraca,
       date: r.dateTraca,
@@ -8983,6 +9010,47 @@ var TabRework = function TabRework(_ref71) {
       title: "Dupliquer"
     }, "\u29C9"), /*#__PURE__*/React.createElement(HistoryBtn, {
       row: r
+    })))), isObservation && /*#__PURE__*/React.createElement("tr", {
+      key: r.id + "_observation",
+      style: {
+        background: r.deleted ? "#da363318" : i % 2 === 0 ? C.blue + "08" : C.stripe,
+        borderLeft: r.validated ? "3px solid ".concat(C.green) : "3px solid ".concat(C.border)
+      }
+    }, /*#__PURE__*/React.createElement("td", {
+      colSpan: 99,
+      style: {
+        padding: "4px 8px 7px",
+        textDecoration: r.deleted ? "line-through" : undefined,
+        color: r.deleted ? C.red : undefined
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "grid",
+        gridTemplateColumns: "110px minmax(240px,1fr)",
+        alignItems: "center",
+        gap: 8
+      }
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        fontSize: 10,
+        color: C.blue,
+        textTransform: "uppercase",
+        letterSpacing: .5
+      }
+    }, "Observation"), /*#__PURE__*/React.createElement(Input, {
+      entryField: "remarques",
+      value: r.remarques || "",
+      onChange: function onChange(v) {
+        return upd(r.id, "remarques", v);
+      },
+      small: true,
+      required: true,
+      readOnly: locked,
+      placeholder: "Ex. C100 : constat v\xE9rifi\xE9, laiss\xE9 en l\u2019\xE9tat",
+      title: "Observation li\xE9e au rep\xE8re TOPO",
+      style: _objectSpread(_objectSpread({
+        width: "100%"
+      }, !r.remarques && !locked ? missingStyle : {}), locked ? LOCKED_INPUT_STYLE : {})
     })))), /*#__PURE__*/React.createElement(HistoryTrail, {
       key: r.id + "_hist",
       row: r,

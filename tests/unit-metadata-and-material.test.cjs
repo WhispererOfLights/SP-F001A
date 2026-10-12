@@ -202,6 +202,8 @@ const all=context.copyUnit(source,{trigram:'JGR',role:'Manager'},{id:'destinatio
 assert.equal(all.createdVisa,'JGR');assert.equal(all.visaCtrl,'CTL');assert.equal(all.dateCtrl,source.dateCtrl);assert.equal(all.tracaOk,true);assert.equal(all.visaTraca,'LOG');
 const propagated=context.copyUnit(source,writer,{id:'destination'},false,'same',{sourceOf:'1000'});
 assert.equal(propagated.createdVisa,'OTHER');assert.equal(propagated.visaCtrl,'CTL');assert.equal(propagated.tracaOk,true);assert.equal(propagated.copyOrigin.sourceOf,'1000');
+const observationCopy=context.copyUnit({...source,action1:'O',repere:'C100',remarques:'Constat laissé en état'},writer,{id:'destination'});
+assert.equal(observationCopy.remarques,'Constat laissé en état');assert.equal(observationCopy.action1,'O');
 const consoSource={id:'op',createdVisa:'OTHER',createdDT:'01/05/2026 08:00',validated:true,fiche:'DOC',op:'10',items:[{id:'item',createdVisa:'OTHER',createdDT:'01/05/2026 08:00',validated:true,consoId:'GLUE',echantillon:'ECH-1',lot:'LOT-1',dp:'31.12.26'}]};
 const consoNew=context.copyAny('consommables',consoSource,writer,{id:'destination'},false,'new',false,{sourceOf:'1000'});
 assert.equal(consoNew.createdVisa,'JGR');assert.equal(consoNew.items[0].echantillon,'');assert.equal(consoNew.items[0].lot,'LOT-1');

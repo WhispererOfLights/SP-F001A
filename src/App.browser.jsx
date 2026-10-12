@@ -1221,7 +1221,8 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const repere=quantity&&Number(quantity)!==1?`${quantity}x ${pdfValue(r.repere)}`:pdfValue(r.repere);
         const controlRequired=["S","R"].includes(r.action1);
         const controlVisa=r.visaCtrl|| (controlRequired?"Contrôle à faire":"N/A");
-        return {...rowPdf([repere,r.isAdjust?"Oui":"Non",pdfValue(r.action1),pdfValue(r.codeERP),pdfValue(r.valeur),pdfValue(r.lot),pdfValue(r.dc),pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r),
+        const observation=r.action1==="O"?pdfValue(r.remarques):pdfValue(r.valeur);
+        return {...rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),observation,r.action1==="O"?"N/A":pdfValue(r.lot),r.action1==="O"?"N/A":pdfValue(r.dc),r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r),
         cellStyles:{
           ...(hdArticles.some(hd=>hd.id===r.id)?{6:{color:color.red,bold:true}}:{}),
           ...(!r.deleted&&missingReworkTrace(r,true).includes("LOT")?{5:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),
@@ -1333,7 +1334,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     const sectionKey=p.section||p.context||"Rapport";
     sectionSeen[sectionKey]=(sectionSeen[sectionKey]||0)+1;
     const footerY=14;
-    const actionLegend="Actions : S = Soudé | D = Dessoudé | P = Pointé | M = Matière | R = Rework";
+    const actionLegend="Actions : S = Soudé | D = Dessoudé | P = Pointé | M = Matière | R = Rework | O = Observation";
     const showActionLegend=String(p.section||p.context||"").includes("Adjust / Rework");
     const pageText=`Page ${sectionSeen[sectionKey]} / ${sectionCounts[sectionKey]}`;
     p.ops.push(`q ${setStroke(color.blue)} .55 w ${M.toFixed(2)} 28 m ${(W-M).toFixed(2)} 28 l S Q`);
@@ -2023,8 +2024,8 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
   (ofData.rework?.rows||[]).forEach(row=>targetRows(row).forEach(target=>full.push([
     "Adjust/Rework",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"",row.fiche||"",row.etape||"",
-    row.repere||"",ACTION_LABELS[row.action1]||row.action1||"",row.qty||"",row.sn||"",article(row.codeERP),row.valeur||"",row.lot||"",row.dc||"",
-    visaStamp(row.visaCtrl,row.dateCtrl),visaStamp(row.visaTraca,row.dateTraca),"","","","","","",...deletedInfo(row),
+    row.repere||"",ACTION_LABELS[row.action1]||row.action1||"",row.action1==="O"?"":row.qty||"",row.action1==="O"?"":row.sn||"",row.action1==="O"?"":article(row.codeERP),row.action1==="O"?"":row.valeur||"",row.action1==="O"?"":row.lot||"",row.action1==="O"?"":row.dc||"",
+    row.action1==="O"?"":visaStamp(row.visaCtrl,row.dateCtrl),row.action1==="O"?"":visaStamp(row.visaTraca,row.dateTraca),"","","","","",[row.remarques||"",comments(row.comments)].filter(Boolean).join(" | "),...deletedInfo(row),
   ])));
   (ofData.consommables?.ops||[]).forEach(op=>(op.items||[]).forEach(item=>{
     const conso=consoById[item.consoId]||{};
@@ -2584,8 +2585,8 @@ const CommentBtn = ({comments, onChange, user, disabled=false}) => {
 };
 
 // ─── 1. Adjust / Rework — auto-visa Opér. ──────────────────────────────────
-const ACTIONS = ["S","D","P","M","R"];
-const ACTION_LABELS = {S:"Soudé",D:"Désoudé",P:"Pointé",M:"Matière",R:"Rework"};
+const ACTIONS = ["S","D","P","M","R","O"];
+const ACTION_LABELS = {S:"Soudé",D:"Désoudé",P:"Pointé",M:"Matière",R:"Rework",O:"Observation"};
 const REWORK_EDIT_FIELDS = [
   {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
@@ -2601,7 +2602,19 @@ const REWORK_EDIT_FIELDS = [
   {key:"sn",label:"SN"},
   {key:"fiche",label:"Fiche suiveuse"},
   {key:"etape",label:"OP"},
+  {key:"remarques",label:"Observation"},
 ];
+const reworkRequiredFields = action => action==="O"
+  ? [{key:"repere",label:"Repère TOPO"},{key:"action1",label:"Action"},{key:"remarques",label:"Observation"}]
+  : [
+      {key:"repere",label:"Repère TOPO"},
+      {key:"action1",label:"Action"},
+      {key:"qty",label:"QTÉ"},
+      {key:"fiche",label:"Fiche suiveuse"},
+      {key:"etape",label:"OP"},
+      ...(["S","D","P"].includes(action)?[{key:"valeur",label:"Valeur"}]:[]),
+      ...(["S","P","M"].includes(action)?[{key:"codeERP",label:"Code article"}]:[]),
+    ];
 const parseActivityDate = raw => {
   if(raw instanceof Date&&!Number.isNaN(raw.getTime())) return raw;
   const value=String(raw||"").trim();
@@ -2791,11 +2804,11 @@ const copyReworkToUnit = (row,user,unit,includeChecks=false,copyMode="new",copyO
   if(!canWriteData(user)) throw new Error("Accès en écriture requis");
   if(includeChecks&&!sameOperation&&(!canControlRework(user)||!canTraceability(user))) throw new Error("Droits CTRL et TRA requis");
   if(includeChecks&&!sameOperation&&row.visaCtrl===user.trigram&&!isAdminManager(user)) throw new Error("Autocontrôle interdit");
-  const fields=["repere","qty","action1","codeERP","valeur","lot","dc","sn","fiche","etape","isAdjust"];
+  const fields=["repere","qty","action1","codeERP","valeur","lot","dc","sn","fiche","etape","isAdjust","remarques"];
   const copied=duplicateRow({},user,{
     ...Object.fromEntries(fields.map(key=>[key,row[key]??(key==="isAdjust"?false:"")])),
     snScope:"custom",snIds:[unit.id],unitId:unit.id,snExcludeIds:[],comments:[],
-    validated:true,visaOper:user.trigram,dateOper:now(),sortieVisa:"",remarques:"",copyOrigin,
+    validated:true,visaOper:user.trigram,dateOper:now(),sortieVisa:"",copyOrigin,
     visaCtrl:effectiveChecks?row.visaCtrl||"":"",dateCtrl:effectiveChecks?row.dateCtrl||"":"",
     tracaOk:effectiveChecks?!!row.tracaOk:false,visaTraca:effectiveChecks?row.visaTraca||"":"",dateTraca:effectiveChecks?row.dateTraca||"":""
   });
@@ -2848,7 +2861,7 @@ const copySourceKey = (tab,row) => row?._copyKey||(tab==="consommables"&&row?.it
   ?`consommables:${row.id}:${row.items[0].id}`
   :`${tab}:${row?.id||""}`);
 const copySourceLabel = (tab,row) => ({
-  rework:[row.repere,row.action1,row.codeERP,row.valeur],
+  rework:[row.repere,row.action1,row.codeERP,row.valeur,row.remarques],
   consommables:[row.fiche,row.op,row.items?.[0]?.consoId,row.items?.[0]?.lot],
   testequip:[row.nInv,row.type,row.designation],
   faits:[row.type,row.numero],
@@ -3134,7 +3147,9 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
   const restore=reason=>{ onChange({rows:rows.map(r=>r.id===restoreTarget?{...r,deleted:false,restoredReason:reason,restoredVisa:user.trigram,restoredDate:nowDT()}:r)}); setRestoreTarget(null); };
   const confirmDel=reason=>{ const r=rows.find(x=>x.id===deleteTarget); if(canEdit(r)) onChange({rows:scopedRowsDelete(rows,deleteTarget,header,{deleted:true,deletedReason:reason,deletedVisa:user.trigram,deletedDate:nowDT()})}); setDeleteTarget(null); };
   const deletedCount=rows.filter(r=>r.deleted).length;
-  const isAchevee = r => r.action1!=="P" && (!["S","R"].includes(r.action1)||!!r.visaCtrl) && !!r.tracaOk && missingReworkTrace(r,true).length===0;
+  const isAchevee = r => r.action1==="O"
+    ? !!r.validated
+    : r.action1!=="P" && (!["S","R"].includes(r.action1)||!!r.visaCtrl) && !!r.tracaOk && missingReworkTrace(r,true).length===0;
   const acheveesCount = rows.filter(r=>!r.deleted&&isAchevee(r)).length;
   const visibleRows = sortByNewestOperation(rows).filter(r=>{
     if(r.deleted&&!showDeleted&&!forceShowDeleted) return false;
@@ -3144,7 +3159,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
     if(filters.repere&& !txt("repere").includes(filters.repere.toUpperCase())) return false;
     if(!filterMatches(filters.action1,r.action1)) return false;
     if(filters.codeERP&& !txt("codeERP").includes(filters.codeERP.toUpperCase())) return false;
-    if(filters.valeur&& !txt("valeur").includes(filters.valeur.toUpperCase())) return false;
+    if(filters.valeur&& !`${txt("valeur")} ${txt("remarques")}`.includes(filters.valeur.toUpperCase())) return false;
     if(filters.lot&& !txt("lot").includes(filters.lot.toUpperCase())) return false;
     if(filters.dc&& !txt("dc").includes(filters.dc.toUpperCase())) return false;
     if(filters.sn&& !txt("sn").includes(filters.sn.toUpperCase())) return false;
@@ -3181,13 +3196,6 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
   };
   const setCtrlDate=(id,v)=>{ const r=rows.find(x=>x.id===id); if(canCtrlRow(r)) onChange({rows:scopedRowsPatch(rows,id,header,{dateCtrl:v})}); };
 
-  const REQUIRED = [
-    {key:"repere", label:"Repère TOPO"},
-    {key:"action1",label:"Action"},
-    {key:"qty",    label:"QTÉ"},
-    {key:"fiche",  label:"Fiche suiveuse"},
-    {key:"etape",  label:"OP"},
-  ];
   const validateRow=id=>{
     const r=rows.find(x=>x.id===id);
     if(!canEdit(r)) return;
@@ -3195,11 +3203,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       upd(id,"validError",message);
       window.alert(`Ligne non validée :\n\n${message}`);
     };
-    const required = [
-      ...REQUIRED,
-      ...(["S","D","P"].includes(r?.action1)?[{key:"valeur",label:"Valeur"}]:[]),
-      ...(["S","P","M"].includes(r?.action1)?[{key:"codeERP",label:"Code article"}]:[])
-    ];
+    const required = reworkRequiredFields(r?.action1);
     const miss=checkRequired(r,required);
     if(miss.length) { refuse("Champs requis manquants : "+miss.join(", ")); }
     else {
@@ -3330,6 +3334,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
           </thead>
           <tbody>
             {visibleRows.flatMap((r,i)=>{
+              const isObservation=r.action1==="O";
               const dc = ["S","P","M"].includes(r.action1) ? dcCheck(r.dc,r.createdDT) : null;
               const traceMissing=missingReworkTrace(r,true);
               const missingStyle={background:C.red+"12",borderColor:C.red+"66",color:C.red};
@@ -3348,38 +3353,38 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                 <TD><Input entryField="repere" value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
                 <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
-                  <input data-entry-field="isAdjust" type="checkbox" checked={isAdjustRow(r)} disabled={locked}
+                  <input data-entry-field="isAdjust" type="checkbox" checked={isAdjustRow(r)} disabled={locked||isObservation}
                     onChange={e=>updAdjust(r.id,e.target.checked)}
                     title="Composant adjust : appliqué à toutes les lignes du même repère"
                       style={{width:16,height:16,accentColor:C.accent,cursor:locked?"default":"pointer"}}/>
                 </TD>
                 <TD>
-                  {(r.action1==="M"||!r.repere)
+                  {!isObservation&&(r.action1==="M"||!r.repere)
                     ? <Input entryField="qty" value={r.qty} onChange={v=>upd(r.id,"qty",v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{})}}/>
                     : <span style={{fontFamily:"monospace",fontSize:11,color:C.muted,padding:"0 4px"}}>—</span>}
                 </TD>
                 <TD><Select entryField="action1" value={r.action1} onChange={v=>updAction(r.id,v)} options={ACTIONS} disabled={locked} style={{width:"100%",padding:"4px 3px"}}/></TD>
                 <TD><CopyCell value={r.codeERP} title="Copier code article">
-                  <Input entryField="codeERP" value={r.codeERP} onChange={v=>upd(r.id,"codeERP",v)} small readOnly={locked} style={{width:"100%",fontFamily:"monospace",...(locked?LOCKED_INPUT_STYLE:{})}} title="Code article ou texte libre" placeholder="Code article"/>
+                  <Input entryField="codeERP" value={isObservation?"":r.codeERP} onChange={v=>upd(r.id,"codeERP",v)} small readOnly={locked||isObservation} style={{width:"100%",fontFamily:"monospace",...((locked||isObservation)?LOCKED_INPUT_STYLE:{})}} title={isObservation?"Non applicable à une observation":"Code article ou texte libre"} placeholder={isObservation?"N/A":"Code article"}/>
                 </CopyCell></TD>
-                <TD><Input entryField="valeur" value={r.valeur} onChange={v=>upd(r.id,"valeur",v)} small readOnly={locked}
+                <TD><Input entryField="valeur" value={isObservation?"":r.valeur} onChange={v=>upd(r.id,"valeur",v)} small readOnly={locked||isObservation}
                   title={coherenceIssues.length?coherenceIssues.map(w=>`Cohérence valeur : ${w.previous.action1} ${w.previous.valeur||"?"} ≠ ${w.current.action1} ${w.current.valeur||"?"}`).join("\n"):"Valeur du composant"}
-                  style={{width:"100%",...(locked?LOCKED_INPUT_STYLE:{}),...coherenceStyle}}/></TD>
+                  placeholder={isObservation?"N/A":""} style={{width:"100%",...((locked||isObservation)?LOCKED_INPUT_STYLE:{}),...coherenceStyle}}/></TD>
                 <TD><CopyCell value={r.lot} title="Copier LOT">
-                  <Input entryField="lot" value={r.lot} onChange={v=>upd(r.id,"lot",v.toUpperCase().slice(0,12))} onBlur={e=>upd(r.id,"lot",normLot(e.target.value))} small readOnly={locked} title="Lot : numérique sur 10 chiffres, ou texte libre / N/A" style={{width:"100%",fontFamily:"monospace",...(locked?LOCKED_INPUT_STYLE:{}),...(traceMissing.includes("LOT")?missingStyle:{})}}/>
+                  <Input entryField="lot" value={isObservation?"":r.lot} onChange={v=>upd(r.id,"lot",v.toUpperCase().slice(0,12))} onBlur={e=>upd(r.id,"lot",normLot(e.target.value))} small readOnly={locked||isObservation} placeholder={isObservation?"N/A":""} title={isObservation?"Non applicable à une observation":"Lot : numérique sur 10 chiffres, ou texte libre / N/A"} style={{width:"100%",fontFamily:"monospace",...((locked||isObservation)?LOCKED_INPUT_STYLE:{}),...(traceMissing.includes("LOT")?missingStyle:{})}}/>
                 </CopyCell></TD>
                 <TD>
                   <div style={{display:"flex",alignItems:"center",gap:2,minWidth:0}}>
-                    <div style={{flex:1,minWidth:0}}><Input entryField="dc" value={r.dc} onChange={v=>upd(r.id,"dc",v.toUpperCase().slice(0,6))}
-                      small readOnly={locked} title={dc&&!dc.ok?`Anomalie : DC ${r.dc} — ${dc.label} à la date de la ligne`:dc?.label||"DC (ex: 2552R1) ou N/A si non disponible"}
-                      style={{width:"100%",fontFamily:"monospace",...(locked?LOCKED_INPUT_STYLE:{}),
+                    <div style={{flex:1,minWidth:0}}><Input entryField="dc" value={isObservation?"":r.dc} onChange={v=>upd(r.id,"dc",v.toUpperCase().slice(0,6))}
+                      small readOnly={locked||isObservation} placeholder={isObservation?"N/A":""} title={isObservation?"Non applicable à une observation":dc&&!dc.ok?`Anomalie : DC ${r.dc} — ${dc.label} à la date de la ligne`:dc?.label||"DC (ex: 2552R1) ou N/A si non disponible"}
+                      style={{width:"100%",fontFamily:"monospace",...((locked||isObservation)?LOCKED_INPUT_STYLE:{}),
                         borderColor:dc&&!dc.ok?C.red:dc?.ok?C.green:undefined,
                         color:dc&&!dc.ok?C.red:dc?.ok?C.green:undefined,
                         ...(traceMissing.includes("DC")?missingStyle:{})}}/></div>
                   </div>
                 </TD>
                 <TD><CopyCell value={r.sn} title="Copier SN">
-                  <Input entryField="sn" value={r.sn} onChange={v=>upd(r.id,"sn",v)} small readOnly={locked} style={{width:"100%",...(locked?LOCKED_INPUT_STYLE:{})}}/>
+                  <Input entryField="sn" value={isObservation?"":r.sn} onChange={v=>upd(r.id,"sn",v)} small readOnly={locked||isObservation} placeholder={isObservation?"N/A":""} style={{width:"100%",...((locked||isObservation)?LOCKED_INPUT_STYLE:{})}}/>
                 </CopyCell></TD>
                 <TD><Input entryField="fiche" value={r.fiche} onChange={v=>upd(r.id,"fiche",v.toUpperCase())} small required readOnly={locked}
                   title="Fiche suiveuse / FT / NC / DM (ex: R4B-Q001, FT-042)"
@@ -3400,11 +3405,13 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                         disabled={!canCtrlRow(r)}/>}
                 </TD>
                 <TD center>
-                  <StampStatus done={!!r.tracaOk} visa={r.visaTraca} date={r.dateTraca}
-                    color={C.green} label="Traça" onStamp={()=>stampTraca(r.id)}
-                    onClear={()=>clearTraca(r.id)} canClear={!r.deleted&&perms.canTraceability} clearTitle="Dévalider la traçabilité"
-                    onDateChange={r.editBase&&!r.deleted&&perms.canTraceability?v=>setTracaDate(r.id,v):null}
-                    disabled={r.deleted||!perms.canTraceability}/>
+                  {isObservation
+                    ? <span title="Traçabilité composant non applicable à une observation" style={{fontFamily:"monospace",fontSize:10,color:C.muted}}>N/A</span>
+                    : <StampStatus done={!!r.tracaOk} visa={r.visaTraca} date={r.dateTraca}
+                        color={C.green} label="Traça" onStamp={()=>stampTraca(r.id)}
+                        onClear={()=>clearTraca(r.id)} canClear={!r.deleted&&perms.canTraceability} clearTitle="Dévalider la traçabilité"
+                        onDateChange={r.editBase&&!r.deleted&&perms.canTraceability?v=>setTracaDate(r.id,v):null}
+                        disabled={r.deleted||!perms.canTraceability}/>}
                 </TD>
                 {perms.canWrite&&!forceShowDeleted&&<TD center><input type="checkbox" aria-label={`Demander la matière ${r.repere||"ligne"} ${r.codeERP||""}`} title={["S","M"].includes(r.action1)?"Sélectionner pour la demande matière":"Demande matière réservée aux actions S et M"} disabled={!!r.deleted||!["S","M"].includes(r.action1)} checked={!r.deleted&&["S","M"].includes(r.action1)&&requestIds.includes(r.id)} onChange={()=>{if(!r.deleted&&["S","M"].includes(r.action1)) setRequestIds(ids=>ids.includes(r.id)?ids.filter(id=>id!==r.id):[...ids,r.id]);}}/></TD>}
                 <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!canCommentRow()}/></TD>
@@ -3435,6 +3442,19 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                   )}
                 </TD>
               </tr>,
+              isObservation&&(
+                <tr key={r.id+"_observation"} style={{background:r.deleted?"#da363318":i%2===0?C.blue+"08":C.stripe,borderLeft:r.validated?`3px solid ${C.green}`:`3px solid ${C.border}`}}>
+                  <td colSpan={99} style={{padding:"4px 8px 7px",textDecoration:r.deleted?"line-through":undefined,color:r.deleted?C.red:undefined}}>
+                    <div style={{display:"grid",gridTemplateColumns:"110px minmax(240px,1fr)",alignItems:"center",gap:8}}>
+                      <strong style={{fontSize:10,color:C.blue,textTransform:"uppercase",letterSpacing:.5}}>Observation</strong>
+                      <Input entryField="remarques" value={r.remarques||""} onChange={v=>upd(r.id,"remarques",v)} small required readOnly={locked}
+                        placeholder="Ex. C100 : constat vérifié, laissé en l’état"
+                        title="Observation liée au repère TOPO"
+                        style={{width:"100%",...(!r.remarques&&!locked?missingStyle:{}),...(locked?LOCKED_INPUT_STYLE:{})}}/>
+                    </div>
+                  </td>
+                </tr>
+              ),
               <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>

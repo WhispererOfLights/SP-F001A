@@ -12,7 +12,7 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/App.runtime.js'), 'utf8') +
-  ';globalThis.check=computeReworkWarnings;globalThis.pdf=buildDirectReportPdf;globalThis.canCtrl=canActionReceiveCtrl;globalThis.missingCtrl=computeMissingReworkControls;', context);
+  ';globalThis.check=computeReworkWarnings;globalThis.pdf=buildDirectReportPdf;globalThis.canCtrl=canActionReceiveCtrl;globalThis.missingCtrl=computeMissingReworkControls;globalThis.required=reworkRequiredFields;globalThis.missing=checkRequired;', context);
 
 const units = [{id: 'u1', sn: 'SN1'}, {id: 'u2', sn: 'SN2'}];
 const row = (id, action1, valeur = '10K', extra = {}) => ({
@@ -26,9 +26,13 @@ assert.equal(context.canCtrl('R'), true);
 assert.equal(context.canCtrl('P'), true);
 assert.equal(context.canCtrl('D'), false);
 assert.equal(context.canCtrl('M'), false);
+assert.equal(context.canCtrl('O'), false);
+assert.deepEqual(Array.from(context.required('O'),field=>field.key),['repere','action1','remarques']);
+assert.deepEqual(Array.from(context.missing({repere:'C100',action1:'O'},context.required('O'))),['Observation']);
+assert.equal(context.missing({repere:'C100',action1:'O',remarques:'RAS'},context.required('O')).length,0);
 assert.deepEqual(Array.from(context.missingCtrl([
   row(1, 'S'), row(2, 'R'), row(3, 'P'), row(4, 'D'), row(5, 'M'),
-  row(6, 'S', '10K', {visaCtrl: 'JGR'}),
+  row(6, 'S', '10K', {visaCtrl: 'JGR'}), row(7, 'O', '', {remarques: 'Constat sans action'}),
 ]).map(r => r.id)), [1, 2]);
 
 assert.equal(check([row(1, 'D'), row(2, 'S')]).mismatch.length, 0);
@@ -61,13 +65,16 @@ assert.equal(check([row(1, 'P'),row(2, 'D')]).sequence.length,0);
 assert.equal(check([row(1, 'S'),row(2, 'P')]).sequence.length,2);
 assert.equal(check([row(1, 'P','10K'),row(2,'S','20K')]).mismatch.length,2);
 assert.equal(check([row(1, 'P','10K'),row(2,'S','20K',{isAdjust:true})]).mismatch.length,0);
+assert.equal(check([row(1, 'S'),row(2,'O','',{remarques:'Contrôle visuel OK'}),row(3,'D')]).sequence.length,0);
+assert.equal(check([row(1, 'S'),row(2,'O','',{remarques:'Contrôle visuel OK'}),row(3,'D')]).mismatch.length,0);
 
 (async () => {
   const pdf = await context.pdf({
-    ofData: {header: {of: 'TEST'}, units: {rows: units}, rework: {rows: [row(1, 'D'), row(2, 'D'),row(3,'P','10K',{repere:'R97'})]}},
+    ofData: {header: {of: 'TEST'}, units: {rows: units}, rework: {rows: [row(1, 'D'), row(2, 'D'),row(3,'P','10K',{repere:'R97'}),row(4,'O','',{repere:'C100',remarques:'Constat visuel accepte'})]}},
     lists: {}, exportedAt: '17/09/2026', exportedBy: 'TEST', selectedSections: ['rework'],
   }).text();
   assert.ok(pdf.includes('alternance soudage / dessoudage est attendue'));
   assert.ok(pdf.includes('un soudage final est requis'));
+  assert.ok(pdf.includes('Constat visuel accepte'));
   console.log('Rework warnings: all tests passed.');
 })().catch(error => {console.error(error); process.exitCode = 1;});
