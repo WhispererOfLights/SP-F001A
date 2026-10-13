@@ -1115,11 +1115,12 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       }
       if(rowObj?.comments?.length){
         rowObj.comments.slice(0,8).forEach(item=>{
-          const commentLines=wrap(item,usable-12,5.8).slice(0,3);
+          const detail=typeof item==="object"&&item!==null?item:{text:item};
+          const commentLines=wrap(detail.text,usable-12,5.8).slice(0,detail.maxLines||3);
           const ch=Math.max(11,commentLines.length*6.5+5);
           if(page.y-ch<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
-          rect(M,page.y-ch,usable,ch,"0.90 0.95 1.00",color.blue);
-          commentLines.forEach((ln,i)=>text(ln,M+4,page.y-8-i*6.5,5.8,false,color.blue));
+          rect(M,page.y-ch,usable,ch,detail.fill||"0.90 0.95 1.00",detail.stroke||color.blue);
+          commentLines.forEach((ln,i)=>text(ln,M+4,page.y-8-i*6.5,5.8,!!detail.bold,detail.color||color.blue));
           page.y-=ch;
         });
       }
@@ -1221,8 +1222,11 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const repere=quantity&&Number(quantity)!==1?`${quantity}x ${pdfValue(r.repere)}`:pdfValue(r.repere);
         const controlRequired=["S","R"].includes(r.action1);
         const controlVisa=r.visaCtrl|| (controlRequired?"Contrôle à faire":"N/A");
-        const observation=r.action1==="O"?pdfValue(r.remarques):pdfValue(r.valeur);
-        return {...rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),observation,r.action1==="O"?"N/A":pdfValue(r.lot),r.action1==="O"?"N/A":pdfValue(r.dc),r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r),
+        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),r.action1==="O"?"N/A":pdfValue(r.lot),r.action1==="O"?"N/A":pdfValue(r.dc),r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
+        const observation=r.action1==="O"&&String(r.remarques||"").trim()
+          ? [{text:`Observation : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
+          : [];
+        return {...base,comments:[...observation,...base.comments],
         cellStyles:{
           ...(hdArticles.some(hd=>hd.id===r.id)?{6:{color:color.red,bold:true}}:{}),
           ...(!r.deleted&&missingReworkTrace(r,true).includes("LOT")?{5:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),

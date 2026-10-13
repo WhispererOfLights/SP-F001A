@@ -2433,16 +2433,19 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
       }
       if (rowObj !== null && rowObj !== void 0 && (_rowObj$comments = rowObj.comments) !== null && _rowObj$comments !== void 0 && _rowObj$comments.length) {
         rowObj.comments.slice(0, 8).forEach(function (item) {
-          var commentLines = wrap(item, usable - 12, 5.8).slice(0, 3);
+          var detail = _typeof(item) === "object" && item !== null ? item : {
+            text: item
+          };
+          var commentLines = wrap(detail.text, usable - 12, 5.8).slice(0, detail.maxLines || 3);
           var ch = Math.max(11, commentLines.length * 6.5 + 5);
           if (page.y - ch < M + 28) {
             page = newPage();
             headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
             drawHead();
           }
-          rect(M, page.y - ch, usable, ch, "0.90 0.95 1.00", color.blue);
+          rect(M, page.y - ch, usable, ch, detail.fill || "0.90 0.95 1.00", detail.stroke || color.blue);
           commentLines.forEach(function (ln, i) {
-            return text(ln, M + 4, page.y - 8 - i * 6.5, 5.8, false, color.blue);
+            return text(ln, M + 4, page.y - 8 - i * 6.5, 5.8, !!detail.bold, detail.color || color.blue);
           });
           page.y -= ch;
         });
@@ -2624,8 +2627,17 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
       var repere = quantity && Number(quantity) !== 1 ? "".concat(quantity, "x ").concat(pdfValue(r.repere)) : pdfValue(r.repere);
       var controlRequired = ["S", "R"].includes(r.action1);
       var controlVisa = r.visaCtrl || (controlRequired ? "Contrôle à faire" : "N/A");
-      var observation = r.action1 === "O" ? pdfValue(r.remarques) : pdfValue(r.valeur);
-      return _objectSpread(_objectSpread({}, rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), observation, r.action1 === "O" ? "N/A" : pdfValue(r.lot), r.action1 === "O" ? "N/A" : pdfValue(r.dc), r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r)), {}, {
+      var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), r.action1 === "O" ? "N/A" : pdfValue(r.lot), r.action1 === "O" ? "N/A" : pdfValue(r.dc), r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r);
+      var observation = r.action1 === "O" && String(r.remarques || "").trim() ? [{
+        text: "Observation : ".concat(r.remarques),
+        maxLines: 18,
+        bold: true,
+        fill: "0.94 0.96 0.99",
+        color: color.ink,
+        stroke: color.blue
+      }] : [];
+      return _objectSpread(_objectSpread({}, base), {}, {
+        comments: [].concat(observation, _toConsumableArray(base.comments)),
         cellStyles: _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, hdArticles.some(function (hd) {
           return hd.id === r.id;
         }) ? {

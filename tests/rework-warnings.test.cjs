@@ -69,12 +69,14 @@ assert.equal(check([row(1, 'S'),row(2,'O','',{remarques:'Contrôle visuel OK'}),
 assert.equal(check([row(1, 'S'),row(2,'O','',{remarques:'Contrôle visuel OK'}),row(3,'D')]).mismatch.length,0);
 
 (async () => {
+  const longObservation=`${'Explication detaillee '.repeat(70)}FIN OBSERVATION`;
   const pdf = await context.pdf({
-    ofData: {header: {of: 'TEST'}, units: {rows: units}, rework: {rows: [row(1, 'D'), row(2, 'D'),row(3,'P','10K',{repere:'R97'}),row(4,'O','',{repere:'C100',remarques:'Constat visuel accepte'})]}},
+    ofData: {header: {of: 'TEST'}, units: {rows: units}, rework: {rows: [row(1, 'D'), row(2, 'D'),row(3,'P','10K',{repere:'R97'}),row(4,'O','',{repere:'C100',remarques:longObservation,comments:[{visa:'JGR',dt:'17/09/2026 11:00',text:'COMMENTAIRE APRES OBSERVATION'}]})]}},
     lists: {}, exportedAt: '17/09/2026', exportedBy: 'TEST', selectedSections: ['rework'],
   }).text();
   assert.ok(pdf.includes('alternance soudage / dessoudage est attendue'));
   assert.ok(pdf.includes('un soudage final est requis'));
-  assert.ok(pdf.includes('Constat visuel accepte'));
+  assert.ok(pdf.includes('FIN OBSERVATION'));
+  assert.ok(pdf.indexOf('Observation :')<pdf.indexOf('COMMENTAIRE APRES OBSERVATION'));
   console.log('Rework warnings: all tests passed.');
 })().catch(error => {console.error(error); process.exitCode = 1;});
