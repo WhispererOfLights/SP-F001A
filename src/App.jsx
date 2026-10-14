@@ -168,11 +168,11 @@ const fmtCodeERP = v => {
 };
 
 // ─── UI ────────────────────────────────────────────────────────────────────
-const Input = ({value,onChange,onBlur,onKeyDown,placeholder,title,style={},small,type="text",readOnly,required,entryField}) => {
+const Input = ({value,onChange,onBlur,onKeyDown,placeholder,title,style={},small,type="text",readOnly,required,entryField,ariaLabel}) => {
   const empty = !value||value==="";
   const borderCol = required&&empty ? C.yellow : style.borderColor || C.border;
   return (
-  <input data-entry-field={entryField} type={type} value={value||""} onChange={e=>onChange&&onChange(e.target.value)}
+  <input data-entry-field={entryField} aria-label={ariaLabel} type={type} value={value||""} onChange={e=>onChange&&onChange(e.target.value)}
     onBlur={e=>onBlur&&onBlur(e)} onKeyDown={e=>onKeyDown&&onKeyDown(e)}
     placeholder={title?.startsWith("Filtrer")?"Filtrer…":""} title={title||(placeholder?`Attendu : ${placeholder}`:undefined)} readOnly={readOnly}
     style={{width:"100%",fontFamily:"monospace",outline:"none",padding:small?"3px 5px":"5px 8px",fontSize:small?11:13,
@@ -2176,7 +2176,8 @@ const patchTrackedUnit = (data,unitId,fields) => {
   return {...normalized,units:{...normalized.units,rows},header:{...normalized.header,_snRows:rows}};
 };
 
-const trackedLotQty = row => row.qteActuelle??row.qteInitiale??row.qte??"";
+const trackedLotQty = row => [row?.qteActuelle,row?.qteInitiale,row?.qte]
+  .find(value=>String(value??"").trim()!=="")??"";
 const convertTrackedUnitKind = (data,unitId,targetKind,user) => {
   const normalized=withUnitMetadata(data);
   const source=normalized.units.rows.find(unit=>unit.id===unitId&&!unit.deleted);
@@ -2277,6 +2278,8 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
   const mode=data?.mode||((rows.filter(r=>!r.deleted).length>1)?"multi":"single");
   const visible=rows.filter(r=>!r.deleted);
   const showQty=visible.some(r=>isTrackedLot(r)||String(r.qteInitiale||r.qte||"").trim());
+  const validLotQuantity=row=>/^[1-9]\d*$/.test(String(trackedLotQty(row)).trim())&&Number.isSafeInteger(Number(trackedLotQty(row)));
+  const needsValidation=row=>row.validated===false||(isTrackedLot(row)&&!validLotQuantity(row));
   const emit=next=>{if(editable) onChange({...data,mode,...next});};
   const add=()=>{
     if(mode==="single"&&visible.length>=1) return;
@@ -2291,6 +2294,7 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
     remarque:"",
     createdVisa:user?.trigram||"",
     createdDT:nowDT(),
+    validated:false,
     deleted:false,
   }]}); };
   const setMode=m=>{
@@ -2315,12 +2319,33 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
       emit({rows:rows.map(r=>r.id===id?{...r,snError:`Lot ${lot} déjà présent dans cet OF`}:r)});
       return;
     }
-    emit({rows:rows.map(r=>r.id===id?{...r,lot,unitKind:r.sn?"sn":lot?"lot":"",snError:""}:r)});
+    emit({rows:rows.map(r=>r.id===id?{...r,lot,unitKind:r.sn?"sn":lot?"lot":"",snError:"",qtyError:"",
+      ...(!r.sn&&lot&&!validLotQuantity(r)?{validated:false}:{})}:r)});
+  };
+  const updInitialLotQuantity=(id,value)=>{
+    const qty=cleanImportQty(value);
+    emit({rows:rows.map(r=>r.id===id?{...r,qteInitiale:qty,qteActuelle:"",qte:"",validated:false,qtyError:""}:r)});
+  };
+  const validateUnit=id=>{
+    const row=rows.find(r=>r.id===id);
+    if(!row) return;
+    if(!hasUnitIdentity(row)){
+      emit({rows:rows.map(r=>r.id===id?{...r,snError:"Renseignez un SN ou un LOT"}:r)});
+      return;
+    }
+    if(row.snError) return;
+    if(isTrackedLot(row)&&!validLotQuantity(row)){
+      emit({rows:rows.map(r=>r.id===id?{...r,validated:false,qtyError:"Quantité entière strictement positive requise"}:r)});
+      return;
+    }
+    const qty=isTrackedLot(row)?String(Number(trackedLotQty(row))):"";
+    emit({rows:rows.map(r=>r.id===id?{...r,validated:true,snError:"",qtyError:"",
+      ...(isTrackedLot(r)?{qteInitiale:qty,qteActuelle:qty,qte:qty}:{})}:r)});
   };
   const dup=id=>{
     const r=rows.find(x=>x.id===id); if(!r) return;
     if(mode==="single"&&visible.length>=1) return;
-    emit({rows:[...rows,{...r,id:uid(),sn:"",lot:"",unitKind:"",parentUnitId:undefined,splitId:undefined,quantityHistory:[],snProduitFini:"",status:"en_cours",snError:"",createdVisa:user?.trigram||"",createdDT:nowDT(),deleted:false}]});
+    emit({rows:[...rows,{...r,id:uid(),sn:"",lot:"",unitKind:"",parentUnitId:undefined,splitId:undefined,quantityHistory:[],snProduitFini:"",status:"en_cours",snError:"",qtyError:"",validated:false,createdVisa:user?.trigram||"",createdDT:nowDT(),deleted:false}]});
   };
   const del=id=>{
     if(!editable) return;
@@ -2365,7 +2390,11 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
                     {r.snError&&<div style={{fontSize:9,color:C.red,marginTop:2,fontFamily:"monospace"}}>{r.snError}</div>}
                   </TD>
                   <TD><Input readOnly={!editable} value={r.lot} onChange={v=>updLot(r.id,v)} small style={{fontFamily:"monospace"}}/>{r.parentUnitId&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>Issu de {rows.find(u=>u.id===r.parentUnitId)?.lot||r.parentUnitId}</div>}</TD>
-                  {showQty&&<TD><Input readOnly={!editable||isTrackedLot(r)} value={trackedLotQty(r)} onChange={v=>upd(r.id,"qteInitiale",cleanImportQty(v))} small style={{fontFamily:"monospace",textAlign:"center"}}/>{isTrackedLot(r)&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>Initiale : {r.qteInitiale||r.qte||"-"}</div>}</TD>}
+                  {showQty&&<TD><Input ariaLabel={`Quantité ${r.lot||r.sn||"nouveau lot"}`} readOnly={!editable||(isTrackedLot(r)&&!needsValidation(r))} value={trackedLotQty(r)}
+                    onChange={v=>isTrackedLot(r)?updInitialLotQuantity(r.id,v):upd(r.id,"qteInitiale",cleanImportQty(v))} small
+                    style={{fontFamily:"monospace",textAlign:"center",...((isTrackedLot(r)&&needsValidation(r)&&!validLotQuantity(r))?{borderColor:C.red,background:C.red+"10"}:{})}}/>
+                    {r.qtyError&&<div style={{fontSize:9,color:C.red,marginTop:2,fontFamily:"monospace"}}>{r.qtyError}</div>}
+                    {isTrackedLot(r)&&!needsValidation(r)&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>Initiale : {r.qteInitiale||r.qte||"-"}</div>}</TD>}
                   <TD><Input readOnly={!editable} value={r.snProduitFini||""} onChange={v=>upd(r.id,"snProduitFini",v)} small title="Produit final dans lequel cette pièce est montée"/></TD>
                   <TD>
                     <select disabled={!editable} value={r.status||"en_cours"} onChange={e=>upd(r.id,"status",e.target.value)}
@@ -2380,6 +2409,7 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
                   <TD center>
                     <ActionGroup>
                       <IconBtn onClick={()=>onActiveUnitChange(r.id)} color={C.blue} title="Travailler sur ce SN" disabled={!hasUnitIdentity(r)}>●</IconBtn>
+                      {editable&&needsValidation(r)&&<IconBtn onClick={()=>validateUnit(r.id)} color={C.green} title="Valider le SN / lot">✓</IconBtn>}
                       {editable&&<IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer" disabled={mode==="single"}>⧉</IconBtn>}
                       {editable&&<IconBtn onClick={()=>del(r.id)} color={C.red} title="Supprimer">×</IconBtn>}
                       {editable&&onSplitLot&&isTrackedLot(r)&&<Btn small color={C.blue} onClick={()=>setSplitSource(r)}>Scinder</Btn>}
