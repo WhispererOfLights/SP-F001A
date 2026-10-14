@@ -1825,6 +1825,14 @@ const snScopeLabel = (row, snRows=[]) => {
   const labels=scope.ids.map(id=>snRows.find(s=>s.id===id)).filter(Boolean).map(snTitle);
   return labels.length>2 ? `${labels.length} SN` : labels.join(" + ") || "SN ?";
 };
+const snScopeCompactLabel = (row, snRows=[]) => {
+  const scope=snScope(row,snRows);
+  const excluded=(row?.snExcludeIds||[]).filter(id=>snRows.some(s=>s.id===id));
+  if(scope.mode==="all") return excluded.length?`Tous sauf ${excluded.length}`:"Tous";
+  const labels=scope.ids.map(id=>snRows.find(s=>s.id===id)).filter(Boolean)
+    .map(unit=>cleanSn(unit.sn)||cleanSn(unit.lot)).filter(Boolean);
+  return labels.length>2?`${labels.length} SN / LOT`:labels.join(" + ")||"SN / LOT ?";
+};
 const defaultSnScope = header => {
   const rows=snRowsFromHeader(header);
   const ids=(header?._entrySnIds||header?._defaultSnIds||[]).filter(id=>rows.some(s=>s.id===id));
@@ -2058,6 +2066,7 @@ const SnScopePicker = ({row,header,onChange,disabled=false}) => {
   const rows=snRowsFromHeader(header);
   const scope=snScope(row,rows);
   const label=snScopeLabel(row,rows);
+  const compactLabel=snScopeCompactLabel(row,rows);
   const [open,setOpen]=useState(false);
   const [pos,setPos]=useState({top:0,left:0});
   const btnRef=React.useRef(null);
@@ -2091,7 +2100,7 @@ const SnScopePicker = ({row,header,onChange,disabled=false}) => {
     };
   },[open]);
   if(!rows.length) return <span style={{fontFamily:"monospace",fontSize:10,color:C.muted}}>Tous</span>;
-  if(disabled) return <span style={{fontFamily:"monospace",fontSize:10,color:scope.mode==="all"?C.green:C.blue}}>{label}</span>;
+  if(disabled) return <span title={label} style={{fontFamily:"monospace",fontSize:10,color:scope.mode==="all"?C.green:C.blue}}>{compactLabel}</span>;
   const setAll=()=>{onChange({snScope:"custom",snIds:rows.map(s=>s.id),unitId:rows[0]?.id||"",snExcludeIds:[]});setOpen(false);};
   const setCustom=ids=>onChange({snScope:"custom",snIds:ids,unitId:ids[0]||"",snExcludeIds:[]});
   const toggle=id=>{
@@ -2105,7 +2114,7 @@ const SnScopePicker = ({row,header,onChange,disabled=false}) => {
         style={{background:C.input,cursor:"pointer",fontFamily:"monospace",fontSize:10,
           color:scope.mode==="all"?C.green:C.blue,border:`1px solid ${scope.mode==="all"?C.green:C.blue}`,
           borderRadius:4,padding:"2px 5px",whiteSpace:"nowrap",maxWidth:72,overflow:"hidden",textOverflow:"ellipsis"}}>
-        {label}
+        {compactLabel}
       </button>
       {open&&(
         <div ref={panelRef} style={{position:"fixed",top:pos.top,left:pos.left,zIndex:600,background:C.surface,
@@ -3316,7 +3325,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
           <thead>
             <tr>
               <TH w={118}>Date / Heure</TH><TH w={48} color={C.accent}>Visa</TH>
-              <TH w={82}>N° SN</TH>
+              <TH w={82}>SN / LOT</TH>
               <TH w={66}>Repère TOPO</TH>
               <TH w={58}>Adj</TH>
               <TH w={38}>QTÉ</TH>

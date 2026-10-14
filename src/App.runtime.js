@@ -4221,6 +4221,24 @@ var snScopeLabel = function snScopeLabel(row) {
   }).filter(Boolean).map(snTitle);
   return labels.length > 2 ? "".concat(labels.length, " SN") : labels.join(" + ") || "SN ?";
 };
+var snScopeCompactLabel = function snScopeCompactLabel(row) {
+  var snRows = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+  var scope = snScope(row, snRows);
+  var excluded = ((row === null || row === void 0 ? void 0 : row.snExcludeIds) || []).filter(function (id) {
+    return snRows.some(function (s) {
+      return s.id === id;
+    });
+  });
+  if (scope.mode === "all") return excluded.length ? "Tous sauf ".concat(excluded.length) : "Tous";
+  var labels = scope.ids.map(function (id) {
+    return snRows.find(function (s) {
+      return s.id === id;
+    });
+  }).filter(Boolean).map(function (unit) {
+    return cleanSn(unit.sn) || cleanSn(unit.lot);
+  }).filter(Boolean);
+  return labels.length > 2 ? "".concat(labels.length, " SN / LOT") : labels.join(" + ") || "SN / LOT ?";
+};
 var defaultSnScope = function defaultSnScope(header) {
   var rows = snRowsFromHeader(header);
   var ids = ((header === null || header === void 0 ? void 0 : header._entrySnIds) || (header === null || header === void 0 ? void 0 : header._defaultSnIds) || []).filter(function (id) {
@@ -4665,6 +4683,7 @@ var SnScopePicker = function SnScopePicker(_ref55) {
   var rows = snRowsFromHeader(header);
   var scope = snScope(row, rows);
   var label = snScopeLabel(row, rows);
+  var compactLabel = snScopeCompactLabel(row, rows);
   var _useState47 = useState(false),
     _useState48 = _slicedToArray(_useState47, 2),
     open = _useState48[0],
@@ -4718,12 +4737,13 @@ var SnScopePicker = function SnScopePicker(_ref55) {
     }
   }, "Tous");
   if (disabled) return /*#__PURE__*/React.createElement("span", {
+    title: label,
     style: {
       fontFamily: "monospace",
       fontSize: 10,
       color: scope.mode === "all" ? C.green : C.blue
     }
-  }, label);
+  }, compactLabel);
   var setAll = function setAll() {
     var _rows$;
     onChange({
@@ -4779,7 +4799,7 @@ var SnScopePicker = function SnScopePicker(_ref55) {
       overflow: "hidden",
       textOverflow: "ellipsis"
     }
-  }, label), open && /*#__PURE__*/React.createElement("div", {
+  }, compactLabel), open && /*#__PURE__*/React.createElement("div", {
     ref: panelRef,
     style: {
       position: "fixed",
@@ -8519,7 +8539,7 @@ var TabRework = function TabRework(_ref69) {
     color: C.accent
   }, "Visa"), /*#__PURE__*/React.createElement(TH, {
     w: 82
-  }, "N\xB0 SN"), /*#__PURE__*/React.createElement(TH, {
+  }, "SN / LOT"), /*#__PURE__*/React.createElement(TH, {
     w: 66
   }, "Rep\xE8re TOPO"), /*#__PURE__*/React.createElement(TH, {
     w: 58
