@@ -4179,6 +4179,9 @@ var normalizeTrackedUnit = function normalizeTrackedUnit(row) {
 var snTitle = function snTitle(u) {
   return [(u === null || u === void 0 ? void 0 : u.sn) || "", u !== null && u !== void 0 && u.lot ? "LOT ".concat(u.lot) : ""].filter(Boolean).join(" · ") || "SN / lot ?";
 };
+var snCompactTitle = function snCompactTitle(u) {
+  return cleanSn(u === null || u === void 0 ? void 0 : u.sn) || cleanSn(u === null || u === void 0 ? void 0 : u.lot) || "SN / LOT ?";
+};
 var snRowsFromHeader = function snRowsFromHeader(header) {
   return ((header === null || header === void 0 ? void 0 : header._snRows) || []).map(normalizeTrackedUnit).filter(function (r) {
     return !r.deleted && hasUnitIdentity(r);
@@ -4234,9 +4237,7 @@ var snScopeCompactLabel = function snScopeCompactLabel(row) {
     return snRows.find(function (s) {
       return s.id === id;
     });
-  }).filter(Boolean).map(function (unit) {
-    return cleanSn(unit.sn) || cleanSn(unit.lot);
-  }).filter(Boolean);
+  }).filter(Boolean).map(snCompactTitle);
   return labels.length > 2 ? "".concat(labels.length, " SN / LOT") : labels.join(" + ") || "SN / LOT ?";
 };
 var defaultSnScope = function defaultSnScope(header) {
@@ -4669,7 +4670,7 @@ var SnFilter = function SnFilter(_ref54) {
     }].concat(_toConsumableArray(rows.map(function (s) {
       return {
         value: s.id,
-        label: snTitle(s)
+        label: snCompactTitle(s)
       };
     })))
   });

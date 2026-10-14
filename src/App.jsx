@@ -1807,6 +1807,7 @@ const hasUnitIdentity = u => !!(cleanSn(u.sn)||cleanSn(u.lot));
 const isTrackedLot = row => row.unitKind ? row.unitKind==="lot" : !cleanSn(row.sn)&&!!cleanSn(row.lot);
 const normalizeTrackedUnit = row => isTrackedLot(row)?{...row,sn:"",lot:cleanSn(row.lot||row.sn),unitKind:"lot"}:row;
 const snTitle = u => [u?.sn||"",u?.lot?`LOT ${u.lot}`:""].filter(Boolean).join(" · ")||"SN / lot ?";
+const snCompactTitle = u => cleanSn(u?.sn)||cleanSn(u?.lot)||"SN / LOT ?";
 const snRowsFromHeader = header => (header?._snRows||[]).map(normalizeTrackedUnit).filter(r=>!r.deleted&&hasUnitIdentity(r));
 const snScope = (row, snRows=[]) => {
   let ids = Array.isArray(row?.snIds) ? row.snIds.filter(Boolean) : [];
@@ -1829,8 +1830,7 @@ const snScopeCompactLabel = (row, snRows=[]) => {
   const scope=snScope(row,snRows);
   const excluded=(row?.snExcludeIds||[]).filter(id=>snRows.some(s=>s.id===id));
   if(scope.mode==="all") return excluded.length?`Tous sauf ${excluded.length}`:"Tous";
-  const labels=scope.ids.map(id=>snRows.find(s=>s.id===id)).filter(Boolean)
-    .map(unit=>cleanSn(unit.sn)||cleanSn(unit.lot)).filter(Boolean);
+  const labels=scope.ids.map(id=>snRows.find(s=>s.id===id)).filter(Boolean).map(snCompactTitle);
   return labels.length>2?`${labels.length} SN / LOT`:labels.join(" + ")||"SN / LOT ?";
 };
 const defaultSnScope = header => {
@@ -2059,7 +2059,7 @@ const SnFilter = ({value,onChange,header,title="Filtrer SN cible"}) => {
   const rows=snRowsFromHeader(header);
   if(!rows.length) return null;
   return <MultiFilter value={value} onChange={onChange} label="Tous" title={title}
-    options={[{value:"scope-all",label:"Cible Tous"},...rows.map(s=>({value:s.id,label:snTitle(s)}))]}/>;
+    options={[{value:"scope-all",label:"Cible Tous"},...rows.map(s=>({value:s.id,label:snCompactTitle(s)}))]}/>;
 };
 
 const SnScopePicker = ({row,header,onChange,disabled=false}) => {
