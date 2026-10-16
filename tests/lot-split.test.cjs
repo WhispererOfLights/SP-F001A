@@ -6,7 +6,7 @@ const ctx = {React:{createElement:()=>({})},ReactDOM:{createRoot:()=>({render:()
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.split=splitTrackedLot;globalThis.qty=changeTrackedLotQuantity;globalThis.matches=rowMatchesSn;globalThis.normalize=withUnitMetadata;globalThis.importLot=parseImportSnLot;globalThis.targets=snRowsFromHeader;globalThis.home=homeRowsForOf;',ctx);
 const manager={role:'Manager',trigram:'JGR'};
-const tabs=['rework','testequip','faits','etuvage','openwork'];
+const tabs=['rework','testequip','faits','etuvage'];
 const data={header:{of:'TEST'},units:{rows:[{id:'a',sn:'LOT-A',unitKind:'lot',qteInitiale:'10',status:'en_cours'},{id:'x',sn:'LOT-X',unitKind:'lot',qteInitiale:'3'}]},
   consommables:{ops:[{id:'op',snScope:'custom',snIds:['a'],items:[{id:'glue',echantillon:'sample-1'}]}]},
   demating:{connectors:[{id:'conn',snScope:'custom',snIds:['a'],events:[{id:'event',action:'Matting'}]}]}};
@@ -23,6 +23,17 @@ assert.equal(ctx.home(first.header,first)[0].sn,'');
 assert.equal(ctx.home(first.header,first)[0].lot,'LOT-A');
 assert.equal(ctx.normalize(first).units.rows[0].id,'a');
 assert.equal(ctx.normalize({header:{},units:{rows:[{id:'serial',sn:'ABC123'}]}}).units.rows[0].sn,'ABC123');
+const migrated=ctx.normalize({header:{},faits:{rows:[]},openwork:{rows:[{
+  id:'legacy-ow',nOW:'007',description:'Retouche à terminer',openVisa:'JGR',openDate:'01/10/2026',
+  closedVisa:'CTR',closedDate:'02/10/2026',commentaires:'Ancienne remarque',comments:[]
+}]}});
+assert.equal(migrated.openwork.rows.length,0);
+assert.equal(migrated.faits.rows.length,1);
+assert.equal(migrated.faits.rows[0].type,'OW');
+assert.equal(migrated.faits.rows[0].numero,'007');
+assert.equal(migrated.faits.rows[0].commentaires,'Retouche à terminer');
+assert.equal(migrated.faits.rows[0].comments[0].text,'Ancienne remarque');
+assert.equal(ctx.normalize(migrated).faits.rows.length,1);
 const b=first.units.rows.find(u=>u.lot==='LOT-B');
 assert.equal(first.units.rows[0].qteActuelle,'6');
 assert.equal(first.units.rows[0].qteInitiale,'10');

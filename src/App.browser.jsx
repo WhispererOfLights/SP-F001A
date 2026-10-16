@@ -789,8 +789,7 @@ const REPORT_SECTIONS=[
   {id:"etuvage",label:"Étuvages",title:"Etuvages"},
   {id:"testequip",label:"Test Équipement",title:"Test Equip."},
   {id:"demating",label:"Mating/Demating",title:"Mating / Demating"},
-  {id:"faits",label:"Faits techniques",title:"Faits"},
-  {id:"openwork",label:"Open Work",title:"Open Work"},
+  {id:"faits",label:"Suivi technique",title:"Suivi technique"},
 ];
 
 const buildSimplePdf = ({width,height,pages,logoImage=null}) => {
@@ -1285,7 +1284,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       .map(r=>rowPdf([r.createdDT,r.createdVisa,isFourEquip(r)?"FOUR":"-",r.nInv,r.type,r.designation,r.dateExpiration,r.checkDate],r));
     section("Test Equip.",["Date","Visa","Four","N INV","Type","Designation","Date calib","Ctrl"],testEquipRows,[23,13,18,30,26,79,25,24],unit);
 
-    section("Faits",["Date","Visa","Type","Numero","Date ouv.","Description"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.commentaires],r,commentsForPdf(r))),[25,15,20,36,28,145],unit);
+    section("Suivi technique",["Date","Visa","Type","Numero","Date ouv.","Description"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.commentaires],r,commentsForPdf(r))),[25,15,20,36,28,145],unit);
 
     section("Etuvages",["Date","Visa","Four","Duree","Temp","Entree","Visa E","Sortie","Visa S"],(ofData?.etuvage?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r)),[23,13,26,16,16,36,14,36,14],unit);
 
@@ -1314,7 +1313,6 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     });
     section("Mating / Demating",["","Cycle","Mating date","Visa M","Demating date","Visa D"],demRows,[8,14,44,18,44,18],unit);
 
-    section("Open Work",["Date","Visa","N OW","Description","Ouverture","Cloture"],(ofData?.openwork?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.nOW,r.description,`${r.openDate||"-"} / ${r.openVisa||"-"}`,`${r.closedDate||"-"} / ${r.closedVisa||"-"}`],r,commentsForPdf(r))),[25,15,18,130,45,45],unit);
   });
 
   const printablePages=pages.filter(p=>p.ops.length);
@@ -2167,6 +2165,25 @@ const unitsFromHeader = (h={}, visa="") => (h._snRows||[]).length ? {mode:(h._sn
 }]} : {mode:"single",rows:[]};
 const withUnitMetadata = data => {
   if(Array.isArray(data.demating?.connectors)) data={...data,demating:{...data.demating,connectors:data.demating.connectors.map(c=>({...c,events:(c.events||[]).map(e=>({...e,action:normalizeMatingAction(e.action)}))}))}};
+  const oldOpenWorks=Array.isArray(data.openwork?.rows)?data.openwork.rows:[];
+  if(oldOpenWorks.length){
+    const facts=Array.isArray(data.faits?.rows)?data.faits.rows:[];
+    const migratedIds=new Set(facts.map(row=>row.migratedFromOpenWorkId).filter(Boolean));
+    const migrated=oldOpenWorks.filter(row=>!migratedIds.has(row.id)).map(row=>{
+      const legacyText=String(row.commentaires||"").trim();
+      const legacyCommentId=`ow-comment-${row.id}`;
+      const comments=[...(row.comments||[])];
+      if(legacyText&&!comments.some(comment=>comment.id===legacyCommentId)) comments.push({
+        id:legacyCommentId,dt:row.createdDT||row.openDate||"",visa:row.createdVisa||row.openVisa||"",text:legacyText,replyTo:null
+      });
+      return {
+        ...row,id:`ow-${row.id}`,migratedFromOpenWorkId:row.id,type:"OW",
+        numero:row.nOW||row.numero||"",commentaires:row.description||"",
+        visa:row.openVisa||row.visa||row.createdVisa||"",date:row.openDate||row.date||"",comments
+      };
+    });
+    data={...data,faits:{...(data.faits||{}),rows:[...facts,...migrated]},openwork:{...(data.openwork||{}),rows:[]}};
+  }
   const units=Array.isArray(data.units?.rows)?data.units:unitsFromHeader(data.header);
   const active=units.rows.filter(u=>!u.deleted);
   const rows=units.rows.map(u=>({...normalizeTrackedUnit(u),status:u.status||"en_cours",
@@ -2876,7 +2893,7 @@ const copyTableLineToUnit = (tab,row,user,unit,includeChecks=false,copyMode="new
   const fields={
     consommables:["fiche","op"],
     testequip:["isFour","nInv","type","designation","dateExpiration"],
-    faits:["type","numero","lien"],
+    faits:["type","numero","commentaires"],
     etuvage:["fourN","duree","temp"],
     openwork:["description"],
     demating:["nConect"]
@@ -4603,9 +4620,17 @@ const DEFAULT_FAIT_TYPES = [
   {id:"NC",  label:"NC — Non-Conformité",    color:C.red},
   {id:"DM",  label:"DM — Demande de Modif.", color:C.blue},
   {id:"ISS", label:"ISS — Fait Technique",   color:C.yellow},
+  {id:"OW",  label:"OW — Open Work",         color:C.accent},
 ];
 
-const FaitTypeColor = {NC:C.red, DM:C.blue, ISS:C.yellow};
+const ensureOpenWorkFactType = types => {
+  const list=Array.isArray(types)?types.filter(type=>type&&type.id):[];
+  return list.some(type=>String(type.id).toUpperCase()==="OW")
+    ? list
+    : [...list,DEFAULT_FAIT_TYPES.find(type=>type.id==="OW")];
+};
+
+const FaitTypeColor = {NC:C.red, DM:C.blue, ISS:C.yellow, OW:C.accent};
 const getFaitColor = (typeId, types) => {
   const t = types.find(t=>t.id===typeId);
   return t?.color || FaitTypeColor[typeId] || C.muted;
@@ -4630,7 +4655,7 @@ const FaitTypesManager = ({types, onClose, onSave}) => {
     <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:10,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontWeight:700,color:C.text,fontSize:14}}>⚙ Types de faits</div>
+          <div style={{fontWeight:700,color:C.text,fontSize:14}}>⚙ Types de suivi technique</div>
           <div style={{display:"flex",gap:8}}>
             <Btn onClick={()=>onSave(list)} color={C.green} small>✓ Enregistrer</Btn>
             <Btn onClick={onClose} color={C.border} small>Annuler</Btn>
@@ -4816,7 +4841,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
       {/* En-tête stats + boutons */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,gap:8,flexWrap:"wrap"}}>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          {perms.canWrite&&<Btn onClick={add} small>+ Fait</Btn>}
+          {perms.canWrite&&<Btn onClick={add} small>+ Suivi</Btn>}
           <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 14px",textAlign:"center"}}>
             <div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Total</div>
             <div style={{color:C.text,fontSize:20,fontWeight:900,fontFamily:"monospace",lineHeight:1}}>{activeRows.length}</div>
@@ -4990,7 +5015,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
           })}
         </tbody>
       </table>
-      {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun fait enregistré</div>}
+      {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun suivi technique enregistré</div>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
         ✦ Visa pré-rempli · N° saisi manuellement · × annule et barre la ligne
       </div>
@@ -6730,8 +6755,8 @@ const ofWarnings = (data,consommables=[]) => {
     messages.push(`Polymérisation en cours — sous vide dès le ${formatAvailabilityDT(readyAt)}`);
   }
   if(effectiveScopedRows(data,"testequip").some(r=>calibStatus(r.dateExpiration)?.color===C.red)) messages.push("Équipement hors calibration");
-  if(effectiveScopedRows(data,"faits").some(r=>!r.closedDate)) messages.push("Fait technique ouvert");
-  if(effectiveScopedRows(data,"openwork").some(r=>!r.closedDate)) messages.push("Open Work ouvert");
+  if(effectiveScopedRows(data,"faits").some(r=>r.type!=="OW"&&!r.closedDate)) messages.push("Suivi technique ouvert");
+  if(effectiveScopedRows(data,"faits").some(r=>r.type==="OW"&&!r.closedDate)) messages.push("Open Work ouvert");
   if(nextEtuvageInfo(effectiveEtuvageRows(data)).overdue) messages.push("Étuvage à renouveler");
   if(data?.header?.status==="bloque") messages.push("OF bloqué");
   return messages;
@@ -7069,7 +7094,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             const r=await window.storage.get(`of:${o.id}`,true);
             data=JSON.parse(r.value);
           }
-          return {id:o.id,data,worked:workedOnOf(data,user.trigram)||workedOnOf(o,user.trigram),warnings:ofWarnings(data,consommables),openOW:effectiveScopedRows(data,"openwork").filter(r=>!r.closedDate).length,etuvages:effectiveEtuvageRows(data),snLabels:(data.units?.rows||snRowsFromHeader(data.header)).filter(u=>!u.deleted&&hasUnitIdentity(u)).map(snTitle)};
+          return {id:o.id,data,worked:workedOnOf(data,user.trigram)||workedOnOf(o,user.trigram),warnings:ofWarnings(data,consommables),openOW:effectiveScopedRows(data,"faits").filter(r=>r.type==="OW"&&!r.closedDate).length,etuvages:effectiveEtuvageRows(data),snLabels:(data.units?.rows||snRowsFromHeader(data.header)).filter(u=>!u.deleted&&hasUnitIdentity(u)).map(snTitle)};
         }catch{return {id:o.id,worked:workedOnOf(o,user.trigram),warnings:o.status==="bloque"?["OF bloqué"]:[]};}
       }));
       if(!cancelled){setWorkedIds(results.filter(r=>r.worked).map(r=>r.id));setWarningsById(Object.fromEntries(results.map(r=>[r.id,r.warnings])));setOpenOWById(Object.fromEntries(results.map(r=>[r.id,r.openOW||0])));setEtuvagesById(Object.fromEntries(results.map(r=>[r.id,r.etuvages||[]])));setSnLabelsById(Object.fromEntries(results.filter(r=>r.snLabels).map(r=>[r.id,r.snLabels])));setDataById(Object.fromEntries(results.filter(r=>r.data).map(r=>[r.id,r.data])));setLoadingWorked(false);}
@@ -7469,14 +7494,14 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 {sortableTh("status","Statut OF",105)}
                 {sortableTh("unitStatus","Statut SN",110)}
                 {sortableTh("nextEtuvage","Prochain étuvage",150)}
-                {sortableTh("followup","Faits / Suivi",330)}
+                {sortableTh("followup","Suivi technique",330)}
                 <TH w={isAdminManager(user)?140:80}></TH>
               </tr>
               <tr style={{background:C.raised}}>
                 <td/>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
                 {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['status','Statut OF'],['unitStatus','Statut SN'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
-                <td style={{padding:"4px 5px"}}>{columnFilter("followup","Faits / Suivi")}</td>
+                <td style={{padding:"4px 5px"}}>{columnFilter("followup","Suivi technique")}</td>
                 <td/>
               </tr>
             </thead>
@@ -7624,8 +7649,7 @@ const TABS=[
   {id:"etuvage",       label:"Étuvages",       short:"ETV"},
   {id:"testequip",     label:"Test Équipement", short:"TST"},
   {id:"demating",      label:"Mating",         short:"MTG"},
-  {id:"faits",         label:"Faits",          short:"FAITS"},
-  {id:"openwork",      label:"Open Work",      short:"OW"},
+  {id:"faits",         label:"Suivi technique", short:"SUIVI"},
 ];
 
 function App(){
@@ -7657,7 +7681,7 @@ function App(){
     }
     return catalogRead.current;
   },[]);
-  const [faitTypes,setFaitTypes]           = useState(DEFAULT_FAIT_TYPES);
+  const [faitTypes,setFaitTypes]           = useState(()=>ensureOpenWorkFactType(DEFAULT_FAIT_TYPES));
   const [showFaitTypes,setShowFaitTypes]   = useState(false);
   const [statusTypes,setStatusTypes]       = useState(()=>normalizeStatusTypes(DEFAULT_STATUS_TYPES));
   const [showStatusTypes,setShowStatusTypes] = useState(false);
@@ -7713,7 +7737,7 @@ function App(){
       }
       if(authenticated){
         try{const list=await readConsommables();if(list)setConsommables(list);}catch{}
-        try{const r=await window.storage.get("fait-types",true);if(r)setFaitTypes(JSON.parse(r.value));}catch{}
+        try{const r=await window.storage.get("fait-types",true);if(r)setFaitTypes(ensureOpenWorkFactType(JSON.parse(r.value)));}catch{}
         try{const r=await window.storage.get("status-types",true);if(r){const list=applyStatusTypes(JSON.parse(r.value));setStatusTypes(list);}}catch{}
         try{const r=await window.storage.get("of-list",true);if(r)setOfList(JSON.parse(r.value));}catch{}
       }
@@ -7733,7 +7757,7 @@ function App(){
     setUser(u);
     try{await window.storage.set("session",JSON.stringify(u),false);}catch{}
     try{const list=await readConsommables();if(list)setConsommables(list);}catch{}
-    try{const r=await window.storage.get("fait-types",true);if(r)setFaitTypes(JSON.parse(r.value));}catch{}
+    try{const r=await window.storage.get("fait-types",true);if(r)setFaitTypes(ensureOpenWorkFactType(JSON.parse(r.value)));}catch{}
     try{const r=await window.storage.get("status-types",true);if(r){const list=applyStatusTypes(JSON.parse(r.value));setStatusTypes(list);}}catch{}
     try{const r=await window.storage.get("of-list",true);if(r)setOfList(JSON.parse(r.value));}catch{}
   };
@@ -8091,8 +8115,9 @@ function App(){
 
   const saveFaitTypes=async list=>{
     if(!canManageLists(user)) return;
-    try{await window.storage.set("fait-types",JSON.stringify(list),true);}catch{}
-    setFaitTypes(list);
+    const normalized=ensureOpenWorkFactType(list);
+    try{await window.storage.set("fait-types",JSON.stringify(normalized),true);}catch{}
+    setFaitTypes(normalized);
     setShowFaitTypes(false);
   };
 
@@ -8388,7 +8413,7 @@ function App(){
   const scopedFaits=effectiveScopedRows(ofData,"faits").filter(r=>rowMatchesSnFilter(r,activeUnitChoice,workHeader));
   const faits = scopedFaits.length;
   const faitsOpen = scopedFaits.filter(r=>!r.closedDate).length;
-  const ows = effectiveScopedRows(ofData,"openwork").filter(r=>!r.closedDate&&rowMatchesSnFilter(r,activeUnitChoice,workHeader)).length;
+  const ows = scopedFaits.filter(r=>r.type==="OW"&&!r.closedDate).length;
   // Alerte calibration
   const horsCalib = effectiveScopedRows(ofData,"testequip").filter(r=>rowMatchesSnFilter(r,activeUnitChoice,workHeader)&&calibStatus(r.dateExpiration)?.color===C.red).length;
   // Prochain étuvage
@@ -8577,7 +8602,7 @@ function App(){
         display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:68,zIndex:95}}>
         {TABS.map(t=>{
           const active=activeTab===t.id;
-          const dot=(t.id==="faits"&&faitsOpen>0)||(t.id==="openwork"&&ows>0)||(t.id==="testequip"&&horsCalib>0);
+          const dot=(t.id==="faits"&&(faitsOpen>0||ows>0))||(t.id==="testequip"&&horsCalib>0);
           const dotColor=t.id==="ncr"?C.red:t.id==="dm"?C.blue:t.id==="testequip"?C.red:C.yellow;
           return (
             <button key={t.id} onClick={()=>setActiveTab(t.id)} style={{
@@ -8658,8 +8683,8 @@ function App(){
             <TabTestEquip data={ofData.testequip} onChange={d=>updateTab("testequip",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"testequip",row})}/>
           </div>}
           {(!printAll&&activeTab==="faits"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
-            <ReportHead tab="Faits"/>
-            <SectionTitle>Faits</SectionTitle>
+            <ReportHead tab="Suivi technique"/>
+            <SectionTitle>Suivi technique</SectionTitle>
             <TabFaits data={ofData.faits||{}} onChange={d=>updateTab("faits",d)} user={user} perms={perms} faitTypes={faitTypes} onEditTypes={()=>setShowFaitTypes(true)} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"faits",row})} onCloseRow={(rowId,closed)=>closeWorkItem("faits",rowId,closed)}/>
           </div>}
           {(!printAll&&activeTab==="etuvage"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
@@ -8671,11 +8696,6 @@ function App(){
             <ReportHead tab="Mating"/>
             <SectionTitle>Mating</SectionTitle>
             <TabDeMating data={ofData.demating} onChange={d=>updateTab("demating",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"demating",row})}/>
-          </div>}
-          {(!printAll&&activeTab==="openwork"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
-            <ReportHead tab="Open Work"/>
-            <SectionTitle>Open Work</SectionTitle>
-            <TabOpenWork data={ofData.openwork} onChange={d=>updateTab("openwork",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"openwork",row})} onCloseRow={(rowId,closed)=>closeWorkItem("openwork",rowId,closed)}/>
           </div>}
         </div>
       </div>

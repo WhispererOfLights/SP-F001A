@@ -54,7 +54,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.addScriptTag({path: path.join(root, 'src/App.runtime.js')});
     await page.waitForFunction(()=>Array.from(document.querySelectorAll('label')).find(el=>el.textContent==='Mes OF travaillés')?.querySelector('input')?.checked);
     await page.getByTitle(/Sous vide dès le/).first().waitFor();
-    assert.equal(await page.getByRole('columnheader',{name:/Faits \/ Suivi/}).count(),1);
+    assert.equal(await page.getByRole('columnheader',{name:/Suivi technique/}).count(),1);
     assert.equal(await page.getByRole('columnheader',{name:'Faits',exact:true}).count(),0);
     assert.equal(await page.getByRole('columnheader',{name:'Suivi',exact:true}).count(),0);
     assert.equal(await page.getByRole('cell',{name:'100OTHER',exact:true}).count(),0);
@@ -145,7 +145,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await second.fill('PF2');
     await second.press('Enter');
     await page.waitForFunction(() => window.testRecords['of:test-of'].units.rows[0].snProduitFini === 'PF1' && window.testRecords['of:test-of'].units.rows[1].snProduitFini === 'PF2');
-    await page.getByRole('button',{name:'Trier Faits / Suivi de A à Z',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Trier Suivi technique de A à Z',exact:true}).waitFor();
     await page.getByText('FT F-001',{exact:true}).waitFor();
     await page.getByLabel('Statut SN SN1 - OF 100TEST', {exact: true}).selectOption('termine');
     await page.waitForFunction(() => window.testRecords['of:test-of'].units.rows[0].status === 'termine');
@@ -557,7 +557,6 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       of.testequip={rows:[...['u1','u2','lot-a'].map((unitId,index)=>({...common,id:'copy-test-'+index,isFour:true,nInv:'INV-123',type:'Instrument',designation:'Test instrument',dateExpiration:'31.12.30',snIds:[unitId]}))]};
       of.faits={rows:[{...common,id:'copy-fait',type:'FT',numero:'FT-123',lien:'https://example.com',closedDate:'18/09/2026'}]};
       of.etuvage={rows:[{...common,id:'copy-oven',createdDT:'18/09/2026 07:55',fourN:'INV-123',duree:'2',temp:'60',entreeDT:'18/09/2026 08:00',entreeVisa:'OTHER',sortieDT:'18/09/2026 10:00',sortieVisa:'CTRL'}]};
-      of.openwork={rows:[{...common,id:'copy-ow',nOW:'001',description:'Work to copy',closedDate:'18/09/2026'}]};
       of.demating={connectors:[{...common,id:'copy-connector',nConect:'J123',events:[{id:'old-cycle',action:'Matting',dt:'18/09/2026 08:00',visa:'OTHER'}]}]};
     });
     await page.locator('body').click({position:{x:1800,y:950}});
@@ -568,9 +567,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     for(const [tab,label,collection,field,value] of [
       ['consommables','Consommables','ops','fiche',null],
       ['testequip','Test Équipement','rows','nInv','INV-123'],
-      ['faits','Faits','rows','numero','FT-123'],
+      ['faits','Suivi technique','rows','numero','FT-123'],
       ['etuvage','Étuvages','rows','fourN','INV-123'],
-      ['openwork','Open Work','rows','description','Work to copy'],
       ['demating','Mating','connectors','nConect','J123']
     ]){
       await page.getByRole('button',{name:label,exact:true}).click();
@@ -608,14 +606,13 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
         assert.equal(await page.evaluate(()=>window.testRecords['of:other-of'].testequip.rows[0].nInv),'INV-123');
       }else assert.deepEqual(copied.comments,[]);
       if(tab==='demating'){assert.deepEqual(copied.events,[]);assert.equal(copied.validated,true);}
-      if(['faits','openwork'].includes(tab)) assert.equal(copied.closedDate,'');
+      if(tab==='faits') assert.equal(copied.closedDate,'');
       await modal.getByRole('button',{name:'Fermer',exact:true}).click();
     }
     await page.evaluate(()=>{
       const of=window.testRecords['of:test-of'];
       of.rework.rows.push({id:'draft-rework',createdVisa:'JGR',createdDT:'22/09/2026 10:00',validated:false,editBase:{repere:'R10'},repere:'R10',action1:'S',snScope:'custom',snIds:['u1']});
       of.consommables.ops.push({id:'draft-conso-op',createdVisa:'JGR',createdDT:'22/09/2026 10:00',validated:false,editBase:{fiche:'DOC'},fiche:'DOC',op:'10',snScope:'custom',snIds:['u1'],items:[{id:'draft-conso-item',createdVisa:'JGR',validated:false,editBase:{lot:'DRAFT-LOT'},consoId:'long-sap',lot:'DRAFT-LOT'}]});
-      of.openwork.rows.push({id:'draft-ow',createdVisa:'JGR',createdDT:'22/09/2026 10:00',validated:false,editBase:{description:'DRAFT-OW'},description:'DRAFT-OW',openVisa:'JGR',openDate:'22/09/2026',snScope:'custom',snIds:['u1']});
     });
     await page.locator('body').click({position:{x:1800,y:950}});
     await page.keyboard.press('PageDown');
@@ -624,8 +621,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100TEST');
     for(const [label,selector,tab,collection,id] of [
       ['Adjust/Rework','[data-rework-row="draft-rework"]','rework','rows','draft-rework'],
-      ['Consommables','tr:has(input[value="DRAFT-LOT"])','consommables','ops','draft-conso-op'],
-      ['Open Work','tr:has(input[value="DRAFT-OW"])','openwork','rows','draft-ow']
+      ['Consommables','tr:has(input[value="DRAFT-LOT"])','consommables','ops','draft-conso-op']
     ]){
       await page.getByRole('button',{name:label,exact:true}).click();
       await page.locator(selector).getByTitle('Supprimer',{exact:true}).click();
@@ -635,10 +631,6 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
         return tab==='consommables'?row?.items?.find(item=>item.id==='draft-conso-item')?.deleted===true:row?.deleted===true;
       },{tab,collection,id});
     }
-    await page.getByRole('button',{name:'Open Work',exact:true}).click();
-    await page.locator('tr:has(input[value="Work to copy"])').getByTitle('Annuler',{exact:true}).click();
-    await page.getByText("Motif de l'annulation *",{exact:true}).waitFor();
-    await page.getByRole('button',{name:'Annuler',exact:true}).click();
     await page.evaluate(()=>{
       const of=window.testRecords['of:test-of'];
       const draft={createdVisa:'JGR',createdDT:'22/09/2026 10:00',validated:false,editBase:{},snScope:'custom',snIds:['u1']};
@@ -654,7 +646,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100TEST');
     for(const [label,selector,tab,collection,id] of [
       ['Test Équipement','tr:has(input[value="INV-DELETE"])','testequip','rows','draft-test-delete'],
-      ['Faits','tr:has(input[value="FT-DELETE"])','faits','rows','draft-fait-delete'],
+      ['Suivi technique','tr:has(input[value="FT-DELETE"])','faits','rows','draft-fait-delete'],
       ['Étuvages','tr:has(input[value="FOUR-DELETE"])','etuvage','rows','draft-oven-delete'],
       ['Mating','[role="group"][aria-label="Connecteur J-DELETE"]','demating','connectors','draft-connector-delete']
     ]){

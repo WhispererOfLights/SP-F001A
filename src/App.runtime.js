@@ -1892,12 +1892,8 @@ var REPORT_SECTIONS = [{
   title: "Mating / Demating"
 }, {
   id: "faits",
-  label: "Faits techniques",
-  title: "Faits"
-}, {
-  id: "openwork",
-  label: "Open Work",
-  title: "Open Work"
+  label: "Suivi technique",
+  title: "Suivi technique"
 }];
 var buildSimplePdf = function buildSimplePdf(_ref27) {
   var width = _ref27.width,
@@ -2539,7 +2535,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
     });
   };
   selectedUnits.forEach(function (unit) {
-    var _ofData3, _ofData4, _ofData5, _ofData6, _ofData7, _ofData8, _ofData9, _ofData0;
+    var _ofData3, _ofData4, _ofData5, _ofData6, _ofData7, _ofData8, _ofData9;
     var inUnit = function inUnit(row) {
       return unitMatches(row, unit) && rowInSelectedSn(row) && (includeDeleted || !(row !== null && row !== void 0 && row.deleted));
     };
@@ -2719,7 +2715,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
       return rowPdf([r.createdDT, r.createdVisa, isFourEquip(r) ? "FOUR" : "-", r.nInv, r.type, r.designation, r.dateExpiration, r.checkDate], r);
     });
     section("Test Equip.", ["Date", "Visa", "Four", "N INV", "Type", "Designation", "Date calib", "Ctrl"], testEquipRows, [23, 13, 18, 30, 26, 79, 25, 24], unit);
-    section("Faits", ["Date", "Visa", "Type", "Numero", "Date ouv.", "Description"], (((_ofData7 = ofData) === null || _ofData7 === void 0 || (_ofData7 = _ofData7.faits) === null || _ofData7 === void 0 ? void 0 : _ofData7.rows) || []).filter(inUnit).map(function (r) {
+    section("Suivi technique", ["Date", "Visa", "Type", "Numero", "Date ouv.", "Description"], (((_ofData7 = ofData) === null || _ofData7 === void 0 || (_ofData7 = _ofData7.faits) === null || _ofData7 === void 0 ? void 0 : _ofData7.rows) || []).filter(inUnit).map(function (r) {
       return rowPdfWithComments([r.createdDT, r.createdVisa, r.type, r.numero, r.date, r.commentaires], r, commentsForPdf(r));
     }), [25, 15, 20, 36, 28, 145], unit);
     section("Etuvages", ["Date", "Visa", "Four", "Duree", "Temp", "Entree", "Visa E", "Sortie", "Visa S"], (((_ofData8 = ofData) === null || _ofData8 === void 0 || (_ofData8 = _ofData8.etuvage) === null || _ofData8 === void 0 ? void 0 : _ofData8.rows) || []).filter(inUnit).map(function (r) {
@@ -2762,9 +2758,6 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref30) {
       })));
     });
     section("Mating / Demating", ["", "Cycle", "Mating date", "Visa M", "Demating date", "Visa D"], demRows, [8, 14, 44, 18, 44, 18], unit);
-    section("Open Work", ["Date", "Visa", "N OW", "Description", "Ouverture", "Cloture"], (((_ofData0 = ofData) === null || _ofData0 === void 0 || (_ofData0 = _ofData0.openwork) === null || _ofData0 === void 0 ? void 0 : _ofData0.rows) || []).filter(inUnit).map(function (r) {
-      return rowPdfWithComments([r.createdDT, r.createdVisa, r.nOW, r.description, "".concat(r.openDate || "-", " / ").concat(r.openVisa || "-"), "".concat(r.closedDate || "-", " / ").concat(r.closedVisa || "-")], r, commentsForPdf(r));
-    }), [25, 15, 18, 130, 45, 45], unit);
   });
   var printablePages = pages.filter(function (p) {
     return p.ops.length;
@@ -4913,7 +4906,7 @@ var unitsFromHeader = function unitsFromHeader() {
   };
 };
 var withUnitMetadata = function withUnitMetadata(data) {
-  var _data$demating, _data$units2;
+  var _data$demating, _data$openwork, _data$units2;
   if (Array.isArray((_data$demating = data.demating) === null || _data$demating === void 0 ? void 0 : _data$demating.connectors)) data = _objectSpread(_objectSpread({}, data), {}, {
     demating: _objectSpread(_objectSpread({}, data.demating), {}, {
       connectors: data.demating.connectors.map(function (c) {
@@ -4927,6 +4920,48 @@ var withUnitMetadata = function withUnitMetadata(data) {
       })
     })
   });
+  var oldOpenWorks = Array.isArray((_data$openwork = data.openwork) === null || _data$openwork === void 0 ? void 0 : _data$openwork.rows) ? data.openwork.rows : [];
+  if (oldOpenWorks.length) {
+    var _data$faits;
+    var facts = Array.isArray((_data$faits = data.faits) === null || _data$faits === void 0 ? void 0 : _data$faits.rows) ? data.faits.rows : [];
+    var migratedIds = new Set(facts.map(function (row) {
+      return row.migratedFromOpenWorkId;
+    }).filter(Boolean));
+    var migrated = oldOpenWorks.filter(function (row) {
+      return !migratedIds.has(row.id);
+    }).map(function (row) {
+      var legacyText = String(row.commentaires || "").trim();
+      var legacyCommentId = "ow-comment-".concat(row.id);
+      var comments = _toConsumableArray(row.comments || []);
+      if (legacyText && !comments.some(function (comment) {
+        return comment.id === legacyCommentId;
+      })) comments.push({
+        id: legacyCommentId,
+        dt: row.createdDT || row.openDate || "",
+        visa: row.createdVisa || row.openVisa || "",
+        text: legacyText,
+        replyTo: null
+      });
+      return _objectSpread(_objectSpread({}, row), {}, {
+        id: "ow-".concat(row.id),
+        migratedFromOpenWorkId: row.id,
+        type: "OW",
+        numero: row.nOW || row.numero || "",
+        commentaires: row.description || "",
+        visa: row.openVisa || row.visa || row.createdVisa || "",
+        date: row.openDate || row.date || "",
+        comments: comments
+      });
+    });
+    data = _objectSpread(_objectSpread({}, data), {}, {
+      faits: _objectSpread(_objectSpread({}, data.faits || {}), {}, {
+        rows: [].concat(_toConsumableArray(facts), _toConsumableArray(migrated))
+      }),
+      openwork: _objectSpread(_objectSpread({}, data.openwork || {}), {}, {
+        rows: []
+      })
+    });
+  }
   var units = Array.isArray((_data$units2 = data.units) === null || _data$units2 === void 0 ? void 0 : _data$units2.rows) ? data.units : unitsFromHeader(data.header);
   var active = units.rows.filter(function (u) {
     return !u.deleted;
@@ -7048,7 +7083,7 @@ var copyTableLineToUnit = function copyTableLineToUnit(tab, row, user, unit) {
   var fields = {
     consommables: ["fiche", "op"],
     testequip: ["isFour", "nInv", "type", "designation", "dateExpiration"],
-    faits: ["type", "numero", "lien"],
+    faits: ["type", "numero", "commentaires"],
     etuvage: ["fourN", "duree", "temp"],
     openwork: ["description"],
     demating: ["nConect"]
@@ -12235,11 +12270,26 @@ var DEFAULT_FAIT_TYPES = [{
   id: "ISS",
   label: "ISS — Fait Technique",
   color: C.yellow
+}, {
+  id: "OW",
+  label: "OW — Open Work",
+  color: C.accent
 }];
+var ensureOpenWorkFactType = function ensureOpenWorkFactType(types) {
+  var list = Array.isArray(types) ? types.filter(function (type) {
+    return type && type.id;
+  }) : [];
+  return list.some(function (type) {
+    return String(type.id).toUpperCase() === "OW";
+  }) ? list : [].concat(_toConsumableArray(list), [DEFAULT_FAIT_TYPES.find(function (type) {
+    return type.id === "OW";
+  })]);
+};
 var FaitTypeColor = {
   NC: C.red,
   DM: C.blue,
-  ISS: C.yellow
+  ISS: C.yellow,
+  OW: C.accent
 };
 var getFaitColor = function getFaitColor(typeId, types) {
   var t = types.find(function (t) {
@@ -12334,7 +12384,7 @@ var FaitTypesManager = function FaitTypesManager(_ref83) {
       color: C.text,
       fontSize: 14
     }
-  }, "\u2699 Types de faits"), /*#__PURE__*/React.createElement("div", {
+  }, "\u2699 Types de suivi technique"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8
@@ -13018,7 +13068,7 @@ var TabFaits = function TabFaits(_ref85) {
   }, perms.canWrite && /*#__PURE__*/React.createElement(Btn, {
     onClick: add,
     small: true
-  }, "+ Fait"), /*#__PURE__*/React.createElement("div", {
+  }, "+ Suivi"), /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.surface,
       border: "1px solid ".concat(C.border),
@@ -13413,7 +13463,7 @@ var TabFaits = function TabFaits(_ref85) {
       color: C.muted,
       padding: 24
     }
-  }, "Aucun fait enregistr\xE9"), /*#__PURE__*/React.createElement("div", {
+  }, "Aucun suivi technique enregistr\xE9"), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 8,
       fontSize: 11,
@@ -18355,10 +18405,10 @@ var ofWarnings = function ofWarnings(data) {
     return ((_calibStatus2 = calibStatus(r.dateExpiration)) === null || _calibStatus2 === void 0 ? void 0 : _calibStatus2.color) === C.red;
   })) messages.push("Équipement hors calibration");
   if (effectiveScopedRows(data, "faits").some(function (r) {
-    return !r.closedDate;
-  })) messages.push("Fait technique ouvert");
-  if (effectiveScopedRows(data, "openwork").some(function (r) {
-    return !r.closedDate;
+    return r.type !== "OW" && !r.closedDate;
+  })) messages.push("Suivi technique ouvert");
+  if (effectiveScopedRows(data, "faits").some(function (r) {
+    return r.type === "OW" && !r.closedDate;
   })) messages.push("Open Work ouvert");
   if (nextEtuvageInfo(effectiveEtuvageRows(data)).overdue) messages.push("Étuvage à renouveler");
   if ((data === null || data === void 0 || (_data$header4 = data.header) === null || _data$header4 === void 0 ? void 0 : _data$header4.status) === "bloque") messages.push("OF bloqué");
@@ -19453,8 +19503,8 @@ var OFSelector = function OFSelector(_ref120) {
                         data: data,
                         worked: _workedOnOf(data, user.trigram) || _workedOnOf(o, user.trigram),
                         warnings: ofWarnings(data, consommables),
-                        openOW: effectiveScopedRows(data, "openwork").filter(function (r) {
-                          return !r.closedDate;
+                        openOW: effectiveScopedRows(data, "faits").filter(function (r) {
+                          return r.type === "OW" && !r.closedDate;
                         }).length,
                         etuvages: effectiveEtuvageRows(data),
                         snLabels: (((_data$units6 = data.units) === null || _data$units6 === void 0 ? void 0 : _data$units6.rows) || snRowsFromHeader(data.header)).filter(function (u) {
@@ -20762,7 +20812,7 @@ var OFSelector = function OFSelector(_ref120) {
     }
   })), /*#__PURE__*/React.createElement(TH, {
     w: 30
-  }, "\u2B50"), sortableTh("of", "OF", 120), sortableTh("codeArticle", "N° Article", 110), sortableTh("sn", "SN", 90), sortableTh("lot", "LOT", 110), sortableTh("description", "Description"), sortableTh("otp", "OTP", 190), sortableTh("snProduitFini", "SN Prod. Fini", 140), sortableTh("reprise", "Reprise", 78), sortableTh("status", "Statut OF", 105), sortableTh("unitStatus", "Statut SN", 110), sortableTh("nextEtuvage", "Prochain étuvage", 150), sortableTh("followup", "Faits / Suivi", 330), /*#__PURE__*/React.createElement(TH, {
+  }, "\u2B50"), sortableTh("of", "OF", 120), sortableTh("codeArticle", "N° Article", 110), sortableTh("sn", "SN", 90), sortableTh("lot", "LOT", 110), sortableTh("description", "Description"), sortableTh("otp", "OTP", 190), sortableTh("snProduitFini", "SN Prod. Fini", 140), sortableTh("reprise", "Reprise", 78), sortableTh("status", "Statut OF", 105), sortableTh("unitStatus", "Statut SN", 110), sortableTh("nextEtuvage", "Prochain étuvage", 150), sortableTh("followup", "Suivi technique", 330), /*#__PURE__*/React.createElement(TH, {
     w: isAdminManager(user) ? 140 : 80
   })), /*#__PURE__*/React.createElement("tr", {
     style: {
@@ -20797,7 +20847,7 @@ var OFSelector = function OFSelector(_ref120) {
     style: {
       padding: "4px 5px"
     }
-  }, columnFilter("followup", "Faits / Suivi")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
+  }, columnFilter("followup", "Suivi technique")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
     var _STATUTS12, _STATUTS13, _STATUTS14, _UNIT_STATUTS$groupSt, _UNIT_STATUTS$groupSt2, _UNIT_STATUTS4, _UNIT_STATUTS5, _UNIT_STATUTS6, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
     var snLabels = snLabelsById[o.id] || snRowsFromHeader(o).map(snTitle);
@@ -21303,12 +21353,8 @@ var TABS = [{
   "short": "MTG"
 }, {
   id: "faits",
-  label: "Faits",
-  "short": "FAITS"
-}, {
-  id: "openwork",
-  label: "Open Work",
-  "short": "OW"
+  label: "Suivi technique",
+  "short": "SUIVI"
 }];
 function App() {
   var _ofData$units9, _ofData$etuvage2, _ofData$testequip3;
@@ -21395,7 +21441,9 @@ function App() {
     }
     return catalogRead.current;
   }, []);
-  var _useState293 = useState(DEFAULT_FAIT_TYPES),
+  var _useState293 = useState(function () {
+      return ensureOpenWorkFactType(DEFAULT_FAIT_TYPES);
+    }),
     _useState294 = _slicedToArray(_useState293, 2),
     faitTypes = _useState294[0],
     setFaitTypes = _useState294[1];
@@ -21590,7 +21638,7 @@ function App() {
             return window.storage.get("fait-types", true);
           case 19:
             r = _context35.v;
-            if (r) setFaitTypes(JSON.parse(r.value));
+            if (r) setFaitTypes(ensureOpenWorkFactType(JSON.parse(r.value)));
             _context35.n = 21;
             break;
           case 20:
@@ -21687,7 +21735,7 @@ function App() {
             return window.storage.get("fait-types", true);
           case 12:
             _r3 = _context36.v;
-            if (_r3) setFaitTypes(JSON.parse(_r3.value));
+            if (_r3) setFaitTypes(ensureOpenWorkFactType(JSON.parse(_r3.value)));
             _context36.n = 14;
             break;
           case 13:
@@ -22784,7 +22832,7 @@ function App() {
   }();
   var saveFaitTypes = /*#__PURE__*/function () {
     var _saveFaitTypes = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee53(list) {
-      var _t74;
+      var normalized, _t74;
       return _regenerator().w(function (_context54) {
         while (1) switch (_context54.p = _context54.n) {
           case 0:
@@ -22794,22 +22842,23 @@ function App() {
             }
             return _context54.a(2);
           case 1:
-            _context54.p = 1;
-            _context54.n = 2;
-            return window.storage.set("fait-types", JSON.stringify(list), true);
-          case 2:
-            _context54.n = 4;
-            break;
+            normalized = ensureOpenWorkFactType(list);
+            _context54.p = 2;
+            _context54.n = 3;
+            return window.storage.set("fait-types", JSON.stringify(normalized), true);
           case 3:
-            _context54.p = 3;
-            _t74 = _context54.v;
+            _context54.n = 5;
+            break;
           case 4:
-            setFaitTypes(list);
-            setShowFaitTypes(false);
+            _context54.p = 4;
+            _t74 = _context54.v;
           case 5:
+            setFaitTypes(normalized);
+            setShowFaitTypes(false);
+          case 6:
             return _context54.a(2);
         }
-      }, _callee53, null, [[1, 3]]);
+      }, _callee53, null, [[2, 4]]);
     }));
     function saveFaitTypes(_x26) {
       return _saveFaitTypes.apply(this, arguments);
@@ -23558,8 +23607,8 @@ function App() {
   var faitsOpen = scopedFaits.filter(function (r) {
     return !r.closedDate;
   }).length;
-  var ows = effectiveScopedRows(ofData, "openwork").filter(function (r) {
-    return !r.closedDate && _rowMatchesSnFilter(r, activeUnitChoice, workHeader);
+  var ows = scopedFaits.filter(function (r) {
+    return r.type === "OW" && !r.closedDate;
   }).length;
   // Alerte calibration
   var horsCalib = effectiveScopedRows(ofData, "testequip").filter(function (r) {
@@ -23945,7 +23994,7 @@ function App() {
     }
   }, TABS.map(function (t) {
     var active = activeTab === t.id;
-    var dot = t.id === "faits" && faitsOpen > 0 || t.id === "openwork" && ows > 0 || t.id === "testequip" && horsCalib > 0;
+    var dot = t.id === "faits" && (faitsOpen > 0 || ows > 0) || t.id === "testequip" && horsCalib > 0;
     var dotColor = t.id === "ncr" ? C.red : t.id === "dm" ? C.blue : t.id === "testequip" ? C.red : C.yellow;
     return /*#__PURE__*/React.createElement("button", {
       key: t.id,
@@ -24229,8 +24278,8 @@ function App() {
       marginTop: 24
     } : {}
   }, /*#__PURE__*/React.createElement(ReportHead, {
-    tab: "Faits"
-  }), /*#__PURE__*/React.createElement(SectionTitle, null, "Faits"), /*#__PURE__*/React.createElement(TabFaits, {
+    tab: "Suivi technique"
+  }), /*#__PURE__*/React.createElement(SectionTitle, null, "Suivi technique"), /*#__PURE__*/React.createElement(TabFaits, {
     data: ofData.faits || {},
     onChange: function onChange(d) {
       return updateTab("faits", d);
@@ -24297,31 +24346,6 @@ function App() {
         tab: "demating",
         row: row
       });
-    }
-  })), (!printAll && activeTab === "openwork" || printAll) && /*#__PURE__*/React.createElement("div", {
-    style: printAll ? {
-      breakBefore: "page",
-      marginTop: 24
-    } : {}
-  }, /*#__PURE__*/React.createElement(ReportHead, {
-    tab: "Open Work"
-  }), /*#__PURE__*/React.createElement(SectionTitle, null, "Open Work"), /*#__PURE__*/React.createElement(TabOpenWork, {
-    data: ofData.openwork,
-    onChange: function onChange(d) {
-      return updateTab("openwork", d);
-    },
-    user: user,
-    perms: perms,
-    header: workHeader,
-    forceShowDeleted: printAll,
-    onCopyAcross: function onCopyAcross(row) {
-      return setCopyAcrossRow({
-        tab: "openwork",
-        row: row
-      });
-    },
-    onCloseRow: function onCloseRow(rowId, closed) {
-      return closeWorkItem("openwork", rowId, closed);
     }
   })))), showConsoEditor && canManageLists(user) && /*#__PURE__*/React.createElement(ConsommableListManager, {
     items: consommables,
