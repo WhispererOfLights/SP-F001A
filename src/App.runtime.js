@@ -21164,14 +21164,6 @@ var OFSelector = function OFSelector(_ref120) {
     }, /*#__PURE__*/React.createElement(Badge, {
       label: "POLY ".concat(formatAvailabilityDT(polymerization.readyAt)),
       color: C.yellow
-    })), openOWById[o.id] > 0 && /*#__PURE__*/React.createElement("span", {
-      title: "".concat(openOWById[o.id], " Open Work non cl\xF4tur\xE9(s)"),
-      style: {
-        flexShrink: 0
-      }
-    }, /*#__PURE__*/React.createElement(Badge, {
-      label: "OW",
-      color: C.yellow
     })), !!((_warningsById$o$id4 = warningsById[o.id]) !== null && _warningsById$o$id4 !== void 0 && _warningsById$o$id4.length) && /*#__PURE__*/React.createElement("span", {
       role: "img",
       "aria-label": "OF \xE0 surveiller",
@@ -21182,7 +21174,7 @@ var OFSelector = function OFSelector(_ref120) {
         fontWeight: 900,
         flexShrink: 0
       }
-    }, "\u26A0"), !facts.length && !polymerization && !openOWById[o.id] && !((_warningsById$o$id5 = warningsById[o.id]) !== null && _warningsById$o$id5 !== void 0 && _warningsById$o$id5.length) && /*#__PURE__*/React.createElement("span", {
+    }, "\u26A0"), !facts.length && !polymerization && !((_warningsById$o$id5 = warningsById[o.id]) !== null && _warningsById$o$id5 !== void 0 && _warningsById$o$id5.length) && /*#__PURE__*/React.createElement("span", {
       style: {
         color: C.muted
       }

@@ -6969,9 +6969,8 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                             border:`1px solid ${closed?C.green:C.yellow}`,background:(closed?C.green:C.yellow)+"14",color:closed?C.green:C.yellow}}>{label}</span>;
                         })}
                         {polymerization&&<span title={`Sous vide dès le ${formatAvailabilityDT(polymerization.readyAt)}`} style={{flexShrink:0}}><Badge label={`POLY ${formatAvailabilityDT(polymerization.readyAt)}`} color={C.yellow}/></span>}
-                        {openOWById[o.id]>0&&<span title={`${openOWById[o.id]} Open Work non clôturé(s)`} style={{flexShrink:0}}><Badge label="OW" color={C.yellow}/></span>}
                         {!!warningsById[o.id]?.length&&<span role="img" aria-label="OF à surveiller" title={warningsById[o.id].join("\n")} style={{color:C.yellow,fontSize:18,fontWeight:900,flexShrink:0}}>⚠</span>}
-                        {!facts.length&&!polymerization&&!openOWById[o.id]&&!warningsById[o.id]?.length&&<span style={{color:C.muted}}>—</span>}
+                        {!facts.length&&!polymerization&&!warningsById[o.id]?.length&&<span style={{color:C.muted}}>—</span>}
                       </div>
                     </TD>
                     <TD center>
