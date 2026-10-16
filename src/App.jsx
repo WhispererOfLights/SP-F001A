@@ -461,7 +461,6 @@ const weekendOvenStartInputValue = (reference=Date.now()) => {
   return operationDateInputValue(`${String(date.getDate()).padStart(2,"0")}/${String(date.getMonth()+1).padStart(2,"0")}/${date.getFullYear()} 20:00`);
 };
 const ovenRequiredMissing = row => [
-  !String(row?.fourN||"").trim()&&"Four N°",
   !String(row?.duree||"").trim()&&"Durée [H]",
   !String(row?.temp||"").trim()&&"Temp [°C]",
 ].filter(Boolean);
@@ -5110,9 +5109,13 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
     if(!canEdit(r)) return;
     if(!r) return;
     const miss=ovenRequiredMissing(r);
+    if(miss.length){
+      onChange({rows:scopedRowsPatch(rows,id,header,{validError:"Requis avant entrée : "+miss.join(", ")})});
+      return;
+    }
     onChange({rows:scopedRowsPatch(rows,id,header,x=>{
       const next={...x,entreeDT:entryDate||x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",
-        validated:!miss.length,validError:miss.length?"À compléter : "+miss.join(", "):""};
+        validated:true,validError:""};
       return withEditHistory(next,user,ETUVAGE_EDIT_FIELDS);
     })});
   };
@@ -5212,17 +5215,17 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                         <input list="fours-etuvage" value={r.fourN||""} onChange={e=>upd(r.id,"fourN",e.target.value)}
                           placeholder={fours.length?"Choisir four":"Aucun four"}
                           style={{width:"100%",fontFamily:"monospace",outline:"none",padding:"4px 6px",fontSize:11,
-                            background:inFour&&!r.fourN?"#da363318":C.input,color:inFour&&!r.fourN?C.red:r.fourN&&!fourOk?C.yellow:C.text,
-                            border:`1px solid ${inFour&&!r.fourN?C.red:r.fourN&&!fourOk?C.yellow:C.border}`,borderRadius:4}}/>
+                            background:C.input,color:r.fourN&&!fourOk?C.yellow:C.text,
+                            border:`1px solid ${r.fourN&&!fourOk?C.yellow:C.border}`,borderRadius:4}}/>
                       </>
                     )}
                     {r.fourN&&!fourOk&&!locked&&<div style={{color:C.yellow,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>⚠ non coché four</div>}
                     {!r.fourN&&!fours.length&&!locked&&<div style={{color:C.muted,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>Cochez un four dans Test Equip.</div>}
                   </TD>
                   <TD><Input value={r.duree} onChange={v=>upd(r.id,"duree",v)} small placeholder="h" readOnly={locked}
-                    style={locked?LOCKED_INPUT_STYLE:inFour&&!r.duree?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
+                    style={locked?LOCKED_INPUT_STYLE:r.validError&&!r.duree?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
                   <TD><Input value={r.temp}  onChange={v=>upd(r.id,"temp",v)}  small placeholder="°C" readOnly={locked}
-                    style={locked?LOCKED_INPUT_STYLE:inFour&&!r.temp?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
+                    style={locked?LOCKED_INPUT_STYLE:r.validError&&!r.temp?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
                   <TD center style={{pointerEvents:"all"}}>
                     {!inFour
                       ? (editable&&<div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"stretch"}}>

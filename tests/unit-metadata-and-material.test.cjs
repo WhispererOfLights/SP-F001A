@@ -16,7 +16,8 @@ assert.equal(context.operationDateOutput('2026-05-01T14:30'),'01/05/2026 14:30')
 assert.equal(context.weekendOvenStart(new Date(2026,9,16,10,0).getTime()),'2026-10-18T20:00');
 assert.equal(context.weekendOvenStart(new Date(2026,9,18,18,0).getTime()),'2026-10-18T20:00');
 assert.equal(context.weekendOvenStart(new Date(2026,9,18,21,0).getTime()),'2026-10-25T20:00');
-assert.deepEqual(Array.from(context.ovenMissing({fourN:'',duree:'',temp:''})),['Four N°','Durée [H]','Temp [°C]']);
+assert.deepEqual(Array.from(context.ovenMissing({fourN:'',duree:'',temp:''})),['Durée [H]','Temp [°C]']);
+assert.deepEqual(Array.from(context.ovenMissing({fourN:'',duree:'72',temp:'85'})),[]);
 assert.deepEqual(Array.from(context.ovenMissing({fourN:'Four 1',duree:'72',temp:'85'})),[]);
 const operationReference=new Date(2026,4,5,12,0).getTime();
 assert.equal(context.futureOperationDate('01/05/2026 14:30',operationReference),false);

@@ -1185,7 +1185,7 @@ var weekendOvenStartInputValue = function weekendOvenStartInputValue() {
   return operationDateInputValue("".concat(String(date.getDate()).padStart(2, "0"), "/").concat(String(date.getMonth() + 1).padStart(2, "0"), "/").concat(date.getFullYear(), " 20:00"));
 };
 var ovenRequiredMissing = function ovenRequiredMissing(row) {
-  return [!String((row === null || row === void 0 ? void 0 : row.fourN) || "").trim() && "Four N°", !String((row === null || row === void 0 ? void 0 : row.duree) || "").trim() && "Durée [H]", !String((row === null || row === void 0 ? void 0 : row.temp) || "").trim() && "Temp [°C]"].filter(Boolean);
+  return [!String((row === null || row === void 0 ? void 0 : row.duree) || "").trim() && "Durée [H]", !String((row === null || row === void 0 ? void 0 : row.temp) || "").trim() && "Temp [°C]"].filter(Boolean);
 };
 var isFutureOperationDate = function isFutureOperationDate(value) {
   var reference = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : Date.now();
@@ -13762,13 +13762,21 @@ var TabEtuvage = function TabEtuvage(_ref87) {
     if (!canEdit(r)) return;
     if (!r) return;
     var miss = ovenRequiredMissing(r);
+    if (miss.length) {
+      onChange({
+        rows: scopedRowsPatch(rows, id, header, {
+          validError: "Requis avant entrée : " + miss.join(", ")
+        })
+      });
+      return;
+    }
     onChange({
       rows: scopedRowsPatch(rows, id, header, function (x) {
         var next = _objectSpread(_objectSpread({}, x), {}, {
           entreeDT: entryDate || x.entreeDT || nowDT(),
           entreeVisa: x.entreeVisa || (user === null || user === void 0 ? void 0 : user.trigram) || "",
-          validated: !miss.length,
-          validError: miss.length ? "À compléter : " + miss.join(", ") : ""
+          validated: true,
+          validError: ""
         });
         return withEditHistory(next, user, ETUVAGE_EDIT_FIELDS);
       })
@@ -14040,9 +14048,9 @@ var TabEtuvage = function TabEtuvage(_ref87) {
         outline: "none",
         padding: "4px 6px",
         fontSize: 11,
-        background: inFour && !r.fourN ? "#da363318" : C.input,
-        color: inFour && !r.fourN ? C.red : r.fourN && !fourOk ? C.yellow : C.text,
-        border: "1px solid ".concat(inFour && !r.fourN ? C.red : r.fourN && !fourOk ? C.yellow : C.border),
+        background: C.input,
+        color: r.fourN && !fourOk ? C.yellow : C.text,
+        border: "1px solid ".concat(r.fourN && !fourOk ? C.yellow : C.border),
         borderRadius: 4
       }
     })), r.fourN && !fourOk && !locked && /*#__PURE__*/React.createElement("div", {
@@ -14067,7 +14075,7 @@ var TabEtuvage = function TabEtuvage(_ref87) {
       small: true,
       placeholder: "h",
       readOnly: locked,
-      style: locked ? LOCKED_INPUT_STYLE : inFour && !r.duree ? {
+      style: locked ? LOCKED_INPUT_STYLE : r.validError && !r.duree ? {
         borderColor: C.red,
         color: C.red,
         background: "#da363318"
@@ -14080,7 +14088,7 @@ var TabEtuvage = function TabEtuvage(_ref87) {
       small: true,
       placeholder: "\xB0C",
       readOnly: locked,
-      style: locked ? LOCKED_INPUT_STYLE : inFour && !r.temp ? {
+      style: locked ? LOCKED_INPUT_STYLE : r.validError && !r.temp ? {
         borderColor: C.red,
         color: C.red,
         background: "#da363318"
