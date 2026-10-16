@@ -455,11 +455,16 @@ const operationDateFromInput = value => {
 const weekendOvenStartInputValue = (reference=Date.now()) => {
   const date=new Date(reference);
   date.setHours(20,0,0,0);
-  const daysSinceSunday=date.getDay();
-  date.setDate(date.getDate()-daysSinceSunday);
-  if(date.getTime()>reference) date.setDate(date.getDate()-7);
+  const daysUntilSunday=(7-date.getDay())%7;
+  date.setDate(date.getDate()+daysUntilSunday);
+  if(date.getTime()<reference) date.setDate(date.getDate()+7);
   return operationDateInputValue(`${String(date.getDate()).padStart(2,"0")}/${String(date.getMonth()+1).padStart(2,"0")}/${date.getFullYear()} 20:00`);
 };
+const ovenRequiredMissing = row => [
+  !String(row?.fourN||"").trim()&&"Four N°",
+  !String(row?.duree||"").trim()&&"Durée [H]",
+  !String(row?.temp||"").trim()&&"Temp [°C]",
+].filter(Boolean);
 const isFutureOperationDate = (value,reference=Date.now()) => {
   const timestamp=appDateTimestamp(value);
   return !!timestamp&&timestamp>reference;
@@ -489,10 +494,10 @@ const WeekendOvenModal = ({onConfirm,onCancel}) => {
         padding:22,width:440,maxWidth:"100%",boxShadow:"0 12px 40px #0008"}}>
         <div style={{fontWeight:800,color:C.blue,fontSize:15,marginBottom:6}}>Démarrage week-end</div>
         <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:16}}>
-          Le dernier dimanche à 20:00 est proposé. Modifiez l'heure réelle si nécessaire : le compteur de 72 h partira de cette date.
+          Le prochain dimanche à 20:00 est proposé. Modifiez l'heure prévue si nécessaire : le compteur de 72 h partira de cette date.
         </div>
         <label style={{display:"block",fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>Date et heure d'entrée</label>
-        <input type="datetime-local" autoFocus value={start} max={operationDateInputValue(nowDT())}
+        <input type="datetime-local" autoFocus value={start}
           onChange={event=>setStart(event.target.value)}
           style={{width:"100%",boxSizing:"border-box",background:C.input,color:C.text,border:`1px solid ${C.blue}`,
             borderRadius:4,padding:"8px 10px",fontFamily:"monospace",fontSize:13,marginBottom:18}}/>
@@ -5104,16 +5109,10 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
     const r=rows.find(x=>x.id===id);
     if(!canEdit(r)) return;
     if(!r) return;
-    const miss=[];
-    if(!r.fourN) miss.push("Four N°");
-    if(!r.duree) miss.push("Durée [H]");
-    if(!r.temp)  miss.push("Temp [°C]");
-    if(miss.length){
-      onChange({rows:rows.map(x=>x.id===id?{...x,validError:"Requis avant entrée : "+miss.join(", ")}:x)});
-      return;
-    }
+    const miss=ovenRequiredMissing(r);
     onChange({rows:scopedRowsPatch(rows,id,header,x=>{
-      const next={...x,entreeDT:entryDate||x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",validated:true,validError:""};
+      const next={...x,entreeDT:entryDate||x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",
+        validated:!miss.length,validError:miss.length?"À compléter : "+miss.join(", "):""};
       return withEditHistory(next,user,ETUVAGE_EDIT_FIELDS);
     })});
   };
@@ -5122,10 +5121,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
     const r=rows.find(x=>x.id===id);
     if(!canEdit(r)) return;
     if(!r) return;
-    const miss=[];
-    if(!r.fourN) miss.push("Four N°");
-    if(!r.duree) miss.push("Durée [H]");
-    if(!r.temp)  miss.push("Temp [°C]");
+    const miss=ovenRequiredMissing(r);
     if(miss.length){
       onChange({rows:rows.map(x=>x.id===id?{...x,validError:"Requis : "+miss.join(", ")}:x)});
       return;
@@ -5216,15 +5212,17 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                         <input list="fours-etuvage" value={r.fourN||""} onChange={e=>upd(r.id,"fourN",e.target.value)}
                           placeholder={fours.length?"Choisir four":"Aucun four"}
                           style={{width:"100%",fontFamily:"monospace",outline:"none",padding:"4px 6px",fontSize:11,
-                            background:C.input,color:r.fourN&&!fourOk?C.yellow:C.text,
-                            border:`1px solid ${r.fourN&&!fourOk?C.yellow:C.border}`,borderRadius:4}}/>
+                            background:inFour&&!r.fourN?"#da363318":C.input,color:inFour&&!r.fourN?C.red:r.fourN&&!fourOk?C.yellow:C.text,
+                            border:`1px solid ${inFour&&!r.fourN?C.red:r.fourN&&!fourOk?C.yellow:C.border}`,borderRadius:4}}/>
                       </>
                     )}
                     {r.fourN&&!fourOk&&!locked&&<div style={{color:C.yellow,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>⚠ non coché four</div>}
                     {!r.fourN&&!fours.length&&!locked&&<div style={{color:C.muted,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>Cochez un four dans Test Equip.</div>}
                   </TD>
-                  <TD><Input value={r.duree} onChange={v=>upd(r.id,"duree",v)} small placeholder="h" readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/></TD>
-                  <TD><Input value={r.temp}  onChange={v=>upd(r.id,"temp",v)}  small placeholder="°C" readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/></TD>
+                  <TD><Input value={r.duree} onChange={v=>upd(r.id,"duree",v)} small placeholder="h" readOnly={locked}
+                    style={locked?LOCKED_INPUT_STYLE:inFour&&!r.duree?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
+                  <TD><Input value={r.temp}  onChange={v=>upd(r.id,"temp",v)}  small placeholder="°C" readOnly={locked}
+                    style={locked?LOCKED_INPUT_STYLE:inFour&&!r.temp?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
                   <TD center style={{pointerEvents:"all"}}>
                     {!inFour
                       ? (editable&&<div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"stretch"}}>
@@ -5242,7 +5240,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   </TD>
                   <TD>
                     {!locked
-                      ? <input type="datetime-local" value={operationDateInputValue(r.entreeDT)} max={operationDateInputValue(nowDT())}
+                      ? <input type="datetime-local" value={operationDateInputValue(r.entreeDT)}
                           onChange={event=>{const v=operationDateFromInput(event.target.value);patchEtuvageStamp(r.id,{entreeDT:v,entreeVisa:v?(r.entreeVisa||user?.trigram||""):"",...(v?{}:{sortieDT:"",sortieVisa:""})});}}
                           title="Corriger la date/heure d'entrée. Vider retire l'état entrée four."
                           disabled={!editable}

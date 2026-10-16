@@ -1179,10 +1179,13 @@ var weekendOvenStartInputValue = function weekendOvenStartInputValue() {
   var reference = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : Date.now();
   var date = new Date(reference);
   date.setHours(20, 0, 0, 0);
-  var daysSinceSunday = date.getDay();
-  date.setDate(date.getDate() - daysSinceSunday);
-  if (date.getTime() > reference) date.setDate(date.getDate() - 7);
+  var daysUntilSunday = (7 - date.getDay()) % 7;
+  date.setDate(date.getDate() + daysUntilSunday);
+  if (date.getTime() < reference) date.setDate(date.getDate() + 7);
   return operationDateInputValue("".concat(String(date.getDate()).padStart(2, "0"), "/").concat(String(date.getMonth() + 1).padStart(2, "0"), "/").concat(date.getFullYear(), " 20:00"));
+};
+var ovenRequiredMissing = function ovenRequiredMissing(row) {
+  return [!String((row === null || row === void 0 ? void 0 : row.fourN) || "").trim() && "Four N°", !String((row === null || row === void 0 ? void 0 : row.duree) || "").trim() && "Durée [H]", !String((row === null || row === void 0 ? void 0 : row.temp) || "").trim() && "Temp [°C]"].filter(Boolean);
 };
 var isFutureOperationDate = function isFutureOperationDate(value) {
   var reference = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : Date.now();
@@ -1274,7 +1277,7 @@ var WeekendOvenModal = function WeekendOvenModal(_ref19) {
       lineHeight: 1.5,
       marginBottom: 16
     }
-  }, "Le dernier dimanche \xE0 20:00 est propos\xE9. Modifiez l'heure r\xE9elle si n\xE9cessaire : le compteur de 72 h partira de cette date."), /*#__PURE__*/React.createElement("label", {
+  }, "Le prochain dimanche \xE0 20:00 est propos\xE9. Modifiez l'heure pr\xE9vue si n\xE9cessaire : le compteur de 72 h partira de cette date."), /*#__PURE__*/React.createElement("label", {
     style: {
       display: "block",
       fontSize: 10,
@@ -1286,7 +1289,6 @@ var WeekendOvenModal = function WeekendOvenModal(_ref19) {
     type: "datetime-local",
     autoFocus: true,
     value: start,
-    max: operationDateInputValue(nowDT()),
     onChange: function onChange(event) {
       return setStart(event.target.value);
     },
@@ -13759,27 +13761,14 @@ var TabEtuvage = function TabEtuvage(_ref87) {
     });
     if (!canEdit(r)) return;
     if (!r) return;
-    var miss = [];
-    if (!r.fourN) miss.push("Four N°");
-    if (!r.duree) miss.push("Durée [H]");
-    if (!r.temp) miss.push("Temp [°C]");
-    if (miss.length) {
-      onChange({
-        rows: rows.map(function (x) {
-          return x.id === id ? _objectSpread(_objectSpread({}, x), {}, {
-            validError: "Requis avant entrée : " + miss.join(", ")
-          }) : x;
-        })
-      });
-      return;
-    }
+    var miss = ovenRequiredMissing(r);
     onChange({
       rows: scopedRowsPatch(rows, id, header, function (x) {
         var next = _objectSpread(_objectSpread({}, x), {}, {
           entreeDT: entryDate || x.entreeDT || nowDT(),
           entreeVisa: x.entreeVisa || (user === null || user === void 0 ? void 0 : user.trigram) || "",
-          validated: true,
-          validError: ""
+          validated: !miss.length,
+          validError: miss.length ? "À compléter : " + miss.join(", ") : ""
         });
         return withEditHistory(next, user, ETUVAGE_EDIT_FIELDS);
       })
@@ -13795,10 +13784,7 @@ var TabEtuvage = function TabEtuvage(_ref87) {
     });
     if (!canEdit(r)) return;
     if (!r) return;
-    var miss = [];
-    if (!r.fourN) miss.push("Four N°");
-    if (!r.duree) miss.push("Durée [H]");
-    if (!r.temp) miss.push("Temp [°C]");
+    var miss = ovenRequiredMissing(r);
     if (miss.length) {
       onChange({
         rows: rows.map(function (x) {
@@ -14054,9 +14040,9 @@ var TabEtuvage = function TabEtuvage(_ref87) {
         outline: "none",
         padding: "4px 6px",
         fontSize: 11,
-        background: C.input,
-        color: r.fourN && !fourOk ? C.yellow : C.text,
-        border: "1px solid ".concat(r.fourN && !fourOk ? C.yellow : C.border),
+        background: inFour && !r.fourN ? "#da363318" : C.input,
+        color: inFour && !r.fourN ? C.red : r.fourN && !fourOk ? C.yellow : C.text,
+        border: "1px solid ".concat(inFour && !r.fourN ? C.red : r.fourN && !fourOk ? C.yellow : C.border),
         borderRadius: 4
       }
     })), r.fourN && !fourOk && !locked && /*#__PURE__*/React.createElement("div", {
@@ -14081,7 +14067,11 @@ var TabEtuvage = function TabEtuvage(_ref87) {
       small: true,
       placeholder: "h",
       readOnly: locked,
-      style: locked ? LOCKED_INPUT_STYLE : {}
+      style: locked ? LOCKED_INPUT_STYLE : inFour && !r.duree ? {
+        borderColor: C.red,
+        color: C.red,
+        background: "#da363318"
+      } : {}
     })), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(Input, {
       value: r.temp,
       onChange: function onChange(v) {
@@ -14090,7 +14080,11 @@ var TabEtuvage = function TabEtuvage(_ref87) {
       small: true,
       placeholder: "\xB0C",
       readOnly: locked,
-      style: locked ? LOCKED_INPUT_STYLE : {}
+      style: locked ? LOCKED_INPUT_STYLE : inFour && !r.temp ? {
+        borderColor: C.red,
+        color: C.red,
+        background: "#da363318"
+      } : {}
     })), /*#__PURE__*/React.createElement(TD, {
       center: true,
       style: {
@@ -14152,7 +14146,6 @@ var TabEtuvage = function TabEtuvage(_ref87) {
     }, r.entreeVisa))), /*#__PURE__*/React.createElement(TD, null, !locked ? /*#__PURE__*/React.createElement("input", {
       type: "datetime-local",
       value: operationDateInputValue(r.entreeDT),
-      max: operationDateInputValue(nowDT()),
       onChange: function onChange(event) {
         var v = operationDateFromInput(event.target.value);
         patchEtuvageStamp(r.id, _objectSpread({
