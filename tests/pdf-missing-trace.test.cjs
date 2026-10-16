@@ -18,6 +18,9 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   units:{rows:units},rework:{rows}},lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['rework']});
 (async()=>{
   const blob=build(rows), raw=await blob.text();
+  for(const label of ['(OTP)','(Article)','(SN ou LOT)']) assert.ok(raw.includes(label),`PDF header includes ${label}`);
+  assert.ok(raw.includes('(N\\260 OF)'),'PDF header includes N° OF');
+  assert.ok(raw.includes('(Qt\\351)'),'PDF header includes Qté');
   assert.ok(!raw.includes('Tracabilite a completer - LOT / DC manquants'),'Missing LOT/DC is shown by red cells without a duplicate warning block');
   for(const id of ['BOTH','DC_ONLY','LOT_ONLY','POINTED']) assert.ok(raw.includes(id));
   assert.ok(!raw.includes('OTHER_SN'));
@@ -36,6 +39,11 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
     lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['faits']}).text();
   assert.ok(factsPdf.includes('NC-123')&&factsPdf.includes('Fait visible'));
   assert.ok(!factsPdf.includes('31/12/2099')&&!factsPdf.includes('CLOSEV'),'Fact status and closure visa must not appear in the PDF');
+  const ovenPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
+    units:{rows:units},etuvage:{rows:[{id:'oven1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',fourN:'F1',duree:'72',temp:'85',entreeDT:'18/09/2026 08:00',entreeVisa:'JGR',snIds:['u1']}]}} ,
+    lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['etuvage']}).text();
+  assert.ok(ovenPdf.includes('(Dur\\351e [h])'),'Oven duration header includes hours');
+  assert.ok(ovenPdf.includes('(Temp\\351rature [\\260C])'),'Oven temperature header includes degrees Celsius');
   const many=await build(Array.from({length:100},(_,i)=>row('R'+i,'S','',''))).text();
   for(const match of many.matchAll(/ ([\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+) re B/g))
     assert.ok(Number(match[2])>=0,'Warnings and cells must stay within the page');

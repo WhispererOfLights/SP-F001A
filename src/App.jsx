@@ -1091,33 +1091,37 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     const lineY=top-34;
     line(M,lineY,W-M,lineY,color.orange,.6);
     const article=h.codeArticle||h.articleNo||"-";
-    const unitIdentity=current=>{
-      const identity=[current?.sn||"",current?.lot||""].filter(Boolean).join(" / ")||"-";
-      const quantity=current?.lot?trackedLotQty(current):"";
-      return `${identity}${String(quantity||"").trim()?` - Qté ${quantity}`:""}`;
-    };
+    const unitIdentity=current=>[current?.sn||"",current?.lot||""].filter(Boolean).join(" / ")||"-";
+    const unitQuantity=current=>current?.lot?String(trackedLotQty(current)||"").trim():"";
+    const identityValue=unit?unitIdentity(unit):selectedUnits.map(unitIdentity).join(" ; ")||"-";
+    const quantityValue=unit
+      ? unitQuantity(unit)||"-"
+      : selectedUnits.map(unitQuantity).filter(Boolean).join(" ; ")||"-";
     const meta=[
-      [h.otp||h.projet||"-",1.1,"left"],
-      [h.of||"-",.85,"center"],
-      [`${article} - ${h.description||"-"}`,3,"center"],
-      [unit?unitIdentity(unit):selectedUnits.map(unitIdentity).join(" ; ")||"-",1.35,"right"],
+      {label:"OTP",value:h.otp||h.projet||"-",weight:1.1,align:"left"},
+      {label:"N° OF",value:h.of||"-",weight:.85,align:"center"},
+      {label:"Article",value:`${article} - ${h.description||"-"}`,weight:3,align:"center"},
+      {label:"SN ou LOT",value:identityValue,weight:1.25,align:"right"},
+      {label:"Qté",value:quantityValue,weight:.55,align:"right"},
     ];
-    page.y=lineY-15;
-    const totalWeight=meta.reduce((sum,item)=>sum+item[1],0);
+    const totalWeight=meta.reduce((sum,item)=>sum+item.weight,0);
     let metaX=M;
     meta.forEach(m=>{
-      const cw=usable*m[1]/totalWeight;
+      const cw=usable*m.weight/totalWeight;
       const contentWidth=cw-8;
-      if(m[2]==="right"){
-        wrappedRight(m[0],metaX,page.y,contentWidth,9.5,2,color.ink,true);
-      }else if(m[2]==="center"){
-        wrappedCenter(m[0],metaX,page.y,contentWidth,9.5,2,color.ink,true);
+      if(m.align==="right"){
+        wrappedRight(m.label,metaX,lineY-10,contentWidth,5.4,1,color.muted,true);
+        wrappedRight(m.value,metaX,lineY-23,contentWidth,9.2,2,color.ink,true);
+      }else if(m.align==="center"){
+        wrappedCenter(m.label,metaX,lineY-10,contentWidth,5.4,1,color.muted,true);
+        wrappedCenter(m.value,metaX,lineY-23,contentWidth,9.2,2,color.ink,true);
       }else{
-        wrapped(m[0],metaX,page.y,contentWidth,9.5,2,color.ink,true);
+        wrapped(m.label,metaX,lineY-10,contentWidth,5.4,1,color.muted,true);
+        wrapped(m.value,metaX,lineY-23,contentWidth,9.2,2,color.ink,true);
       }
       metaX+=cw;
     });
-    page.y-=24;
+    page.y=lineY-45;
   };
   const table=(headers,rows,widths,sectionTitle,unit=null)=>{
     const tableLine="0.18 0.20 0.22";
@@ -1340,7 +1344,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
 
     section("Suivi technique",["Date","Visa","Type","Numero","Date ouv.","Description"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.commentaires],r,commentsForPdf(r))),[25,15,20,36,28,145],unit);
 
-    section("Etuvages",["Date","Visa","Four","Duree","Temp","Entree","Visa E","Sortie","Visa S"],(ofData?.etuvage?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r)),[23,13,26,16,16,36,14,36,14],unit);
+    section("Etuvages",["Date","Visa","Four","Durée [h]","Température [°C]","Entrée","Visa E","Sortie","Visa S"],(ofData?.etuvage?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r)),[23,13,26,16,16,36,14,36,14],unit);
 
     const demConnectors=(ofData?.demating?.connectors||[]).filter(c=>!c.deleted&&inUnit(c))
       .sort((a,b)=>connectorSortKey(a.nConect).localeCompare(connectorSortKey(b.nConect)));

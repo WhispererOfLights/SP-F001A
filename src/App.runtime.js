@@ -2443,29 +2443,59 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref31) {
     line(M, lineY, W - M, lineY, color.orange, .6);
     var article = h.codeArticle || h.articleNo || "-";
     var unitIdentity = function unitIdentity(current) {
-      var identity = [(current === null || current === void 0 ? void 0 : current.sn) || "", (current === null || current === void 0 ? void 0 : current.lot) || ""].filter(Boolean).join(" / ") || "-";
-      var quantity = current !== null && current !== void 0 && current.lot ? trackedLotQty(current) : "";
-      return "".concat(identity).concat(String(quantity || "").trim() ? " - Qt\xE9 ".concat(quantity) : "");
+      return [(current === null || current === void 0 ? void 0 : current.sn) || "", (current === null || current === void 0 ? void 0 : current.lot) || ""].filter(Boolean).join(" / ") || "-";
     };
-    var meta = [[h.otp || h.projet || "-", 1.1, "left"], [h.of || "-", .85, "center"], ["".concat(article, " - ").concat(h.description || "-"), 3, "center"], [unit ? unitIdentity(unit) : selectedUnits.map(unitIdentity).join(" ; ") || "-", 1.35, "right"]];
-    page.y = lineY - 15;
+    var unitQuantity = function unitQuantity(current) {
+      return current !== null && current !== void 0 && current.lot ? String(trackedLotQty(current) || "").trim() : "";
+    };
+    var identityValue = unit ? unitIdentity(unit) : selectedUnits.map(unitIdentity).join(" ; ") || "-";
+    var quantityValue = unit ? unitQuantity(unit) || "-" : selectedUnits.map(unitQuantity).filter(Boolean).join(" ; ") || "-";
+    var meta = [{
+      label: "OTP",
+      value: h.otp || h.projet || "-",
+      weight: 1.1,
+      align: "left"
+    }, {
+      label: "N° OF",
+      value: h.of || "-",
+      weight: .85,
+      align: "center"
+    }, {
+      label: "Article",
+      value: "".concat(article, " - ").concat(h.description || "-"),
+      weight: 3,
+      align: "center"
+    }, {
+      label: "SN ou LOT",
+      value: identityValue,
+      weight: 1.25,
+      align: "right"
+    }, {
+      label: "Qté",
+      value: quantityValue,
+      weight: .55,
+      align: "right"
+    }];
     var totalWeight = meta.reduce(function (sum, item) {
-      return sum + item[1];
+      return sum + item.weight;
     }, 0);
     var metaX = M;
     meta.forEach(function (m) {
-      var cw = usable * m[1] / totalWeight;
+      var cw = usable * m.weight / totalWeight;
       var contentWidth = cw - 8;
-      if (m[2] === "right") {
-        wrappedRight(m[0], metaX, page.y, contentWidth, 9.5, 2, color.ink, true);
-      } else if (m[2] === "center") {
-        wrappedCenter(m[0], metaX, page.y, contentWidth, 9.5, 2, color.ink, true);
+      if (m.align === "right") {
+        wrappedRight(m.label, metaX, lineY - 10, contentWidth, 5.4, 1, color.muted, true);
+        wrappedRight(m.value, metaX, lineY - 23, contentWidth, 9.2, 2, color.ink, true);
+      } else if (m.align === "center") {
+        wrappedCenter(m.label, metaX, lineY - 10, contentWidth, 5.4, 1, color.muted, true);
+        wrappedCenter(m.value, metaX, lineY - 23, contentWidth, 9.2, 2, color.ink, true);
       } else {
-        wrapped(m[0], metaX, page.y, contentWidth, 9.5, 2, color.ink, true);
+        wrapped(m.label, metaX, lineY - 10, contentWidth, 5.4, 1, color.muted, true);
+        wrapped(m.value, metaX, lineY - 23, contentWidth, 9.2, 2, color.ink, true);
       }
       metaX += cw;
     });
-    page.y -= 24;
+    page.y = lineY - 45;
   };
   var table = function table(headers, rows, widths, sectionTitle) {
     var unit = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : null;
@@ -2837,7 +2867,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref31) {
     section("Suivi technique", ["Date", "Visa", "Type", "Numero", "Date ouv.", "Description"], (((_ofData7 = ofData) === null || _ofData7 === void 0 || (_ofData7 = _ofData7.faits) === null || _ofData7 === void 0 ? void 0 : _ofData7.rows) || []).filter(inUnit).map(function (r) {
       return rowPdfWithComments([r.createdDT, r.createdVisa, r.type, r.numero, r.date, r.commentaires], r, commentsForPdf(r));
     }), [25, 15, 20, 36, 28, 145], unit);
-    section("Etuvages", ["Date", "Visa", "Four", "Duree", "Temp", "Entree", "Visa E", "Sortie", "Visa S"], (((_ofData8 = ofData) === null || _ofData8 === void 0 || (_ofData8 = _ofData8.etuvage) === null || _ofData8 === void 0 ? void 0 : _ofData8.rows) || []).filter(inUnit).map(function (r) {
+    section("Etuvages", ["Date", "Visa", "Four", "Durée [h]", "Température [°C]", "Entrée", "Visa E", "Sortie", "Visa S"], (((_ofData8 = ofData) === null || _ofData8 === void 0 || (_ofData8 = _ofData8.etuvage) === null || _ofData8 === void 0 ? void 0 : _ofData8.rows) || []).filter(inUnit).map(function (r) {
       return rowPdf([r.createdDT, r.createdVisa, r.fourN, r.duree, r.temp, r.entreeDT, r.entreeVisa, r.sortieDT, r.sortieVisa], r);
     }), [23, 13, 26, 16, 16, 36, 14, 36, 14], unit);
     var demConnectors = (((_ofData9 = ofData) === null || _ofData9 === void 0 || (_ofData9 = _ofData9.demating) === null || _ofData9 === void 0 ? void 0 : _ofData9.connectors) || []).filter(function (c) {
