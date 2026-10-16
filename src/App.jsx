@@ -452,6 +452,14 @@ const operationDateFromInput = value => {
   const match=String(value||"").match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
   return match?`${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}`:"";
 };
+const weekendOvenStartInputValue = (reference=Date.now()) => {
+  const date=new Date(reference);
+  date.setHours(20,0,0,0);
+  const daysSinceSunday=date.getDay();
+  date.setDate(date.getDate()-daysSinceSunday);
+  if(date.getTime()>reference) date.setDate(date.getDate()-7);
+  return operationDateInputValue(`${String(date.getDate()).padStart(2,"0")}/${String(date.getMonth()+1).padStart(2,"0")}/${date.getFullYear()} 20:00`);
+};
 const isFutureOperationDate = (value,reference=Date.now()) => {
   const timestamp=appDateTimestamp(value);
   return !!timestamp&&timestamp>reference;
@@ -469,6 +477,32 @@ const OperationDateCell = ({value,editing,onChange}) => {
     }}
     style={{width:"100%",minWidth:112,background:C.input,color:C.text,border:`1px solid ${C.yellow}`,
       borderRadius:4,padding:"3px 4px",fontFamily:"monospace",fontSize:9}}/>;
+};
+
+const WeekendOvenModal = ({onConfirm,onCancel}) => {
+  const [start,setStart]=useState(()=>weekendOvenStartInputValue());
+  const formatted=operationDateFromInput(start);
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:340,
+      display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,
+        padding:22,width:440,maxWidth:"100%",boxShadow:"0 12px 40px #0008"}}>
+        <div style={{fontWeight:800,color:C.blue,fontSize:15,marginBottom:6}}>Démarrage week-end</div>
+        <div style={{color:C.muted,fontSize:12,lineHeight:1.5,marginBottom:16}}>
+          Le dernier dimanche à 20:00 est proposé. Modifiez l'heure réelle si nécessaire : le compteur de 72 h partira de cette date.
+        </div>
+        <label style={{display:"block",fontSize:10,color:C.muted,textTransform:"uppercase",marginBottom:6}}>Date et heure d'entrée</label>
+        <input type="datetime-local" autoFocus value={start} max={operationDateInputValue(nowDT())}
+          onChange={event=>setStart(event.target.value)}
+          style={{width:"100%",boxSizing:"border-box",background:C.input,color:C.text,border:`1px solid ${C.blue}`,
+            borderRadius:4,padding:"8px 10px",fontFamily:"monospace",fontSize:13,marginBottom:18}}/>
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <Btn onClick={onCancel} color={C.border}>Annuler</Btn>
+          <Btn onClick={()=>formatted&&onConfirm(formatted)} color={C.blue} disabled={!formatted}>▶ Démarrer à cette date</Btn>
+        </div>
+      </div>
+    </div>
+  );
 };
 const sortByNewestOperation = (items,getDate=item=>item?.createdDT,getDraft=item=>!item?.validated&&!item?.deleted) =>
   [...(items||[])].map((item,index)=>({item,index,time:appDateTimestamp(getDate(item)),draft:getDraft(item)}))
@@ -5045,6 +5079,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
   const fours=uniqueOvenChoices(tstRows);
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
+  const [weekendTarget,setWeekendTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const snFilter=workSnFilter(header);
   const add=()=>{ if(!perms.canWrite) return; onChange({rows:[...rows,{id:uid(),...defaultSnScope(header),createdVisa:user?.trigram||"",createdDT:nowDT(),fourN:"",duree:"",temp:"",entreeVisa:"",entreeDT:"",sortieVisa:"",sortieDT:"",comments:[]}]}); };
@@ -5064,8 +5099,8 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
   const confirmDel=reason=>{ const r=rows.find(x=>x.id===deleteTarget); if(canEdit(r)) onChange({rows:scopedRowsDelete(rows,deleteTarget,header,{deleted:true,deletedReason:reason,deletedVisa:user?.trigram||"?",deletedDate:nowDT()})}); setDeleteTarget(null); };
   const deletedCount=rows.filter(r=>r.deleted).length;
 
-  // validateAndEnter: check required fields then stamp entrée atomically
-  const validateAndEnter=id=>{
+  // Validate required fields and stamp the real oven start time atomically.
+  const validateAndEnter=(id,entryDate="")=>{
     const r=rows.find(x=>x.id===id);
     if(!canEdit(r)) return;
     if(!r) return;
@@ -5078,10 +5113,11 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
       return;
     }
     onChange({rows:scopedRowsPatch(rows,id,header,x=>{
-      const next={...x,entreeDT:x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",validated:true,validError:""};
+      const next={...x,entreeDT:entryDate||x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",validated:true,validError:""};
       return withEditHistory(next,user,ETUVAGE_EDIT_FIELDS);
     })});
   };
+  const startWeekend=(id,entryDate)=>{ setWeekendTarget(null); validateAndEnter(id,entryDate); };
   const validateRow=id=>{
     const r=rows.find(x=>x.id===id);
     if(!canEdit(r)) return;
@@ -5148,7 +5184,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
               <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
               <TH w={78}>N° SN</TH>
               <TH w={70}>Four N°</TH><TH w={58}>Durée [H]</TH><TH w={58}>Temp [°C]</TH>
-              <TH w={96}>▶ Entrée</TH><TH w={122}>Date/Heure entrée</TH>
+              <TH w={112}>▶ Entrée</TH><TH w={138}>Date/Heure entrée</TH>
               <TH w={96}>■ Sortie</TH><TH w={122}>Date/Heure sortie</TH>
               <TH w={34}>💬</TH>
               <TH w={104}></TH>
@@ -5191,7 +5227,10 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   <TD><Input value={r.temp}  onChange={v=>upd(r.id,"temp",v)}  small placeholder="°C" readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/></TD>
                   <TD center style={{pointerEvents:"all"}}>
                     {!inFour
-                      ? (editable&&<Btn onClick={()=>validateAndEnter(r.id)} color={C.blue} small>▶ Entrée four</Btn>)
+                      ? (editable&&<div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"stretch"}}>
+                          <Btn onClick={()=>validateAndEnter(r.id)} color={C.blue} small>▶ Entrée four</Btn>
+                          <Btn onClick={()=>setWeekendTarget(r.id)} color={C.border} small title="Démarrer le compteur au dimanche soir">WE · Dim. soir</Btn>
+                        </div>)
                       : <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}>
                           <Badge label="▶ EN FOUR" color={C.blue}/>
                           {!locked
@@ -5203,10 +5242,12 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   </TD>
                   <TD>
                     {!locked
-                      ? <Input value={r.entreeDT||""} onChange={v=>patchEtuvageStamp(r.id,{entreeDT:v,entreeVisa:v?(r.entreeVisa||user?.trigram||""):"",...(v?{}:{sortieDT:"",sortieVisa:""})})}
-                          small title="Corriger la date/heure d'entrée. Vider retire l'état entrée four."
-                          readOnly={!editable}
-                          style={{fontFamily:"monospace",fontSize:11,color:r.entreeDT?C.blue:C.muted}}/>
+                      ? <input type="datetime-local" value={operationDateInputValue(r.entreeDT)} max={operationDateInputValue(nowDT())}
+                          onChange={event=>{const v=operationDateFromInput(event.target.value);patchEtuvageStamp(r.id,{entreeDT:v,entreeVisa:v?(r.entreeVisa||user?.trigram||""):"",...(v?{}:{sortieDT:"",sortieVisa:""})});}}
+                          title="Corriger la date/heure d'entrée. Vider retire l'état entrée four."
+                          disabled={!editable}
+                          style={{width:"100%",boxSizing:"border-box",background:C.input,color:r.entreeDT?C.blue:C.muted,
+                            border:`1px solid ${C.yellow}`,borderRadius:4,padding:"4px 5px",fontFamily:"monospace",fontSize:10}}/>
                       : <span style={{fontFamily:"monospace",fontSize:11,color:inFour?C.blue:C.muted}}>{r.entreeDT||"—"}</span>}
                   </TD>
                   <TD center style={{pointerEvents:"all"}}>
@@ -5306,6 +5347,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
       </div>
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}
       {restoreTarget&&<RestoreModal onConfirm={restore} onCancel={()=>setRestoreTarget(null)}/>}
+      {weekendTarget&&<WeekendOvenModal onConfirm={date=>startWeekend(weekendTarget,date)} onCancel={()=>setWeekendTarget(null)}/>}
     </div>
   );
 };
