@@ -486,6 +486,24 @@ var nowDT = function nowDT() {
 var uid = function uid() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 };
+var formatOpenWorkNumber = function formatOpenWorkNumber(value) {
+  var raw = String(value || "").trim();
+  if (!raw) return "";
+  var suffix = raw.replace(/^OW[\s-]*/i, "");
+  return /^\d+$/.test(suffix) ? "OW".concat(suffix.padStart(3, "0")) : "OW".concat(suffix);
+};
+var nextOpenWorkNumber = function nextOpenWorkNumber(rows) {
+  var max = (rows || []).filter(function (row) {
+    return String((row === null || row === void 0 ? void 0 : row.type) || "").toUpperCase() === "OW";
+  }).reduce(function (current, row) {
+    var match = formatOpenWorkNumber(row.numero || row.nOW).match(/^OW(\d+)$/i);
+    return match ? Math.max(current, Number(match[1])) : current;
+  }, 0);
+  return "OW".concat(String(max + 1).padStart(3, "0"));
+};
+var technicalFollowUpLabel = function technicalFollowUpLabel(fact) {
+  return String((fact === null || fact === void 0 ? void 0 : fact.type) || "").toUpperCase() === "OW" ? formatOpenWorkNumber(fact === null || fact === void 0 ? void 0 : fact.numero) || "OW" : [fact === null || fact === void 0 ? void 0 : fact.type, fact === null || fact === void 0 ? void 0 : fact.numero].filter(Boolean).join(" ") || "Fait";
+};
 var fmtSAP = function fmtSAP(v) {
   return String(v !== null && v !== void 0 ? v : "").replace(/[^0-9]/g, "");
 };
@@ -5007,7 +5025,7 @@ var unitsFromHeader = function unitsFromHeader() {
   };
 };
 var withUnitMetadata = function withUnitMetadata(data) {
-  var _data$demating, _data$openwork, _data$units2;
+  var _data$demating, _data$openwork, _data$faits2, _data$units2;
   if (Array.isArray((_data$demating = data.demating) === null || _data$demating === void 0 ? void 0 : _data$demating.connectors)) data = _objectSpread(_objectSpread({}, data), {}, {
     demating: _objectSpread(_objectSpread({}, data.demating), {}, {
       connectors: data.demating.connectors.map(function (c) {
@@ -5047,7 +5065,7 @@ var withUnitMetadata = function withUnitMetadata(data) {
         id: "ow-".concat(row.id),
         migratedFromOpenWorkId: row.id,
         type: "OW",
-        numero: row.nOW || row.numero || "",
+        numero: formatOpenWorkNumber(row.nOW || row.numero),
         commentaires: row.description || "",
         visa: row.openVisa || row.visa || row.createdVisa || "",
         date: row.openDate || row.date || "",
@@ -5063,6 +5081,15 @@ var withUnitMetadata = function withUnitMetadata(data) {
       })
     });
   }
+  if (Array.isArray((_data$faits2 = data.faits) === null || _data$faits2 === void 0 ? void 0 : _data$faits2.rows)) data = _objectSpread(_objectSpread({}, data), {}, {
+    faits: _objectSpread(_objectSpread({}, data.faits), {}, {
+      rows: data.faits.rows.map(function (row) {
+        return String((row === null || row === void 0 ? void 0 : row.type) || "").toUpperCase() === "OW" ? _objectSpread(_objectSpread({}, row), {}, {
+          numero: formatOpenWorkNumber(row.numero || row.nOW)
+        }) : row;
+      })
+    })
+  });
   var units = Array.isArray((_data$units2 = data.units) === null || _data$units2 === void 0 ? void 0 : _data$units2.rows) ? data.units : unitsFromHeader(data.header);
   var active = units.rows.filter(function (u) {
     return !u.deleted;
@@ -12984,6 +13011,19 @@ var TabFaits = function TabFaits(_ref86) {
       rows: scopedRowsPatch(rows, id, header, fields)
     });
   };
+  var setType = function setType(id, type) {
+    var row = rows.find(function (item) {
+      return item.id === id;
+    });
+    if (!canEdit(row)) return;
+    var numero = type === "OW" ? row.type === "OW" && row.numero ? formatOpenWorkNumber(row.numero) : nextOpenWorkNumber(rows) : row.numero;
+    onChange({
+      rows: scopedRowsPatch(rows, id, header, {
+        type: type,
+        numero: numero
+      })
+    });
+  };
   var dup = function dup(id) {
     var r = rows.find(function (x) {
       return x.id === id;
@@ -13232,9 +13272,17 @@ var TabFaits = function TabFaits(_ref86) {
     },
     color: showDeleted ? "#da3633" : C.border,
     small: true
-  }, showDeleted ? "▲ Masquer annulées" : "▼ Voir annulées (" + deletedCount + ")"))), /*#__PURE__*/React.createElement("table", {
+  }, showDeleted ? "▲ Masquer annulées" : "▼ Voir annulées (" + deletedCount + ")"))), /*#__PURE__*/React.createElement("div", {
     style: {
       width: "100%",
+      maxWidth: "100%",
+      overflowX: "auto",
+      overflowY: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      minWidth: 1190,
       borderCollapse: "collapse",
       tableLayout: "fixed"
     }
@@ -13320,7 +13368,7 @@ var TabFaits = function TabFaits(_ref86) {
     }, r.type || "—") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("select", {
       value: r.type || "",
       onChange: function onChange(e) {
-        return upd(r.id, "type", e.target.value);
+        return setType(r.id, e.target.value);
       },
       style: {
         background: C.input,
@@ -13353,6 +13401,9 @@ var TabFaits = function TabFaits(_ref86) {
       value: r.numero,
       onChange: function onChange(v) {
         return upd(r.id, "numero", v);
+      },
+      onBlur: function onBlur() {
+        return r.type === "OW" && r.numero && upd(r.id, "numero", formatOpenWorkNumber(r.numero));
       },
       small: true,
       required: true,
@@ -13558,7 +13609,7 @@ var TabFaits = function TabFaits(_ref86) {
         flexShrink: 0
       }
     }, "\u21A9 R\xE9activer"))))];
-  }))), rows.length === 0 && /*#__PURE__*/React.createElement("div", {
+  })))), rows.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       color: C.muted,
@@ -18702,7 +18753,7 @@ var compactOfRanges = function compactOfRanges(values) {
   return [].concat(ranges, _toConsumableArray(other)).join("; ");
 };
 var closureFactLabel = function closureFactLabel(fact) {
-  return fact.numero || fact.commentaires || "Fait";
+  return String((fact === null || fact === void 0 ? void 0 : fact.type) || "").toUpperCase() === "OW" ? technicalFollowUpLabel(fact) : fact.numero || fact.commentaires || "Fait";
 };
 var closureMailTable = function closureMailTable(groups) {
   var rows = groups.flatMap(function (group) {
@@ -21275,7 +21326,7 @@ var OFSelector = function OFSelector(_ref121) {
         padding: "1px 0"
       }
     }, facts.map(function (fact) {
-      var label = [fact.type, fact.numero].filter(Boolean).join(" ") || "Fait";
+      var label = technicalFollowUpLabel(fact);
       var closed = !!fact.closedDate;
       var detail = [label, fact.commentaires, closed ? "Cl\xF4tur\xE9 ".concat(fact.closedDate) : "Ouvert"].filter(Boolean).join(" — ");
       return /*#__PURE__*/React.createElement("span", {

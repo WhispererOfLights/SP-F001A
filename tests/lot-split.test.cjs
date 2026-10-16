@@ -30,7 +30,7 @@ const migrated=ctx.normalize({header:{},faits:{rows:[]},openwork:{rows:[{
 assert.equal(migrated.openwork.rows.length,0);
 assert.equal(migrated.faits.rows.length,1);
 assert.equal(migrated.faits.rows[0].type,'OW');
-assert.equal(migrated.faits.rows[0].numero,'007');
+assert.equal(migrated.faits.rows[0].numero,'OW007');
 assert.equal(migrated.faits.rows[0].commentaires,'Retouche à terminer');
 assert.equal(migrated.faits.rows[0].comments[0].text,'Ancienne remarque');
 assert.equal(ctx.normalize(migrated).faits.rows.length,1);

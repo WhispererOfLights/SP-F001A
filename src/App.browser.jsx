@@ -158,6 +158,22 @@ applyStatusTypes(DEFAULT_STATUS_TYPES);
 const now   = () => new Date().toLocaleDateString("fr-FR");
 const nowDT = () => { const d=new Date(); return d.toLocaleDateString("fr-FR")+" "+d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}); };
 const uid   = () => Math.random().toString(36).slice(2,8).toUpperCase();
+const formatOpenWorkNumber = value => {
+  const raw=String(value||"").trim();
+  if(!raw) return "";
+  const suffix=raw.replace(/^OW[\s-]*/i,"");
+  return /^\d+$/.test(suffix)?`OW${suffix.padStart(3,"0")}`:`OW${suffix}`;
+};
+const nextOpenWorkNumber = rows => {
+  const max=(rows||[]).filter(row=>String(row?.type||"").toUpperCase()==="OW").reduce((current,row)=>{
+    const match=formatOpenWorkNumber(row.numero||row.nOW).match(/^OW(\d+)$/i);
+    return match?Math.max(current,Number(match[1])):current;
+  },0);
+  return `OW${String(max+1).padStart(3,"0")}`;
+};
+const technicalFollowUpLabel = fact => String(fact?.type||"").toUpperCase()==="OW"
+  ? formatOpenWorkNumber(fact?.numero)||"OW"
+  : [fact?.type,fact?.numero].filter(Boolean).join(" ")||"Fait";
 const fmtSAP = v => {
   return String(v??"").replace(/[^0-9]/g,"");
 };
@@ -2216,12 +2232,15 @@ const withUnitMetadata = data => {
       });
       return {
         ...row,id:`ow-${row.id}`,migratedFromOpenWorkId:row.id,type:"OW",
-        numero:row.nOW||row.numero||"",commentaires:row.description||"",
+        numero:formatOpenWorkNumber(row.nOW||row.numero),commentaires:row.description||"",
         visa:row.openVisa||row.visa||row.createdVisa||"",date:row.openDate||row.date||"",comments
       };
     });
     data={...data,faits:{...(data.faits||{}),rows:[...facts,...migrated]},openwork:{...(data.openwork||{}),rows:[]}};
   }
+  if(Array.isArray(data.faits?.rows)) data={...data,faits:{...data.faits,rows:data.faits.rows.map(row=>
+    String(row?.type||"").toUpperCase()==="OW"?{...row,numero:formatOpenWorkNumber(row.numero||row.nOW)}:row
+  )}};
   const units=Array.isArray(data.units?.rows)?data.units:unitsFromHeader(data.header);
   const active=units.rows.filter(u=>!u.deleted);
   const rows=units.rows.map(u=>({...normalizeTrackedUnit(u),status:u.status||"en_cours",
@@ -4831,6 +4850,14 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
   }]}); };
   const upd   = (id,f,v) => { const r=rows.find(x=>x.id===id); if(f==="comments" ? !perms.canComment : !canEdit(r)) return; onChange({rows:scopedRowsPatch(rows,id,header,{[f]:v})}); };
   const patchRow = (id,fields) => { const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:scopedRowsPatch(rows,id,header,fields)}); };
+  const setType = (id,type) => {
+    const row=rows.find(item=>item.id===id);
+    if(!canEdit(row)) return;
+    const numero=type==="OW"
+      ? (row.type==="OW"&&row.numero?formatOpenWorkNumber(row.numero):nextOpenWorkNumber(rows))
+      : row.numero;
+    onChange({rows:scopedRowsPatch(rows,id,header,{type,numero})});
+  };
   const dup=id=>{ const r=rows.find(x=>x.id===id); if(!r||!perms.canWrite) return; if(onCopyAcross&&!r.deleted){onCopyAcross(r);return;} onChange({rows:[...rows,duplicateRow(r,user,{
     visa:user.trigram,date:now(),closedVisa:"",closedDate:""
   })]}); };
@@ -4899,7 +4926,8 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
         </div>
       </div>
 
-      <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
+      <div style={{width:"100%",maxWidth:"100%",overflowX:"auto",overflowY:"hidden"}}>
+      <table style={{width:"100%",minWidth:1190,borderCollapse:"collapse",tableLayout:"fixed"}}>
         <thead>
           <tr>
             <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
@@ -4937,7 +4965,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
 
                   {locked
                     ? <span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:typeColor,background:typeColor+"22",padding:"2px 8px",borderRadius:4}}>{r.type||"—"}</span>
-                    : <><select value={r.type||""} onChange={e=>upd(r.id,"type",e.target.value)}
+                    : <><select value={r.type||""} onChange={e=>setType(r.id,e.target.value)}
                         style={{background:C.input,border:`1px solid ${r.type?typeColor:C.yellow}`,borderRadius:4,
                           color:r.type?typeColor:C.muted,padding:"4px 6px",fontSize:11,
                           fontFamily:"monospace",fontWeight:700,outline:"none",width:"100%"}}>
@@ -4950,7 +4978,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
 
                 {/* N° saisi manuellement */}
                 <TD>
-                  <Input value={r.numero} onChange={v=>upd(r.id,"numero",v)} small required readOnly={locked}
+                  <Input value={r.numero} onChange={v=>upd(r.id,"numero",v)} onBlur={()=>r.type==="OW"&&r.numero&&upd(r.id,"numero",formatOpenWorkNumber(r.numero))} small required readOnly={locked}
                     title="Numéro du fait (ex: NC-2024-001, DM-0042…)"
                     style={{fontFamily:"monospace",fontWeight:700,...(locked?LOCKED_INPUT_STYLE:{color:r.numero?typeColor:undefined})}}/>
                 </TD>
@@ -5053,6 +5081,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
           })}
         </tbody>
       </table>
+      </div>
       {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun suivi technique enregistré</div>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
         ✦ Visa pré-rempli · N° saisi manuellement · × annule et barre la ligne
@@ -6855,7 +6884,9 @@ const compactOfRanges = values => {
   }
   return [...ranges,...other].join("; ");
 };
-const closureFactLabel = fact => fact.numero||fact.commentaires||"Fait";
+const closureFactLabel = fact => String(fact?.type||"").toUpperCase()==="OW"
+  ? technicalFollowUpLabel(fact)
+  : fact.numero||fact.commentaires||"Fait";
 const closureMailTable = groups => {
   const rows=groups.flatMap(group=>group.rows.map(row=>({
     ...row,
@@ -7630,7 +7661,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     <TD style={{minWidth:330,maxWidth:420}}>
                       <div style={{display:"flex",gap:4,alignItems:"center",flexWrap:"nowrap",overflowX:"auto",padding:"1px 0"}}>
                         {facts.map(fact=>{
-                          const label=[fact.type,fact.numero].filter(Boolean).join(" ")||"Fait";
+                          const label=technicalFollowUpLabel(fact);
                           const closed=!!fact.closedDate;
                           const detail=[label,fact.commentaires,closed?`Clôturé ${fact.closedDate}`:"Ouvert"].filter(Boolean).join(" — ");
                           return <span key={fact.id||detail} title={detail} style={{display:"inline-block",padding:"2px 5px",borderRadius:3,whiteSpace:"nowrap",fontSize:10,fontWeight:700,flexShrink:0,
