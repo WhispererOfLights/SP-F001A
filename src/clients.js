@@ -151,5 +151,19 @@ window.storage = {
     if (res.status === 401) window.dispatchEvent(new CustomEvent("sp-f001-session-expired"));
     if (!res.ok) throw new Error("Résumé de l'accueil indisponible");
     return (await res.json()).documents || {};
+  },
+  async closeWorkItem(key, tab, rowId, closed) {
+    if (!this._useApi(true)) return null;
+    return this._queue(key, async () => {
+      const res = await fetch("/api/work-items/close", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json; charset=utf-8", ...await this._conditions(key) },
+        body: JSON.stringify({ key, tab, rowId, closed: !!closed })
+      });
+      if (!res.ok) return this._failure(res);
+      this._versions.set(key, res.headers.get("ETag"));
+      return (await res.json()).document;
+    });
   }
 };

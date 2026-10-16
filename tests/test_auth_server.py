@@ -24,8 +24,20 @@ class AuthServerTests(unittest.TestCase):
             "pwd": server.legacy_hash("ancien"),
         }
         server.save_user(db_path, legacy_user)
+        server.save_user(db_path, {
+            "trigram": "PA1", "role": "Product Assurance", "prenom": "Paula",
+            "passwordAuth": server.password_record("pa-test"),
+        })
+        server.save_user(db_path, {
+            "trigram": "LCT", "role": "Consultation", "prenom": "Lecteur",
+            "passwordAuth": server.password_record("lecture-test"),
+        })
         server.storage_put(db_path, "of-list", json.dumps([{"id": "test", "of": "1000"}]))
-        server.storage_put(db_path, "of:test", json.dumps({"header": {"of": "1000"}}))
+        server.storage_put(db_path, "of:test", json.dumps({
+            "header": {"of": "1000"},
+            "faits": {"rows": [{"id": "fait-1", "numero": "NC-1", "closedDate": "", "closedVisa": ""}]},
+            "openwork": {"rows": [{"id": "ow-1", "nOW": "001", "closedDate": "", "closedVisa": ""}]},
+        }))
 
         class Handler(server.StorageServer):
             pass
@@ -105,6 +117,44 @@ class AuthServerTests(unittest.TestCase):
         self.assertTrue(record["mustChangePassword"])
         self.assertTrue(server.verify_password(record, "admin"))
         self.assertNotIn("pwd", record)
+
+    def test_non_read_only_role_can_close_without_general_write_access(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "PA1", "password": "pa-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+
+        status, _, _ = self.request(
+            "/api/storage/of%3Atest", "PUT", {"header": {"of": "9999"}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
+
+        status, payload, _ = self.request(
+            "/api/work-items/close", "POST",
+            {"key": "of:test", "tab": "faits", "rowId": "fait-1", "closed": True},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        row = payload["document"]["faits"]["rows"][0]
+        self.assertEqual(row["closedVisa"], "PA1")
+        self.assertTrue(row["closedDate"])
+
+    def test_read_only_role_cannot_close_work_item(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "LCT", "password": "lecture-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        status, _, _ = self.request(
+            "/api/work-items/close", "POST",
+            {"key": "of:test", "tab": "openwork", "rowId": "ow-1", "closed": True},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
 
 
 if __name__ == "__main__":

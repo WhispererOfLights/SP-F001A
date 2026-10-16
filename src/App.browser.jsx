@@ -106,6 +106,7 @@ const isProductAssuranceAccount = account => normalizeRole(account)==="Product A
 const isProjectLeadAccount = account => normalizeRole(account)==="Chef de projet"||/chef de projet|project manager|project leader/.test(accountSearchText(account));
 const isAdminManager = user => ["Admin","Manager"].includes(normalizeRole(user));
 const canWriteData = user => ["Opérateur","Contrôleur","Logistique","Manager","Admin"].includes(normalizeRole(user));
+const canCloseWorkItems = user => !!user?.trigram&&normalizeRole(user)!=="Consultation";
 const canManageUsers = user => isAdminManager(user);
 const canManageLists = user => isAdminManager(user);
 const canControlRework = user => ["Admin","Manager","Contrôleur"].includes(normalizeRole(user));
@@ -1284,7 +1285,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       .map(r=>rowPdf([r.createdDT,r.createdVisa,isFourEquip(r)?"FOUR":"-",r.nInv,r.type,r.designation,r.dateExpiration,r.checkDate],r));
     section("Test Equip.",["Date","Visa","Four","N INV","Type","Designation","Date calib","Ctrl"],testEquipRows,[23,13,18,30,26,79,25,24],unit);
 
-    section("Faits",["Date","Visa","Type","Numero","Date ouv.","Lien","Commentaires"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.lien,r.commentaires],r)),[24,14,18,32,24,72,86],unit);
+    section("Faits",["Date","Visa","Type","Numero","Date ouv.","Description"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.commentaires],r,commentsForPdf(r))),[25,15,20,36,28,145],unit);
 
     section("Etuvages",["Date","Visa","Four","Duree","Temp","Entree","Visa E","Sortie","Visa S"],(ofData?.etuvage?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r)),[23,13,26,16,16,36,14,36,14],unit);
 
@@ -1313,7 +1314,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     });
     section("Mating / Demating",["","Cycle","Mating date","Visa M","Demating date","Visa D"],demRows,[8,14,44,18,44,18],unit);
 
-    section("Open Work",["Date","Visa","N OW","Description","Ouverture","Cloture","Commentaires"],(ofData?.openwork?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.nOW,r.description,`${r.openDate||"-"} / ${r.openVisa||"-"}`,`${r.closedDate||"-"} / ${r.closedVisa||"-"}`,r.commentaires],r)),[23,13,15,86,38,38,83],unit);
+    section("Open Work",["Date","Visa","N OW","Description","Ouverture","Cloture"],(ofData?.openwork?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.nOW,r.description,`${r.openDate||"-"} / ${r.openVisa||"-"}`,`${r.closedDate||"-"} / ${r.closedVisa||"-"}`],r,commentsForPdf(r))),[25,15,18,130,45,45],unit);
   });
 
   const printablePages=pages.filter(p=>p.ops.length);
@@ -4752,11 +4753,12 @@ const FAITS_EDIT_FIELDS = [
   {key:"closedVisa",label:"Visa clôture"},
 ];
 
-const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forceShowDeleted=false,onCopyAcross}) => {
+const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forceShowDeleted=false,onCopyAcross,onCloseRow}) => {
   const rows     = data.rows||[];
   const types    = faitTypes;
   const isClosed = r => !!r.closedDate;
   const canEdit = row => canEditLine(user,row);
+  const canClose = row => canCloseWorkItems(user)&&!!row&&!row.deleted;
 
   const add  = () => { if(!perms.canWrite) return; onChange({rows:[...rows,{
     id:uid(), createdVisa:user.trigram, createdDT:nowDT(),
@@ -4764,7 +4766,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
     type:"", numero:"", visa:user.trigram, date:now(),
     lien:"", commentaires:"", closedVisa:"", closedDate:""
   }]}); };
-  const upd   = (id,f,v) => { const r=rows.find(x=>x.id===id); if((f==="comments"||f==="commentaires") ? !perms.canComment : !canEdit(r)) return; onChange({rows:scopedRowsPatch(rows,id,header,{[f]:v})}); };
+  const upd   = (id,f,v) => { const r=rows.find(x=>x.id===id); if(f==="comments" ? !perms.canComment : !canEdit(r)) return; onChange({rows:scopedRowsPatch(rows,id,header,{[f]:v})}); };
   const patchRow = (id,fields) => { const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:scopedRowsPatch(rows,id,header,fields)}); };
   const dup=id=>{ const r=rows.find(x=>x.id===id); if(!r||!perms.canWrite) return; if(onCopyAcross&&!r.deleted){onCopyAcross(r);return;} onChange({rows:[...rows,duplicateRow(r,user,{
     visa:user.trigram,date:now(),closedVisa:"",closedDate:""
@@ -4772,7 +4774,6 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
-  const [copiedLien,setCopiedLien]     = useState(null);
   const snFilter=workSnFilter(header);
   const del=id=>{
     const r=rows.find(x=>x.id===id);
@@ -4793,8 +4794,12 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
   ];
   const validateRow=id=>{ const r=rows.find(x=>x.id===id); if(!canEdit(r)) return; const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:scopedRowsPatch(rows,id,header,x=>withEditHistory(x,user,FAITS_EDIT_FIELDS))}); } };
   const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(r,FAITS_EDIT_FIELDS)}:r)}); };
-  const close = id => { const row=rows.find(x=>x.id===id); if(canEdit(row)) onChange({rows:scopedRowsPatch(rows,id,header,r=>withEditHistory({...r,closedVisa:user.trigram,closedDate:now(),editBase:r.editBase||snapshotFields(r,FAITS_EDIT_FIELDS)},user,FAITS_EDIT_FIELDS))}); };
-  const reopen= id => { const row=rows.find(x=>x.id===id); if(canEdit(row)) onChange({rows:scopedRowsPatch(rows,id,header,r=>withEditHistory({...r,closedVisa:"",closedDate:"",editBase:r.editBase||snapshotFields(r,FAITS_EDIT_FIELDS)},user,FAITS_EDIT_FIELDS))}); };
+  const setClosed = (id,closed) => {
+    const row=rows.find(x=>x.id===id);
+    if(!canClose(row)) return;
+    if(onCloseRow) return onCloseRow(id,closed);
+    onChange({rows:scopedRowsPatch(rows,id,header,r=>withEditHistory({...r,closedVisa:closed?user.trigram:"",closedDate:closed?now():"",editBase:r.editBase||snapshotFields(r,FAITS_EDIT_FIELDS)},user,FAITS_EDIT_FIELDS))});
+  };
 
   const activeRows=effectiveScopedRows({header,faits:{rows}},"faits").filter(r=>rowMatchesSnFilter(r,snFilter,header));
   const open   = activeRows.filter(r=>!isClosed(r)).length;
@@ -4840,10 +4845,10 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
             <TH w={105}>N° (saisi)</TH>
             <TH w={66} color={C.accent}>Visa ✦</TH>
             <TH w={82}>Date ouv.</TH>
-            <TH w={180}>Lien / Chemin réseau</TH>
-            <TH>Commentaires</TH>
+            <TH w={300}>Description</TH>
             <TH w={82}>Date clôt.</TH>
             <TH w={70}>Visa clôt.</TH>
+            <TH w={42}>💬</TH>
             <TH w={108}>Action</TH>
             <TH w={104}></TH>
           </tr>
@@ -4898,64 +4903,9 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
                   <Input value={r.date} onChange={v=>upd(r.id,"date",v)} small readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/>
                 </TD>
 
-                {/* Lien / chemin réseau */}
+                {/* Description du fait */}
                 <TD>
-                  {(()=>{
-                    const isHttp = r.lien && (r.lien.startsWith("http")||r.lien.startsWith("www.")||/^[a-zA-Z0-9-]+\./.test(r.lien.split("/")[0]));
-                    const href = r.lien ? (r.lien.startsWith("http") ? r.lien : "https://"+r.lien) : "";
-                    const isPath = r.lien && !isHttp;
-                    const copied = copiedLien===r.id;
-                    const copyPath=e=>{
-                      e.stopPropagation();
-                      try{
-                        const ta=document.createElement("textarea");
-                        ta.value=r.lien; ta.style.position="fixed"; ta.style.opacity="0";
-                        document.body.appendChild(ta); ta.select();
-                        document.execCommand("copy");
-                        document.body.removeChild(ta);
-                        setCopiedLien(r.id); setTimeout(()=>setCopiedLien(null),2000);
-                      }catch{
-                        window.prompt("Copier ce chemin (Ctrl+C):",r.lien);
-                      }
-                    };
-                    if(locked&&r.lien) return (
-                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"nowrap"}}>
-                        {isHttp
-                          ? <a href={href} target="_blank" rel="noreferrer"
-                              style={{color:C.blue,fontSize:11,fontFamily:"monospace",
-                                textDecoration:"none",display:"flex",alignItems:"center",gap:4,minWidth:0,cursor:"pointer"}}
-                              onClick={e=>e.stopPropagation()}>
-                              🔗 <span style={{textDecoration:"underline",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160}}>{r.lien}</span>
-                            </a>
-                          : <span onClick={copyPath}
-                              style={{color:copied?"#238636":C.blue,fontSize:10,fontFamily:"monospace",
-                                display:"flex",alignItems:"center",gap:4,cursor:"pointer",minWidth:0}}
-                              title="Cliquer pour copier le chemin">
-                              {copied?"✓ Copié !":"📁"}
-                              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:160,textDecoration:"underline"}}>{r.lien}</span>
-                            </span>}
-                      </div>
-                    );
-                    return (
-                      <div style={{display:"flex",gap:4,alignItems:"center"}}>
-                        <Input value={r.lien||""} onChange={v=>upd(r.id,"lien",v)} small readOnly={locked}
-                          title="URL (https://…) ou chemin réseau (\\\\serveur\\dossier)"
-                          style={{flex:1,fontSize:10,...(locked?LOCKED_INPUT_STYLE:{})}}/>
-                        {isHttp&&<a href={href} target="_blank" rel="noreferrer"
-                          style={{color:C.blue,fontSize:14,textDecoration:"none",flexShrink:0,cursor:"pointer"}}
-                          onClick={e=>e.stopPropagation()}
-                          title="Ouvrir le lien">🔗</a>}
-                        {isPath&&<span onClick={copyPath}
-                          style={{color:copied?"#238636":C.muted,fontSize:12,flexShrink:0,cursor:"pointer"}}
-                          title="Copier le chemin">📁</span>}
-                      </div>
-                    );
-                  })()}
-                </TD>
-
-                {/* Commentaires */}
-                <TD>
-                  <Input value={r.commentaires} onChange={v=>upd(r.id,"commentaires",v)} small readOnly={!perms.canComment} style={!perms.canComment?LOCKED_INPUT_STYLE:{}}/>
+                  <Input value={r.commentaires} onChange={v=>upd(r.id,"commentaires",v)} small readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/>
                 </TD>
 
                 {/* Date clôture */}
@@ -4970,10 +4920,12 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
                     style={{...(editable?{}:LOCKED_INPUT_STYLE),background:closed_r?"#23863620":undefined,color:closed_r?C.green:undefined,fontWeight:closed_r?700:400}}/>
                 </TD>
 
+                <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
+
                 {/* Action */}
                 <TD center>
-                  {editable&&<ActionGroup>
-                    <button onClick={()=>closed_r?reopen(r.id):close(r.id)}
+                  {canClose(r)&&<ActionGroup>
+                    <button onClick={()=>setClosed(r.id,!closed_r)}
                       title={closed_r?"Réouvrir ce fait":"Clore ce fait"}
                       style={{background:(closed_r?C.yellow:C.green)+"22",border:`1px solid ${closed_r?C.yellow:C.green}`,
                         borderRadius:3,color:closed_r?C.yellow:C.green,fontSize:9,padding:"2px 7px",
@@ -5040,7 +4992,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
       </table>
       {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun fait enregistré</div>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
-        ✦ Visa pré-rempli · N° saisi manuellement · 🔗 lien cliquable si http · 📁 chemin réseau · × annule et barre la ligne
+        ✦ Visa pré-rempli · N° saisi manuellement · × annule et barre la ligne
       </div>
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}
       {restoreTarget&&<RestoreModal onConfirm={restore} onCancel={()=>setRestoreTarget(null)}/>}
@@ -5849,9 +5801,10 @@ const OPENWORK_EDIT_FIELDS = [
   {key:"commentaires",label:"Commentaires"},
 ];
 
-const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross}) => {
+const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross,onCloseRow}) => {
   const rows=data.rows||[];
   const canEdit = row => canEditLine(user,row);
+  const canClose = row => canCloseWorkItems(user)&&!!row&&!row.deleted;
   const add=()=>{ if(!perms.canWrite) return; onChange({rows:[...rows,{id:uid(),...defaultSnScope(header),createdVisa:user.trigram,createdDT:nowDT(),nOW:String(rows.length+1).padStart(3,"0"),description:"",openVisa:user.trigram,openDate:now(),closedVisa:"",closedDate:"",commentaires:""}]}); };
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
@@ -5879,8 +5832,12 @@ const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,
   ];
   const validateRow=id=>{ const r=rows.find(x=>x.id===id); if(!canEdit(r)) return; const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:scopedRowsPatch(rows,id,header,x=>withEditHistory(x,user,OPENWORK_EDIT_FIELDS))}); } };
   const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(r,OPENWORK_EDIT_FIELDS)}:r)}); };
-  const close=id=>{ const row=rows.find(x=>x.id===id); if(canEdit(row)) onChange({rows:scopedRowsPatch(rows,id,header,r=>withEditHistory({...r,closedVisa:user.trigram,closedDate:now(),editBase:r.editBase||snapshotFields(r,OPENWORK_EDIT_FIELDS)},user,OPENWORK_EDIT_FIELDS))}); };
-  const reopen=id=>{ const row=rows.find(x=>x.id===id); if(canEdit(row)) onChange({rows:scopedRowsPatch(rows,id,header,r=>withEditHistory({...r,closedVisa:"",closedDate:"",editBase:r.editBase||snapshotFields(r,OPENWORK_EDIT_FIELDS)},user,OPENWORK_EDIT_FIELDS))}); };
+  const setClosed=(id,closed)=>{
+    const row=rows.find(x=>x.id===id);
+    if(!canClose(row)) return;
+    if(onCloseRow) return onCloseRow(id,closed);
+    onChange({rows:scopedRowsPatch(rows,id,header,r=>withEditHistory({...r,closedVisa:closed?user.trigram:"",closedDate:closed?now():"",editBase:r.editBase||snapshotFields(r,OPENWORK_EDIT_FIELDS)},user,OPENWORK_EDIT_FIELDS))});
+  };
   const isClosed=r=>!!r.closedDate;
   const activeRows=effectiveScopedRows({header,openwork:{rows}},"openwork").filter(r=>rowMatchesSnFilter(r,snFilter,header));
   const open=activeRows.filter(r=>!isClosed(r)).length;
@@ -5909,10 +5866,10 @@ const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,
             <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
             <TH w={78}>N° SN</TH>
             <TH w={52}>N° OW</TH>
-            <TH>Description</TH>
+            <TH w={420}>Description</TH>
             <TH w={76}>Visa clôt.</TH>
             <TH w={104}>Date clôt.</TH>
-            <TH>Commentaires</TH>
+            <TH w={42}>💬</TH>
             <TH w={104}>Action</TH>
             <TH w={104}></TH>
           </tr>
@@ -5943,23 +5900,19 @@ const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,
               </TD>
               <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
               <TD center>
-                {editable&&<ActionGroup>
-                  <button onClick={()=>isClosed(r)?reopen(r.id):close(r.id)}
+                <ActionGroup>
+                  {canClose(r)&&<button onClick={()=>setClosed(r.id,!isClosed(r))}
                     title={isClosed(r)?"Réouvrir cet Open Work":"Clore cet Open Work"}
                     style={{background:(isClosed(r)?C.yellow:C.green)+"22",border:`1px solid ${isClosed(r)?C.yellow:C.green}`,
                       borderRadius:3,color:isClosed(r)?C.yellow:C.green,fontSize:9,padding:"2px 7px",
                       cursor:"pointer",fontWeight:800,whiteSpace:"nowrap"}}>
                     {isClosed(r)?"Ouvrir":"Clore"}
-                  </button>
-                  <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                  <HistoryBtn row={r}/>
-                </ActionGroup>}
-                {!editable&&perms.canWrite&&(
-                  <ActionGroup>
+                  </button>}
+                  {(editable||perms.canWrite)&&<>
                     <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                     <HistoryBtn row={r}/>
-                  </ActionGroup>
-                )}
+                  </>}
+                </ActionGroup>
               </TD>
               <TD center style={{pointerEvents:"all"}}>
                 {!r.deleted&&!r.validated&&editable&&(
@@ -8084,6 +8037,21 @@ function App(){
     setSaving(false);
   },[currentId]);
 
+  const closeWorkItem=useCallback(async (tab,rowId,closed)=>{
+    if(!currentId||!canCloseWorkItems(user)) return;
+    setSaving(true);
+    try{
+      const stored=await window.storage.closeWorkItem(`of:${currentId}`,tab,rowId,closed);
+      if(!stored) throw new Error("La clôture n'a pas été enregistrée.");
+      setOfData(withUnitMetadata(stored));
+      setSaveError("");setPendingSave(null);
+      setLastSaved(new Date().toLocaleTimeString("fr-FR"));
+    }catch(error){
+      setSaveError(error?.message||"La clôture n'a pas été enregistrée.");
+    }
+    setSaving(false);
+  },[currentId,user]);
+
   useEffect(()=>{
     if(!user||showConsoEditor) return;
     let active=true;
@@ -8692,7 +8660,7 @@ function App(){
           {(!printAll&&activeTab==="faits"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Faits"/>
             <SectionTitle>Faits</SectionTitle>
-            <TabFaits data={ofData.faits||{}} onChange={d=>updateTab("faits",d)} user={user} perms={perms} faitTypes={faitTypes} onEditTypes={()=>setShowFaitTypes(true)} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"faits",row})}/>
+            <TabFaits data={ofData.faits||{}} onChange={d=>updateTab("faits",d)} user={user} perms={perms} faitTypes={faitTypes} onEditTypes={()=>setShowFaitTypes(true)} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"faits",row})} onCloseRow={(rowId,closed)=>closeWorkItem("faits",rowId,closed)}/>
           </div>}
           {(!printAll&&activeTab==="etuvage"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Étuvages"/>
@@ -8707,7 +8675,7 @@ function App(){
           {(!printAll&&activeTab==="openwork"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Open Work"/>
             <SectionTitle>Open Work</SectionTitle>
-            <TabOpenWork data={ofData.openwork} onChange={d=>updateTab("openwork",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"openwork",row})}/>
+            <TabOpenWork data={ofData.openwork} onChange={d=>updateTab("openwork",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"openwork",row})} onCloseRow={(rowId,closed)=>closeWorkItem("openwork",rowId,closed)}/>
           </div>}
         </div>
       </div>

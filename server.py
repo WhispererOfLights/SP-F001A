@@ -18,6 +18,7 @@ import secrets
 import sqlite3
 import sys
 import time
+from datetime import datetime
 from contextlib import contextmanager, closing
 from http.cookies import SimpleCookie
 from pathlib import Path
@@ -35,6 +36,7 @@ SESSION_COOKIE = "sp_f001a_session"
 SESSION_IDLE_SECONDS = 15 * 60
 PASSWORD_ITERATIONS = 240_000
 SESSIONS: dict[str, dict] = {}
+READ_ONLY_ROLES = {"consultation", "lecteur seul", "lecture seule", "lecteur"}
 
 
 def legacy_hash(value: str) -> str:
@@ -275,6 +277,59 @@ def storage_delete(db_path: Path, key: str, expected=None, enforce=False) -> Non
             conn.commit()
 
 
+def can_close_work_item(user: dict) -> bool:
+    role = str(user.get("role") or "Opérateur").strip().lower()
+    return bool(user.get("trigram")) and role not in READ_ONLY_ROLES
+
+
+def set_work_item_closed(
+    db_path: Path, key: str, tab: str, row_id: str, closed: bool, trigram: str, expected: int
+) -> tuple[dict, int]:
+    if not key.startswith("of:") or "/" in key or "\\" in key or len(key) > 200:
+        raise ValueError("Dossier invalide")
+    if tab not in {"faits", "openwork"}:
+        raise ValueError("Onglet invalide")
+    with WRITE_LOCK:
+        with connect_db(db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            record = read_document(conn, key)
+            if not record or not isinstance(record[0], dict):
+                raise ValueError("Dossier introuvable")
+            document = record[0]
+            rows = document.get(tab, {}).get("rows", [])
+            row = next((item for item in rows if isinstance(item, dict) and item.get("id") == row_id), None)
+            if not row or row.get("deleted"):
+                raise ValueError("Ligne introuvable ou annulée")
+
+            previous_date = str(row.get("closedDate") or "")
+            previous_visa = str(row.get("closedVisa") or "")
+            next_date = datetime.now().strftime("%d/%m/%Y") if closed else ""
+            next_visa = trigram if closed else ""
+            row["closedDate"] = next_date
+            row["closedVisa"] = next_visa
+            row["validated"] = True
+            row["validError"] = ""
+            row.pop("editBase", None)
+            row.pop("_scopeEditConfirmed", None)
+
+            changes = []
+            if previous_date != next_date:
+                changes.append({"label": "Date clôture", "from": previous_date, "to": next_date})
+            if previous_visa != next_visa:
+                changes.append({"label": "Visa clôture", "from": previous_visa, "to": next_visa})
+            if changes:
+                row.setdefault("editHistory", []).append({
+                    "id": secrets.token_hex(3).upper(),
+                    "dt": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    "visa": trigram,
+                    "changes": changes,
+                })
+
+            revision = write_document(conn, key, document, expected=expected, enforce=True)
+            conn.commit()
+            return document, revision
+
+
 class StorageServer(SimpleHTTPRequestHandler):
     data_dir: Path = ROOT / "data"
     db_path: Path = ROOT / "data" / DB_NAME
@@ -366,12 +421,36 @@ class StorageServer(SimpleHTTPRequestHandler):
             return self.auth_change_password()
         if path == "/api/auth/profile":
             return self.auth_profile()
+        if path == "/api/work-items/close":
+            return self.close_work_item()
         if path == "/api/admin/users/import":
             return self.admin_import_users()
         if path.startswith("/api/admin/users/") and path.endswith("/reset-password"):
             trigram = unquote(path[len("/api/admin/users/"):-len("/reset-password")]).strip("/")
             return self.admin_reset_password(trigram)
         self.send_error(404, "not found")
+
+    def close_work_item(self) -> None:
+        session = self.require_session()
+        if not session:
+            return
+        if not can_close_work_item(session["user"]):
+            return self.send_json({"ok": False, "error": "Compte en lecture seule"}, 403)
+        try:
+            payload = self.read_json_body()
+            document, revision = set_work_item_closed(
+                self.db_path,
+                str(payload.get("key") or ""),
+                str(payload.get("tab") or ""),
+                str(payload.get("rowId") or ""),
+                bool(payload.get("closed")),
+                str(session["user"].get("trigram") or "").upper(),
+                self.expected_revision(),
+            )
+        except (ConflictError, ValueError, AttributeError) as exc:
+            status = 409 if isinstance(exc, ConflictError) else 400
+            return self.send_json({"ok": False, "error": str(exc)}, status)
+        self.send_json({"ok": True, "revision": revision, "document": document})
 
     def do_PUT(self) -> None:
         path = urlparse(self.path).path
