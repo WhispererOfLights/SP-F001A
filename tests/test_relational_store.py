@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server
-from relational_store import SCHEMA_VERSION, ConflictError, read_document
+from relational_store import SCHEMA_VERSION, ConflictError, read_document, read_documents
 from legacy_relational import TABLES
 
 
@@ -171,6 +171,14 @@ class RelationalStoreTests(unittest.TestCase):
         server.storage_put(self.path, "of:test", json.dumps(changed), 1, True)
         listing = json.loads(server.storage_get(self.path, "of-list"))
         self.assertEqual(listing[0]["description"], "New description")
+
+    def test_batch_document_read_matches_individual_reads(self):
+        with server.connect_db(self.path) as conn:
+            batch = read_documents(conn, ["of:test", "empty", "missing"])
+            self.assertEqual(batch["of:test"], read_document(conn, "of:test"))
+            self.assertEqual(batch["empty"], read_document(conn, "empty"))
+            self.assertNotIn("missing", batch)
+        self.assertEqual(server.home_documents(self.path)["test"], self.fixture)
 
     def test_http_revisions(self):
         class Handler(server.StorageServer):

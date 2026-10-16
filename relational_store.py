@@ -298,6 +298,70 @@ def read_document(conn, key):
     return objects[root_id], doc[0]
 
 
+def read_documents(conn, keys):
+    """Read several documents with one query per SQL entity table."""
+    keys = list(dict.fromkeys(str(key) for key in keys if key))
+    if not keys:
+        return {}
+    if not conn.in_transaction:
+        conn.execute("BEGIN")
+    placeholders = ",".join("?" for _ in keys)
+    revisions = dict(conn.execute(
+        f"SELECT key,revision FROM documents WHERE key IN ({placeholders})", keys
+    ).fetchall())
+    if not revisions:
+        return {}
+    existing = list(revisions)
+    placeholders = ",".join("?" for _ in existing)
+    rows = conn.execute(
+        f"SELECT document_key,record_id,parent_record_id,field_name,position,entity_table,shape "
+        f"FROM records WHERE document_key IN ({placeholders}) ORDER BY record_id", existing
+    ).fetchall()
+    types = {}
+    for document_key, rid, field, kind in conn.execute(
+        f"SELECT r.document_key,f.record_id,f.field_name,f.value_type FROM field_types f "
+        f"JOIN records r ON r.record_id=f.record_id WHERE r.document_key IN ({placeholders})", existing
+    ):
+        types.setdefault(rid, []).append((field, kind))
+    values = {}
+    for table in {row[5] for row in rows}:
+        if table not in FIELDS:
+            raise ValueError("Unknown SQL entity table")
+        cursor = conn.execute(f"SELECT * FROM {table} WHERE document_key IN ({placeholders})", existing)
+        names = [description[0] for description in cursor.description]
+        for row in cursor:
+            item = dict(zip(names, row))
+            values[item["record_id"]] = item
+    objects = {}
+    children = {}
+    roots = {}
+    row_counts = {key: 0 for key in existing}
+    for document_key, rid, parent, field, position, table, shape in rows:
+        row_counts[document_key] += 1
+        data = values[rid]
+        if shape == "object":
+            item = {name: restore(kind, data[column(name)]) for name, kind in types.get(rid, [])}
+        elif shape == "array":
+            item = []
+        else:
+            item = restore(shape, data["scalar_value"])
+        objects[rid] = item
+        if parent is None:
+            roots[document_key] = rid
+        else:
+            children.setdefault(parent, []).append((position, field, rid))
+    for parent, entries in children.items():
+        for _, field, rid in sorted(entries):
+            if isinstance(objects[parent], list):
+                objects[parent].append(objects[rid])
+            else:
+                objects[parent][field] = objects[rid]
+    missing = [key for key in existing if not row_counts[key] or key not in roots]
+    if missing:
+        raise ValueError(f"Missing document root: {missing[0]}")
+    return {key: (objects[roots[key]], revisions[key]) for key in existing}
+
+
 def migrate(conn):
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     if version > SCHEMA_VERSION:

@@ -19498,6 +19498,7 @@ var OFSelector = function OFSelector(_ref120) {
                       r = _context26.v;
                       data = JSON.parse(r.value);
                     case 2:
+                      data = withUnitMetadata(data);
                       return _context26.a(2, {
                         id: o.id,
                         data: data,
@@ -19686,19 +19687,25 @@ var OFSelector = function OFSelector(_ref120) {
       var n = nextEtuvageForRow(o);
       return n.count ? n.label : "";
     }
-    if (key === "followup") return "".concat(homeFactSearchText(homeFactsForUnit(dataById[o.id], o._homeUnitId)), " ").concat((warningsById[o.id] || []).join(" "), " ").concat(openOWById[o.id] ? "OW ".concat(openOWById[o.id]) : "");
+    if (key === "followup") return "".concat(o._homeFactSearch || "", " ").concat((warningsById[o.id] || []).join(" "), " ").concat(openOWById[o.id] ? "OW ".concat(openOWById[o.id]) : "");
     return String(o[key] || "");
   };
   var homeSortValue = function homeSortValue(o, key) {
     var _warningsById$o$id, _warningsById$o$id2;
     if (key === "nextEtuvage") return nextEtuvageForRow(o).nextAt || "";
-    if (key === "facts") return homeFactsForUnit(dataById[o.id], o._homeUnitId).map(closureFactLabel).filter(Boolean).join(" ");
+    if (key === "facts") return (o._homeFacts || []).map(closureFactLabel).filter(Boolean).join(" ");
     if (key === "tracking") return "".concat(((_warningsById$o$id = warningsById[o.id]) === null || _warningsById$o$id === void 0 ? void 0 : _warningsById$o$id.length) || 0, " ").concat(openOWById[o.id] || 0, " ").concat(pendingHomePolymerization(dataById[o.id], consommables, o._homeUnitId, homeNow) ? 1 : 0);
-    if (key === "followup") return "".concat(homeFactsForUnit(dataById[o.id], o._homeUnitId).map(closureFactLabel).filter(Boolean).join(" "), " ").concat(((_warningsById$o$id2 = warningsById[o.id]) === null || _warningsById$o$id2 === void 0 ? void 0 : _warningsById$o$id2.length) || 0, " ").concat(openOWById[o.id] || 0, " ").concat(pendingHomePolymerization(dataById[o.id], consommables, o._homeUnitId, homeNow) ? 1 : 0);
+    if (key === "followup") return "".concat((o._homeFacts || []).map(closureFactLabel).filter(Boolean).join(" "), " ").concat(((_warningsById$o$id2 = warningsById[o.id]) === null || _warningsById$o$id2 === void 0 ? void 0 : _warningsById$o$id2.length) || 0, " ").concat(openOWById[o.id] || 0, " ").concat(pendingHomePolymerization(dataById[o.id], consommables, o._homeUnitId, homeNow) ? 1 : 0);
     return columnValue(o, key);
   };
   var baseHomeRows = sorted.flatMap(function (o) {
     return homeRowsForOf(o, dataById[o.id]);
+  }).map(function (row) {
+    var facts = homeFactsForUnit(dataById[row.id], row._homeUnitId);
+    return _objectSpread(_objectSpread({}, row), {}, {
+      _homeFacts: facts,
+      _homeFactSearch: homeFactSearchText(facts)
+    });
   });
   var allHomeRows = columnSort.key ? _toConsumableArray(baseHomeRows).sort(function (a, b) {
     var av = homeSortValue(a, columnSort.key),
@@ -19731,7 +19738,7 @@ var OFSelector = function OFSelector(_ref120) {
         value = _ref125[1];
       return value && !columnValue(o, key).toLowerCase().includes(value.toLowerCase().trim());
     })) return false;
-    return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS9 = STATUTS[o.status || "en_cours"]) === null || _STATUTS9 === void 0 ? void 0 : _STATUTS9.label, (_STATUTS0 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, homeFactSearchText(homeFactsForUnit(dataById[o.id], o._homeUnitId))].some(function (v) {
+    return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS9 = STATUTS[o.status || "en_cours"]) === null || _STATUTS9 === void 0 ? void 0 : _STATUTS9.label, (_STATUTS0 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, o._homeFactSearch].some(function (v) {
       return String(v || "").toLowerCase().includes(q);
     });
   });
@@ -19751,10 +19758,6 @@ var OFSelector = function OFSelector(_ref120) {
   var paged = visibleRows.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
   var selectedRows = allHomeRows.filter(function (row) {
     return selectedKeys.includes(homeRowKey(row));
-  }).map(function (row) {
-    return _objectSpread(_objectSpread({}, row), {}, {
-      _homeFacts: homeFactsForUnit(dataById[row.id], row._homeUnitId)
-    });
   });
   var selectionMode = selectedRows.length > 0;
   var mixedMeetingOtp = selectedRows.length > 0 && !hasSingleMeetingOtp(selectedRows);
@@ -20863,8 +20866,8 @@ var OFSelector = function OFSelector(_ref120) {
     var displayUnitId = collapsed ? null : o._homeUnitId;
     var polymerization = pendingHomePolymerization(dataById[o.id], consommables, displayUnitId, homeNow);
     var facts = _toConsumableArray(collapsed ? ofRows.flatMap(function (row) {
-      return homeFactsForUnit(dataById[row.id], row._homeUnitId);
-    }) : homeFactsForUnit(dataById[o.id], o._homeUnitId)).filter(function (fact, index, list) {
+      return row._homeFacts || [];
+    }) : o._homeFacts || []).filter(function (fact, index, list) {
       return list.findIndex(function (item) {
         return item.id && item.id === fact.id || !item.id && item.type === fact.type && item.numero === fact.numero;
       }) === index;

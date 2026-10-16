@@ -6469,6 +6469,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             const r=await window.storage.get(`of:${o.id}`,true);
             data=JSON.parse(r.value);
           }
+          data=withUnitMetadata(data);
           return {id:o.id,data,worked:workedOnOf(data,user.trigram)||workedOnOf(o,user.trigram),warnings:ofWarnings(data,consommables),openOW:effectiveScopedRows(data,"faits").filter(r=>r.type==="OW"&&!r.closedDate).length,etuvages:effectiveEtuvageRows(data),snLabels:(data.units?.rows||snRowsFromHeader(data.header)).filter(u=>!u.deleted&&hasUnitIdentity(u)).map(snTitle)};
         }catch{return {id:o.id,worked:workedOnOf(o,user.trigram),warnings:o.status==="bloque"?["OF bloqué"]:[]};}
       }));
@@ -6525,17 +6526,20 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     if(key==="unitStatus") return UNIT_STATUTS[o.unitStatus]?.label||"";
     if(key==="otp") return o.otp||o.projet||"";
     if(key==="nextEtuvage"){const n=nextEtuvageForRow(o);return n.count?n.label:"";}
-    if(key==="followup") return `${homeFactSearchText(homeFactsForUnit(dataById[o.id],o._homeUnitId))} ${(warningsById[o.id]||[]).join(" ")} ${openOWById[o.id]?`OW ${openOWById[o.id]}`:""}`;
+    if(key==="followup") return `${o._homeFactSearch||""} ${(warningsById[o.id]||[]).join(" ")} ${openOWById[o.id]?`OW ${openOWById[o.id]}`:""}`;
     return String(o[key]||"");
   };
   const homeSortValue=(o,key)=>{
     if(key==="nextEtuvage") return nextEtuvageForRow(o).nextAt||"";
-    if(key==="facts") return homeFactsForUnit(dataById[o.id],o._homeUnitId).map(closureFactLabel).filter(Boolean).join(" ");
+    if(key==="facts") return (o._homeFacts||[]).map(closureFactLabel).filter(Boolean).join(" ");
     if(key==="tracking") return `${warningsById[o.id]?.length||0} ${openOWById[o.id]||0} ${pendingHomePolymerization(dataById[o.id],consommables,o._homeUnitId,homeNow)?1:0}`;
-    if(key==="followup") return `${homeFactsForUnit(dataById[o.id],o._homeUnitId).map(closureFactLabel).filter(Boolean).join(" ")} ${warningsById[o.id]?.length||0} ${openOWById[o.id]||0} ${pendingHomePolymerization(dataById[o.id],consommables,o._homeUnitId,homeNow)?1:0}`;
+    if(key==="followup") return `${(o._homeFacts||[]).map(closureFactLabel).filter(Boolean).join(" ")} ${warningsById[o.id]?.length||0} ${openOWById[o.id]||0} ${pendingHomePolymerization(dataById[o.id],consommables,o._homeUnitId,homeNow)?1:0}`;
     return columnValue(o,key);
   };
-  const baseHomeRows=sorted.flatMap(o=>homeRowsForOf(o,dataById[o.id]));
+  const baseHomeRows=sorted.flatMap(o=>homeRowsForOf(o,dataById[o.id])).map(row=>{
+    const facts=homeFactsForUnit(dataById[row.id],row._homeUnitId);
+    return {...row,_homeFacts:facts,_homeFactSearch:homeFactSearchText(facts)};
+  });
   const allHomeRows=columnSort.key?[...baseHomeRows].sort((a,b)=>{
     const av=homeSortValue(a,columnSort.key),bv=homeSortValue(b,columnSort.key);
     const aBlank=av===null||av===undefined||String(av).trim()==="",bBlank=bv===null||bv===undefined||String(bv).trim()==="";
@@ -6554,7 +6558,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     if(Object.entries(columnFilters).some(([key,value])=>value&&!columnValue(o,key).toLowerCase().includes(value.toLowerCase().trim()))) return false;
     return !q||[o.of,o.sn,o.lot,o.snProduitFini,o.description,o.otp,o.projet,o.ofRework,o.codeArticle,
       STATUTS[o.status||"en_cours"]?.label,STATUTS[o.unitStatus||"en_cours"]?.label,
-      homeFactSearchText(homeFactsForUnit(dataById[o.id],o._homeUnitId))
+      o._homeFactSearch
     ].some(v=>String(v||"").toLowerCase().includes(q));
   });
   const searchActive=!!search.trim()||Object.values(columnFilters).some(value=>String(value).trim());
@@ -6567,10 +6571,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const totalPages=Math.ceil(visibleRows.length/pageSize);
   const currentPage=Math.min(page,Math.max(0,totalPages-1));
   const paged=visibleRows.slice(currentPage*pageSize,(currentPage+1)*pageSize);
-  const selectedRows=allHomeRows.filter(row=>selectedKeys.includes(homeRowKey(row))).map(row=>({
-    ...row,
-    _homeFacts:homeFactsForUnit(dataById[row.id],row._homeUnitId)
-  }));
+  const selectedRows=allHomeRows.filter(row=>selectedKeys.includes(homeRowKey(row)));
   const selectionMode=selectedRows.length>0;
   const mixedMeetingOtp=selectedRows.length>0&&!hasSingleMeetingOtp(selectedRows);
   const isCollapsedHomeRow=row=>!revealMatchingUnits&&!expandedOfIds.includes(row.id)&&allHomeRows.filter(item=>item.id===row.id).length>1;
@@ -6891,7 +6892,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const groupStart=i===0||paged[i-1].id!==o.id;
                 const displayUnitId=collapsed?null:o._homeUnitId;
                 const polymerization=pendingHomePolymerization(dataById[o.id],consommables,displayUnitId,homeNow);
-                const facts=[...(collapsed?ofRows.flatMap(row=>homeFactsForUnit(dataById[row.id],row._homeUnitId)):homeFactsForUnit(dataById[o.id],o._homeUnitId))]
+                const facts=[...(collapsed?ofRows.flatMap(row=>row._homeFacts||[]):o._homeFacts||[])]
                   .filter((fact,index,list)=>list.findIndex(item=>(item.id&&item.id===fact.id)||(!item.id&&item.type===fact.type&&item.numero===fact.numero))===index);
                 const snCount=ofRows.filter(row=>row.sn).length;
                 const lotCount=ofRows.filter(row=>row.lot).length;

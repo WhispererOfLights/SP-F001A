@@ -25,7 +25,7 @@ from pathlib import Path
 from threading import Lock
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlparse
-from relational_store import SCHEMA_VERSION, ConflictError, init_schema, migrate, read_document, write_document, encode
+from relational_store import SCHEMA_VERSION, ConflictError, init_schema, migrate, read_document, read_documents, write_document, encode
 
 
 ROOT = Path(__file__).resolve().parent
@@ -36,6 +36,8 @@ SESSION_COOKIE = "sp_f001a_session"
 SESSION_IDLE_SECONDS = 15 * 60
 PASSWORD_ITERATIONS = 240_000
 SESSIONS: dict[str, dict] = {}
+HOME_DOCUMENTS_CACHE: dict[str, tuple[tuple, dict[str, dict]]] = {}
+HOME_CACHE_LOCK = Lock()
 READ_ONLY_ROLES = {"consultation", "lecteur seul", "lecture seule", "lecteur"}
 
 
@@ -243,18 +245,29 @@ def storage_keys(db_path: Path) -> list[str]:
 
 
 def home_documents(db_path: Path) -> dict[str, dict]:
-    """Load every work-order document through one DB connection."""
+    """Load every work-order document in a small, fixed number of SQL queries."""
     with connect_db(db_path) as conn:
         listing = read_document(conn, "of-list")
         entries = listing[0] if listing and isinstance(listing[0], list) else []
-        documents = {}
-        for entry in entries:
-            if not isinstance(entry, dict) or not entry.get("id"):
-                continue
-            record = read_document(conn, f'of:{entry["id"]}')
-            if record and isinstance(record[0], dict):
-                documents[str(entry["id"])] = record[0]
-    return documents
+        ids = [str(entry["id"]) for entry in entries if isinstance(entry, dict) and entry.get("id")]
+        keys = [f"of:{of_id}" for of_id in ids]
+        if keys:
+            placeholders = ",".join("?" for _ in keys)
+            revisions = dict(conn.execute(
+                f"SELECT key,revision FROM documents WHERE key IN ({placeholders})", keys
+            ).fetchall())
+        else:
+            revisions = {}
+        signature = tuple((key, revisions.get(key)) for key in keys)
+        cache_key = str(db_path)
+        with HOME_CACHE_LOCK:
+            cached = HOME_DOCUMENTS_CACHE.get(cache_key)
+            if cached and cached[0] == signature:
+                return cached[1]
+            records = read_documents(conn, keys)
+            documents = {of_id: records[f"of:{of_id}"][0] for of_id in ids if f"of:{of_id}" in records}
+            HOME_DOCUMENTS_CACHE[cache_key] = (signature, documents)
+            return documents
 
 
 def storage_put(db_path: Path, key: str, value: str, expected=None, enforce=False) -> int:
