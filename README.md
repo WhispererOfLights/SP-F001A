@@ -97,6 +97,18 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -Version <VERSION> -
 Le chemin de production réel est volontairement absent de ce document. Il se configure avec `-Destination` lors du déploiement et avec `SP_F001A_DATA_DIR` pour le stockage des données.
 Voir aussi [ARCHITECTURE.md](ARCHITECTURE.md).
 
+### Adresse des liens vers les dossiers
+
+Les liens copiés depuis un dossier et ajoutés aux emails contiennent l'OF et le SN/lot en plus des identifiants internes. Ils restent ainsi utilisables après une migration des données.
+
+Pour conserver aussi les anciens liens après un changement de serveur, demander à l'IT une adresse DNS stable, puis la renseigner dans `app-config.js` sur le serveur :
+
+```js
+window.SP_F001A_PUBLIC_URL = "http://sp-f001a/";
+```
+
+Ce fichier de configuration n'est pas remplacé par les déploiements suivants. Sans valeur configurée, l'application utilise automatiquement l'adresse courante du navigateur.
+
 ## Pack PDF
 
 Dans un dossier OF ouvert, cliquer sur `Pack PDF`.

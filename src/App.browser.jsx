@@ -6863,6 +6863,43 @@ const homeRowKey = row => `${row.id}:${row._homeUnitId||"of"}`;
 const homeUnitName = row => row.sn||row.lot||"Sans SN / LOT";
 const homeOtpName = row => String(row.otp||row.projet||"Non renseigné").trim()||"Non renseigné";
 const hasSingleMeetingOtp = rows => new Set(rows.map(homeOtpName)).size===1;
+const FOLDER_LINK_TABS=new Set(["rework","consommables","etuvage","testequip","demating","faits"]);
+const appBaseHref = () => {
+  if(typeof window==="undefined") return "http://neu-jgr-sp:5181/";
+  return String(window.SP_F001A_PUBLIC_URL||"").trim()||window.location?.href||"http://neu-jgr-sp:5181/";
+};
+const currentBrowserHref = () => typeof window!=="undefined"&&window.location?.href
+  ? window.location.href
+  : "http://neu-jgr-sp:5181/";
+const buildFolderLink = ({ofId,unitId="",ofNumber="",sn="",lot="",tab="rework"},baseHref=appBaseHref()) => {
+  const url=new URL(baseHref);
+  url.search="";
+  url.hash="";
+  url.searchParams.set("dossier",String(ofId||"").trim());
+  if(String(unitId||"").trim()) url.searchParams.set("piece",String(unitId).trim());
+  if(String(ofNumber||"").trim()) url.searchParams.set("of",String(ofNumber).trim());
+  if(String(sn||"").trim()) url.searchParams.set("sn",String(sn).trim());
+  else if(String(lot||"").trim()) url.searchParams.set("lot",String(lot).trim());
+  if(FOLDER_LINK_TABS.has(tab)) url.searchParams.set("onglet",tab);
+  return url.toString();
+};
+const parseFolderLink = (href=currentBrowserHref()) => {
+  try{
+    const url=new URL(href);
+    const ofId=String(url.searchParams.get("dossier")||"").trim();
+    const ofNumber=String(url.searchParams.get("of")||"").trim();
+    if(!ofId&&!ofNumber) return null;
+    const requestedTab=String(url.searchParams.get("onglet")||"").trim();
+    return {
+      ofId,
+      unitId:String(url.searchParams.get("piece")||"").trim(),
+      ofNumber,
+      sn:String(url.searchParams.get("sn")||"").trim(),
+      lot:String(url.searchParams.get("lot")||"").trim(),
+      tab:FOLDER_LINK_TABS.has(requestedTab)?requestedTab:"rework"
+    };
+  }catch{return null;}
+};
 const groupHomeMailRows = rows => {
   const groups=new Map();
   rows.forEach(row=>{
@@ -6924,13 +6961,23 @@ const closureMailTable = groups => {
   });
   return [...lines,""];
 };
+const folderLinksForMail = (groups,tab="rework") => [
+  "Accès aux dossiers :",
+  ...groups.map(group=>{
+    const unitIds=[...new Set(group.rows.map(row=>row._homeUnitId).filter(Boolean))];
+    const unitId=unitIds.length===1?unitIds[0]:"all";
+    const unit=unitIds.length===1?group.rows[0]:null;
+    return `OF ${group.of} : ${buildFolderLink({ofId:group.id,unitId,ofNumber:group.of,sn:unit?.sn||"",lot:unit?.lot||"",tab})}`;
+  }),
+  ""
+];
 const buildClosureRequest = ({rows,user}) => {
   const groups=groupHomeMailRows(rows);
   const otps=[...new Set(groups.map(group=>group.otp).filter(Boolean))];
   const intro="Merci de clôturer et mettre en stock les sous-ensembles suivants :";
   return {
     subject:`Clôture | OF ${compactOfRanges(groups.map(group=>group.of))}${otps.length?` | OTP ${otps.join("; ")}`:""}`,
-    body:["Bonjour,","",intro,"",...closureMailTable(groups),"Merci,",[user.prenom,user.nom].filter(Boolean).join(" ")||user.trigram,user.trigram].join("\n")
+    body:["Bonjour,","",intro,"",...closureMailTable(groups),...folderLinksForMail(groups),"Merci,",[user.prenom,user.nom].filter(Boolean).join(" ")||user.trigram,user.trigram].join("\n")
   };
 };
 const buildIpInvitation = ({rows,user,ipName}) => {
@@ -6945,7 +6992,7 @@ const buildIpInvitation = ({rows,user,ipName}) => {
   if(finishedUnits.length) subjectParts.push(`SN produit fini ${finishedUnits.join(", ")}`);
   return {
     subject:subjectParts.join(" | "),
-    body:["Bonjour,","",intro,"",...closureMailTable(groups),"Merci,",[user.prenom,user.nom].filter(Boolean).join(" ")||user.trigram,user.trigram].join("\n")
+    body:["Bonjour,","",intro,"",...closureMailTable(groups),...folderLinksForMail(groups),"Merci,",[user.prenom,user.nom].filter(Boolean).join(" ")||user.trigram,user.trigram].join("\n")
   };
 };
 const defaultMeetingSlot = () => {
@@ -7774,16 +7821,20 @@ function App(){
   const [saveError,setSaveError]     = useState("");
   const [pendingSave,setPendingSave] = useState(null);
   const [loaded,setLoaded]           = useState(false);
+  const [ofListReady,setOfListReady] = useState(false);
   const [openHistory,setOpenHistory] = useState([]); // IDs des OF récemment ouverts
   const [showAdminUsers,setShowAdminUsers] = useState(false);
   const [copyAcrossRow,setCopyAcrossRow] = useState(null);
   const [copiedOfInfo,setCopiedOfInfo] = useState(false);
+  const [copiedFolderLink,setCopiedFolderLink] = useState(false);
   const [printAll,setPrintAll]       = useState(false);
   const [pdfIncludeHistory,setPdfIncludeHistory] = useState(false);
   const [showPdfOptions,setShowPdfOptions] = useState(false);
   const [activeUnitId,setActiveUnitId] = useState("all");
   const [entryUnitId,setEntryUnitId] = useState("");
   const [headerPanel,setHeaderPanel] = useState("dossier");
+  const pendingFolderLink=React.useRef(parseFolderLink());
+  const folderLinkHandled=React.useRef(false);
   const perms = {
     godMode:godMode&&isAdminManager(user),
     role: normalizeRole(user),
@@ -7821,6 +7872,7 @@ function App(){
         try{const r=await window.storage.get("fait-types",true);if(r)setFaitTypes(ensureOpenWorkFactType(JSON.parse(r.value)));}catch{}
         try{const r=await window.storage.get("status-types",true);if(r){const list=applyStatusTypes(JSON.parse(r.value));setStatusTypes(list);}}catch{}
         try{const r=await window.storage.get("of-list",true);if(r)setOfList(JSON.parse(r.value));}catch{}
+        setOfListReady(true);
       }
       setLoaded(true);
     })();
@@ -7841,6 +7893,7 @@ function App(){
     try{const r=await window.storage.get("fait-types",true);if(r)setFaitTypes(ensureOpenWorkFactType(JSON.parse(r.value)));}catch{}
     try{const r=await window.storage.get("status-types",true);if(r){const list=applyStatusTypes(JSON.parse(r.value));setStatusTypes(list);}}catch{}
     try{const r=await window.storage.get("of-list",true);if(r)setOfList(JSON.parse(r.value));}catch{}
+    setOfListReady(true);
   };
   const handleSaveProfile=async profile=>{
     if(window.authApi){
@@ -7905,7 +7958,7 @@ function App(){
     };
   },[user?.trigram]);
 
-  const selectOf=async (id,selectedUnitId=null,selectedTab="rework")=>{
+  const selectOf=async (id,selectedUnitId=null,selectedTab="rework",selectedUnitIdentity=null)=>{
     try{
       const r=await window.storage.get(`of:${id}`,true);
       if(r){
@@ -7918,11 +7971,25 @@ function App(){
         setOfData(safe);setCurrentId(id);setActiveTab(selectedTab);
         setEntryUnitId("");
         const available=(safe.units?.rows||[]).filter(u=>!u.deleted&&hasUnitIdentity(u));
-        setActiveUnitId(available.find(u=>u.id===selectedUnitId)?.id||available[0]?.id||"all");
+        const businessUnit=selectedUnitIdentity&&available.find(unit=>(selectedUnitIdentity.sn&&unit.sn===selectedUnitIdentity.sn)||(selectedUnitIdentity.lot&&unit.lot===selectedUnitIdentity.lot));
+        setActiveUnitId(selectedUnitId==="all"?"all":available.find(u=>u.id===selectedUnitId)?.id||businessUnit?.id||available[0]?.id||"all");
         setOpenHistory(prev=>[id,...prev.filter(x=>x!==id)].slice(0,20));
       }
     }catch(e){console.error("selectOf error",e);}
   };
+
+  useEffect(()=>{
+    if(!user||!ofListReady||folderLinkHandled.current) return;
+    const target=pendingFolderLink.current;
+    if(!target) return;
+    folderLinkHandled.current=true;
+    const targetOf=ofList.find(item=>item.id===target.ofId)||ofList.find(item=>String(item.of||"").trim()===target.ofNumber);
+    if(!targetOf){
+      window.alert("Le dossier demandé par ce lien est introuvable ou n'est pas accessible.");
+      return;
+    }
+    selectOf(targetOf.id,target.unitId||null,target.tab,{sn:target.sn,lot:target.lot});
+  },[user?.trigram,ofListReady,ofList]);
 
   const createOf=async header=>{
     if(!isAdminManager(user)) return;
@@ -8721,6 +8788,10 @@ function App(){
                 copyToClipboard(buildTeamsOfText(h,activeUnit?[activeUnit]:snRows));
                 setCopiedOfInfo(true);setTimeout(()=>setCopiedOfInfo(false),1800);
               }} style={{width:28,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:0,borderRadius:4,background:copiedOfInfo?C.green:C.blue,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800}}>{copiedOfInfo?"✓":"📋"}</button>
+              <button type="button" className="no-print" title={activeUnit?`Copier le lien vers ${snTitle(activeUnit)}`:"Copier le lien vers ce dossier"} aria-label="Copier le lien vers ce dossier" onClick={()=>{
+                copyToClipboard(buildFolderLink({ofId:currentId,unitId:activeUnit?.id||"all",ofNumber:h.of,sn:activeUnit?.sn||"",lot:activeUnit?.lot||"",tab:activeTab}));
+                setCopiedFolderLink(true);setTimeout(()=>setCopiedFolderLink(false),1800);
+              }} style={{width:28,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:0,borderRadius:4,background:copiedFolderLink?C.green:C.blue,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800}}>{copiedFolderLink?"✓":"🔗"}</button>
             </div>
             {perms.canWrite&&entryUnit&&<div className="no-print" style={{display:"flex",alignItems:"center",gap:8,fontSize:12,flexWrap:"wrap"}}>
               <label htmlFor="entry-target-sn" style={{fontWeight:700,color:C.accent}}>Nouvelle ligne pour</label>

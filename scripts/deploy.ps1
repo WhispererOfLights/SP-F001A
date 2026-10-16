@@ -27,6 +27,12 @@ $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $backup = Join-Path $backupRoot "v$Version-$stamp"
 New-Item -ItemType Directory -Path $backup -Force | Out-Null
 
+$configName = "app-config.js"
+$targetConfig = Join-Path $Destination $configName
+if (Test-Path -LiteralPath $targetConfig) {
+    Copy-Item -LiteralPath $targetConfig -Destination $backup -Force
+}
+
 $deployItems = @(
     "index.html", "migration.html", "server.py", "relational_store.py", "src", "assets", "vendor", "scripts", "tests",
     "README.md", "ARCHITECTURE.md", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
@@ -46,6 +52,11 @@ foreach ($relative in $deployItems) {
     if (Test-Path -LiteralPath $source) {
         Copy-Item -LiteralPath $source -Destination $Destination -Recurse -Force
     }
+}
+
+# La configuration d'adresse publique est propre au serveur et survit aux mises à jour.
+if (-not (Test-Path -LiteralPath $targetConfig)) {
+    Copy-Item -LiteralPath (Join-Path $root $configName) -Destination $targetConfig -Force
 }
 
 Write-Host "Version v$Version deployee dans $Destination" -ForegroundColor Green

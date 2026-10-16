@@ -5,11 +5,11 @@ const vm = require('node:vm');
 const context = {
   React: {createElement: () => ({})}, ReactDOM: {createRoot: () => ({render: () => {}})},
   document: {documentElement: {style: {}}, body: {style: {}}, getElementById: () => ({})},
-  localStorage: {getItem: () => null}, Blob, TextEncoder,
+  localStorage: {getItem: () => null}, Blob, TextEncoder, URL,
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/App.runtime.js'), 'utf8') +
-  ';globalThis.normalize=withUnitMetadata;globalThis.patch=patchTrackedUnit;globalThis.home=homeRowsForOf;globalThis.teamsText=buildTeamsOfText;globalThis.mail=buildMaterialRequest;globalThis.parseUnits=parseOfImportPaste;globalThis.convertUnit=convertTrackedUnitKind;globalThis.lotQty=trackedLotQty;globalThis.compactUnit=snCompactTitle;globalThis.compactScope=snScopeCompactLabel;globalThis.dpStatus=dpStatus;globalThis.isValidDMY=isValidDMY;globalThis.dcCheck=dcCheck;globalThis.ofWarnings=ofWarnings;globalThis.polymerizationStatus=polymerizationStatus;globalThis.closureMail=buildClosureRequest;globalThis.ipMail=buildIpInvitation;globalThis.ofRanges=compactOfRanges;globalThis.ccRequired=materialCcRequired;globalThis.ccEmails=selectedManagerEmails;globalThis.icsMeeting=buildOutlookMeetingIcs;globalThis.meetingRecipients=parseMeetingRecipients;globalThis.singleMeetingOtp=hasSingleMeetingOtp;globalThis.role=normalizeRole;globalThis.componentLabelPdf=buildComponentLabelPdf;globalThis.componentSheetsPdf=buildComponentRetentionSheetsPdf;globalThis.normalizeStatuses=normalizeStatusTypes;globalThis.applyStatuses=applyStatusTypes;globalThis.statuses=STATUTS;globalThis.unitStatuses=UNIT_STATUTS;globalThis.operationDateInput=operationDateInputValue;globalThis.operationDateOutput=operationDateFromInput;globalThis.weekendOvenStart=weekendOvenStartInputValue;globalThis.ovenMissing=ovenRequiredMissing;globalThis.openWorkNumber=formatOpenWorkNumber;globalThis.nextOpenWorkNumber=nextOpenWorkNumber;globalThis.followUpLabel=technicalFollowUpLabel;globalThis.futureOperationDate=isFutureOperationDate;globalThis.sapRows=buildSapExcelRows;globalThis.excelWorkbook=buildExcelWorkbook;globalThis.homeFactSearch=homeFactSearchText;', context);
+  ';globalThis.normalize=withUnitMetadata;globalThis.patch=patchTrackedUnit;globalThis.home=homeRowsForOf;globalThis.teamsText=buildTeamsOfText;globalThis.mail=buildMaterialRequest;globalThis.parseUnits=parseOfImportPaste;globalThis.convertUnit=convertTrackedUnitKind;globalThis.lotQty=trackedLotQty;globalThis.compactUnit=snCompactTitle;globalThis.compactScope=snScopeCompactLabel;globalThis.dpStatus=dpStatus;globalThis.isValidDMY=isValidDMY;globalThis.dcCheck=dcCheck;globalThis.ofWarnings=ofWarnings;globalThis.polymerizationStatus=polymerizationStatus;globalThis.closureMail=buildClosureRequest;globalThis.ipMail=buildIpInvitation;globalThis.ofRanges=compactOfRanges;globalThis.ccRequired=materialCcRequired;globalThis.ccEmails=selectedManagerEmails;globalThis.icsMeeting=buildOutlookMeetingIcs;globalThis.meetingRecipients=parseMeetingRecipients;globalThis.singleMeetingOtp=hasSingleMeetingOtp;globalThis.role=normalizeRole;globalThis.componentLabelPdf=buildComponentLabelPdf;globalThis.componentSheetsPdf=buildComponentRetentionSheetsPdf;globalThis.normalizeStatuses=normalizeStatusTypes;globalThis.applyStatuses=applyStatusTypes;globalThis.statuses=STATUTS;globalThis.unitStatuses=UNIT_STATUTS;globalThis.operationDateInput=operationDateInputValue;globalThis.operationDateOutput=operationDateFromInput;globalThis.weekendOvenStart=weekendOvenStartInputValue;globalThis.ovenMissing=ovenRequiredMissing;globalThis.openWorkNumber=formatOpenWorkNumber;globalThis.nextOpenWorkNumber=nextOpenWorkNumber;globalThis.followUpLabel=technicalFollowUpLabel;globalThis.futureOperationDate=isFutureOperationDate;globalThis.sapRows=buildSapExcelRows;globalThis.excelWorkbook=buildExcelWorkbook;globalThis.homeFactSearch=homeFactSearchText;globalThis.folderLink=buildFolderLink;globalThis.parseFolderLink=parseFolderLink;', context);
 
 assert.equal(context.operationDateInput('05/10/2026 09:07'),'2026-10-05T09:07');
 assert.equal(context.operationDateOutput('2026-05-01T14:30'),'01/05/2026 14:30');
@@ -47,6 +47,10 @@ assert.strictEqual(context.statuses,context.unitStatuses);
 context.applyStatuses();
 
 assert.equal(context.teamsText({codeArticle:'250001163',description:'RX-S355C'},[{sn:'SN0012'},{sn:'SN0013'},{lot:'SP-J123'}]),'250001163 - RX-S355C - SN0012\n250001163 - RX-S355C - SN0013\n250001163 - RX-S355C - LOT SP-J123');
+assert.equal(context.folderLink({ofId:'of-a',unitId:'u 1',ofNumber:'1001',sn:'SN 01',tab:'faits'},'http://neu-jgr-sp:5181/?ancien=1#test'),'http://neu-jgr-sp:5181/?dossier=of-a&piece=u+1&of=1001&sn=SN+01&onglet=faits');
+assert.deepEqual({...context.parseFolderLink('http://neu-jgr-sp:5181/?dossier=of-a&piece=u1&of=1001&sn=SN01&onglet=consommables')},{ofId:'of-a',unitId:'u1',ofNumber:'1001',sn:'SN01',lot:'',tab:'consommables'});
+assert.equal(context.parseFolderLink('http://neu-jgr-sp:5181/'),null);
+assert.equal(context.parseFolderLink('http://neu-jgr-sp:5181/?dossier=of-a&onglet=inconnu').tab,'rework');
 assert.equal(context.homeFactSearch([{type:'NC',numero:'NC-0042',commentaires:'Contrôle visuel'},{type:'ISS',numero:'ISS-7'}]),'NC NC-0042 Contrôle visuel ISS ISS-7');
 
 assert.equal(context.isValidDMY('29.02.24'),true);
@@ -97,6 +101,9 @@ assert.ok(closure.body.includes('1001 | 250001163 | Carte A | LOT : LOT-A | 10x'
 assert.ok(closure.body.includes('1001 | 250001163 | Carte A | LOT : LOT-A | 10x\n\n1002 | 250002000 | Carte B | SN : SN003'));
 assert.ok(!closure.body.includes('Faits : -')&&!closure.body.includes('|  |'));
 assert.ok(!closure.body.includes('Contrôle visuel')&&!closure.body.includes('clôturé 25/09/2026'));
+assert.ok(closure.body.includes('Accès aux dossiers :'));
+assert.ok(closure.body.includes('OF 1001 : http://neu-jgr-sp:5181/?dossier=of-a&piece=all&of=1001&onglet=rework'));
+assert.ok(closure.body.includes('OF 1002 : http://neu-jgr-sp:5181/?dossier=of-b&piece=u3&of=1002&sn=SN003&onglet=rework'));
 const invitation=context.ipMail({rows:homeMailRows.slice(0,2),user:{trigram:'JGR'},ipName:'IP Validation'});
 assert.equal(invitation.subject,'IP Validation | 250001163 - Carte A | SN001, SN002 | OTP OTP-A');
 const invitationWithFinished=context.ipMail({rows:homeMailRows.slice(0,2).map(row=>({...row,snProduitFini:'PF-900'})),user:{trigram:'JGR'},ipName:'RX-IP-800'});

@@ -111,6 +111,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal((homeMailBody.match(/100TEST \| 250001163/g)||[]).length,2);
     assert.ok(homeMailBody.includes('100TEST | 250001163 | Article de test | SN : SN1 | Faits : F-001'));
     assert.ok(homeMailBody.includes('100TEST | 250001163 | Article de test | SN : SN2'));
+    assert.ok(homeMailBody.includes('OF 100TEST : http://sp-f001-test.local/?dossier=test-of&piece=all&of=100TEST&onglet=rework'));
     assert.ok(!homeMailBody.includes('Faits : -')&&!homeMailBody.includes('|  |'));
     assert.ok(!homeMailBody.includes('Contrôle visuel')&&!homeMailBody.includes('clôturé 18/09/2026'));
     await homeMailDialog.getByText('Fermer',{exact:true}).click();
@@ -130,6 +131,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     const ipBody=await homeMailDialog.getByLabel('Message',{exact:true}).inputValue();
     assert.ok(ipBody.includes('100TEST | 250001163 | Article de test | SN : SN1 | Faits : F-001'));
     assert.ok(ipBody.includes('100TEST | 250001163 | Article de test | SN : SN2'));
+    assert.ok(ipBody.includes('OF 100TEST : http://sp-f001-test.local/?dossier=test-of&piece=all&of=100TEST&onglet=rework'));
     assert.ok(!ipBody.includes('Faits : -')&&!ipBody.includes('|  |'));
     const downloadPromise=page.waitForEvent('download');
     await homeMailDialog.getByRole('button',{name:'Créer le brouillon Outlook',exact:true}).click();
@@ -163,6 +165,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button', {name: 'Ouvrir OF 100TEST - SN2', exact: true}).click();
     await page.waitForFunction(() => document.getElementById('active-work-sn')?.value === 'u2');
     await page.getByRole('button',{name:'Copier les informations du dossier dans le presse-papier',exact:true}).click();
+    const folderLinkCopy=page.getByRole('button',{name:'Copier le lien vers ce dossier',exact:true});
+    await folderLinkCopy.click();
+    assert.equal((await folderLinkCopy.textContent()).trim(),'✓');
     await page.getByRole('button',{name:'Article : 250001163. Double-cliquer pour copier',exact:true}).dblclick();
     await page.getByRole('button',{name:'Article copié',exact:true}).waitFor();
     const quickOf=page.getByRole('textbox',{name:"Rechercher ou scanner un numéro d'OF",exact:true});
