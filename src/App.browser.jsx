@@ -185,13 +185,13 @@ const fmtCodeERP = v => {
 };
 
 // ─── UI ────────────────────────────────────────────────────────────────────
-const Input = ({value,onChange,onBlur,onKeyDown,placeholder,title,style={},small,type="text",readOnly,required,entryField,ariaLabel}) => {
+const Input = ({value,onChange,onBlur,onKeyDown,placeholder,displayPlaceholder,title,style={},small,type="text",readOnly,required,entryField,ariaLabel}) => {
   const empty = !value||value==="";
   const borderCol = required&&empty ? C.yellow : style.borderColor || C.border;
   return (
   <input data-entry-field={entryField} aria-label={ariaLabel} type={type} value={value||""} onChange={e=>onChange&&onChange(e.target.value)}
     onBlur={e=>onBlur&&onBlur(e)} onKeyDown={e=>onKeyDown&&onKeyDown(e)}
-    placeholder={title?.startsWith("Filtrer")?"Filtrer…":""} title={title||(placeholder?`Attendu : ${placeholder}`:undefined)} readOnly={readOnly}
+    placeholder={title?.startsWith("Filtrer")?"Filtrer…":displayPlaceholder||""} title={title||(placeholder?`Attendu : ${placeholder}`:undefined)} readOnly={readOnly}
     style={{width:"100%",fontFamily:"monospace",outline:"none",padding:small?"3px 5px":"5px 8px",fontSize:small?11:13,
       ...style,
       background:style.background||(readOnly?C.raised:C.input),
@@ -3414,7 +3414,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
               <TH w={118}>LOT</TH>
               <TH w={68}>DC</TH>
               <TH w={104}>SN</TH>
-              <TH w={124}>Fiche suiveuse</TH>
+              <TH w={170}>Fiche suiveuse</TH>
               <TH w={56}>OP</TH>
               <TH w={48}>Ctrl</TH>
               <TH w={46} color={C.green}>TRA</TH>
@@ -3509,8 +3509,8 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                   <Input entryField="sn" value={isObservation?"":r.sn} onChange={v=>upd(r.id,"sn",v)} small readOnly={locked||isObservation} placeholder={isObservation?"N/A":""} style={{width:"100%",...((locked||isObservation)?LOCKED_INPUT_STYLE:{})}}/>
                 </CopyCell></TD>
                 <TD><Input entryField="fiche" value={r.fiche} onChange={v=>upd(r.id,"fiche",v.toUpperCase())} small required readOnly={locked}
-                  title="Fiche suiveuse / FT / NC / DM (ex: R4B-Q001, FT-042)"
-                  placeholder="R4B-Q001"
+                  title="Fiche suiveuse / FT / NC / DM (ex : DOC-0013405_Rev.1)"
+                  displayPlaceholder="Ex. DOC-0013405_Rev.1"
                   style={{fontFamily:"monospace",width:"100%",textTransform:"uppercase",...(locked?LOCKED_INPUT_STYLE:{})}}/></TD>
                 <TD><Input entryField="etape" value={r.etape||""} onChange={v=>upd(r.id,"etape",v)} small required readOnly={locked}
                   title="OP (ex: 10, 20, 30...)"
@@ -4273,7 +4273,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               <TH w={118}>Date / Heure</TH>
               <TH w={34} color={C.accent}>Visa</TH>
               <TH w={82}>SN(s)</TH>
-              <TH w={82}>Fiche suiveuse</TH>
+              <TH w={150}>Fiche suiveuse</TH>
               <TH w={34}>OP</TH>
               <TH w={118}>Code SAP</TH>
               <TH w={180}>Désignation</TH>
@@ -4338,7 +4338,10 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                   <TD style={{pointerEvents:rowDeleted?"none":"all"}}><CopyCell value={snScopeLabel(o,snRowsFromHeader(header))} title="Copier SN cible">
                     <SnScopePicker row={o} header={header} onChange={fields=>patchOp(oid,fields)} disabled={locked}/>
                   </CopyCell></TD>
-                  <TD><Input value={o.fiche} onChange={v=>updOp(oid,"fiche",v)} small readOnly={locked} style={{fontFamily:"monospace",...(locked?LOCKED_INPUT_STYLE:{borderColor:!o.fiche?C.yellow:C.border})}}/></TD>
+                  <TD><Input value={o.fiche} onChange={v=>updOp(oid,"fiche",v)} small readOnly={locked}
+                    title="Fiche suiveuse (ex : DOC-0013405_Rev.1)"
+                    displayPlaceholder="Ex. DOC-0013405_Rev.1"
+                    style={{fontFamily:"monospace",...(locked?LOCKED_INPUT_STYLE:{borderColor:!o.fiche?C.yellow:C.border})}}/></TD>
                   <TD><Input value={o.op} onChange={v=>updOp(oid,"op",v)} small readOnly={locked} style={{textAlign:"center",...(locked?LOCKED_INPUT_STYLE:{borderColor:!o.op?C.yellow:C.border})}}/></TD>
                   <TD><CopyCell value={consoCode} title="Copier code article">
                     {locked

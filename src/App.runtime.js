@@ -521,6 +521,7 @@ var Input = function Input(_ref2) {
     _onBlur = _ref2.onBlur,
     _onKeyDown = _ref2.onKeyDown,
     placeholder = _ref2.placeholder,
+    displayPlaceholder = _ref2.displayPlaceholder,
     title = _ref2.title,
     _ref2$style = _ref2.style,
     style = _ref2$style === void 0 ? {} : _ref2$style,
@@ -547,7 +548,7 @@ var Input = function Input(_ref2) {
     onKeyDown: function onKeyDown(e) {
       return _onKeyDown && _onKeyDown(e);
     },
-    placeholder: title !== null && title !== void 0 && title.startsWith("Filtrer") ? "Filtrer…" : "",
+    placeholder: title !== null && title !== void 0 && title.startsWith("Filtrer") ? "Filtrer…" : displayPlaceholder || "",
     title: title || (placeholder ? "Attendu : ".concat(placeholder) : undefined),
     readOnly: readOnly,
     style: _objectSpread(_objectSpread({
@@ -8755,7 +8756,7 @@ var TabRework = function TabRework(_ref70) {
   }, "DC"), /*#__PURE__*/React.createElement(TH, {
     w: 104
   }, "SN"), /*#__PURE__*/React.createElement(TH, {
-    w: 124
+    w: 170
   }, "Fiche suiveuse"), /*#__PURE__*/React.createElement(TH, {
     w: 56
   }, "OP"), /*#__PURE__*/React.createElement(TH, {
@@ -9175,8 +9176,8 @@ var TabRework = function TabRework(_ref70) {
       small: true,
       required: true,
       readOnly: locked,
-      title: "Fiche suiveuse / FT / NC / DM (ex: R4B-Q001, FT-042)",
-      placeholder: "R4B-Q001",
+      title: "Fiche suiveuse / FT / NC / DM (ex : DOC-0013405_Rev.1)",
+      displayPlaceholder: "Ex. DOC-0013405_Rev.1",
       style: _objectSpread({
         fontFamily: "monospace",
         width: "100%",
@@ -11158,7 +11159,7 @@ var TabConsommables = function TabConsommables(_ref76) {
   }, "Visa"), /*#__PURE__*/React.createElement(TH, {
     w: 82
   }, "SN(s)"), /*#__PURE__*/React.createElement(TH, {
-    w: 82
+    w: 150
   }, "Fiche suiveuse"), /*#__PURE__*/React.createElement(TH, {
     w: 34
   }, "OP"), /*#__PURE__*/React.createElement(TH, {
@@ -11474,6 +11475,8 @@ var TabConsommables = function TabConsommables(_ref76) {
       },
       small: true,
       readOnly: locked,
+      title: "Fiche suiveuse (ex : DOC-0013405_Rev.1)",
+      displayPlaceholder: "Ex. DOC-0013405_Rev.1",
       style: _objectSpread({
         fontFamily: "monospace"
       }, locked ? LOCKED_INPUT_STYLE : {
