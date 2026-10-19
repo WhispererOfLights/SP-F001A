@@ -8,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import server
-from replication_bridge import pending_count
+from replication_bridge import ensure_capture_triggers, pending_count
 from scripts.migrate_sqlite_to_postgres import load_snapshot, snapshot_database
 
 
@@ -42,6 +42,19 @@ class ReplicationBridgeTests(unittest.TestCase):
         snapshot_database(self.db_path,snapshot)
         documents={key:(payload,revision) for key,payload,revision,_,_ in load_snapshot(snapshot)}
         self.assertEqual(documents["of:snapshot"],(value,1))
+
+    def test_capture_triggers_queue_changes_without_server_restart(self):
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            ensure_capture_triggers(conn)
+            conn.commit()
+        value={"header":{"of":"3003"},"units":{"rows":[]}}
+        revision=server.storage_put(self.db_path,"of:captured",json.dumps(value),0,True)
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            event=conn.execute("""
+                SELECT document_key,operation,revision,payload
+                FROM replication_outbox ORDER BY event_id
+            """).fetchone()
+        self.assertEqual(event,("of:captured","upsert",revision,None))
 
 
 if __name__=="__main__":

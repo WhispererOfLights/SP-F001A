@@ -10,6 +10,7 @@ from contextlib import closing
 from pathlib import Path
 
 import postgres_store
+from relational_store import read_document as sqlite_read_document
 
 
 def ensure_outbox(conn: sqlite3.Connection) -> None:
@@ -26,6 +27,28 @@ def ensure_outbox(conn: sqlite3.Connection) -> None:
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS replication_outbox_created ON replication_outbox(event_id)")
+
+
+def ensure_capture_triggers(conn: sqlite3.Connection) -> None:
+    """Capture document changes before the application process enables its outbox."""
+    ensure_outbox(conn)
+    conn.executescript("""
+        CREATE TRIGGER IF NOT EXISTS replication_capture_insert
+        AFTER INSERT ON documents BEGIN
+            INSERT INTO replication_outbox(document_key,operation,revision,payload,created_at)
+            VALUES(NEW.key,'upsert',NEW.revision,NULL,CAST(strftime('%s','now') AS REAL));
+        END;
+        CREATE TRIGGER IF NOT EXISTS replication_capture_update
+        AFTER UPDATE OF revision ON documents BEGIN
+            INSERT INTO replication_outbox(document_key,operation,revision,payload,created_at)
+            VALUES(NEW.key,'upsert',NEW.revision,NULL,CAST(strftime('%s','now') AS REAL));
+        END;
+        CREATE TRIGGER IF NOT EXISTS replication_capture_delete
+        AFTER DELETE ON documents BEGIN
+            INSERT INTO replication_outbox(document_key,operation,revision,payload,created_at)
+            VALUES(OLD.key,'delete',NULL,NULL,CAST(strftime('%s','now') AS REAL));
+        END;
+    """)
 
 
 def enqueue_upsert(conn: sqlite3.Connection,key: str,value,revision: int) -> None:
@@ -83,6 +106,15 @@ class ReplicationWorker:
                 SELECT event_id,document_key,operation,revision,payload
                 FROM replication_outbox ORDER BY event_id LIMIT 1
             """).fetchone()
+            if event and event[2] == "upsert" and event[4] is None:
+                current=sqlite_read_document(source,event[1])
+                if current:
+                    value,current_revision=current
+                    event=(event[0],event[1],event[2],current_revision,json.dumps(
+                        value,ensure_ascii=False,separators=(",",":"),allow_nan=False
+                    ))
+                else:
+                    event=(event[0],event[1],"delete",None,None)
         if not event:
             return False
         event_id,key,operation,revision,payload=event

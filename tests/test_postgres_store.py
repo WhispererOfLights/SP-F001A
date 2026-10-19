@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import postgres_store
 import server
-from replication_bridge import ReplicationWorker,pending_count
+from replication_bridge import ReplicationWorker,ensure_capture_triggers,pending_count
 from relational_store import ConflictError
 from scripts.migrate_sqlite_to_postgres import migrate
 
@@ -74,6 +74,22 @@ class PostgresStoreTests(unittest.TestCase):
                     self.assertTrue(worker.process_one())
             with postgres_store.connect_database(DATABASE_URL) as conn:
                 self.assertEqual(postgres_store.read_document(conn,"of:migration"),(second,2))
+
+    def test_capture_trigger_replays_current_document(self):
+        with tempfile.TemporaryDirectory() as folder:
+            sqlite_path,_=server.init_database(Path(folder))
+            with server.connect_db(sqlite_path) as conn:
+                ensure_capture_triggers(conn)
+                conn.commit()
+            first={"header":{"of":"CAP100"},"units":{"rows":[]}}
+            second={"header":{"of":"CAP100"},"units":{"rows":[{"id":"u1","sn":"SN2"}]}}
+            server.storage_put(sqlite_path,"of:captured",json.dumps(first),0,True)
+            server.storage_put(sqlite_path,"of:captured",json.dumps(second),1,True)
+            worker=ReplicationWorker(sqlite_path,DATABASE_URL)
+            while pending_count(sqlite_path):
+                self.assertTrue(worker.process_one())
+            with postgres_store.connect_database(DATABASE_URL) as conn:
+                self.assertEqual(postgres_store.read_document(conn,"of:captured"),(second,2))
 
     def test_http_server_health_and_login(self):
         server.ensure_admin_database(DATABASE_URL)
