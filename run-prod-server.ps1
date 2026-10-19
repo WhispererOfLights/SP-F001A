@@ -6,6 +6,18 @@ $dataDir = "\\neu-fs01.neu.orolia\Dpts\OP_SPACE\RAFS_USO\SP-F001(Web)\data"
 $statusUrl = "http://127.0.0.1:5181/api/health"
 $logDir = Join-Path $env:LOCALAPPDATA "SP-F001A"
 $logFile = Join-Path $logDir "scheduled-server.log"
+$environmentFile = "C:\ProgramData\SP-F001A\server.env"
+
+if (Test-Path -LiteralPath $environmentFile -PathType Leaf) {
+    foreach ($line in Get-Content -LiteralPath $environmentFile) {
+        $setting = $line.Trim()
+        if (-not $setting -or $setting.StartsWith("#") -or -not $setting.Contains("=")) {
+            continue
+        }
+        $name, $value = $setting.Split("=", 2)
+        [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), "Process")
+    }
+}
 
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
