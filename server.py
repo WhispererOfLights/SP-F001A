@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""SP-F001A production server.
-
-Serves the static app and stores shared data in one SQLite database.
-Configure the data directory with SP_F001A_DATA_DIR or --data-dir.
-"""
+"""SP-F001A production server with SQLite and PostgreSQL backends."""
 
 from __future__ import annotations
 
@@ -25,7 +21,15 @@ from pathlib import Path
 from threading import Lock
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlparse
-from relational_store import SCHEMA_VERSION, ConflictError, init_schema, migrate, read_document, read_documents, write_document, encode
+from relational_store import (
+    SCHEMA_VERSION, ConflictError, init_schema, migrate,
+    read_document as sqlite_read_document,
+    read_documents as sqlite_read_documents,
+    write_document as sqlite_write_document,
+    encode,
+)
+import postgres_store
+from replication_bridge import ReplicationWorker, ensure_outbox, enqueue_upsert, enqueue_delete, pending_count
 
 
 ROOT = Path(__file__).resolve().parent
@@ -38,6 +42,7 @@ PASSWORD_ITERATIONS = 240_000
 SESSIONS: dict[str, dict] = {}
 HOME_DOCUMENTS_CACHE: dict[str, tuple[tuple, dict[str, dict]]] = {}
 HOME_CACHE_LOCK = Lock()
+REPLICATION_WORKER = None
 READ_ONLY_ROLES = {"consultation", "lecteur seul", "lecture seule", "lecteur"}
 
 
@@ -107,8 +112,12 @@ def filename_to_key(path: Path) -> str | None:
 
 
 @contextmanager
-def connect_db(db_path: Path):
-    conn = sqlite3.connect(str(db_path), timeout=30)
+def connect_db(db_target: Path | str):
+    if is_postgres_target(db_target):
+        with postgres_store.connect_database(str(db_target)) as conn:
+            yield conn
+        return
+    conn = sqlite3.connect(str(db_target), timeout=30)
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=DELETE")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -117,6 +126,80 @@ def connect_db(db_path: Path):
             yield conn
     finally:
         conn.close()
+
+
+def is_postgres_target(target: Path | str) -> bool:
+    return isinstance(target,str) and (target=="postgresql-env" or target.lower().startswith(("postgresql://","postgres://")))
+
+
+def is_postgres_connection(conn) -> bool:
+    return postgres_store.is_postgres_connection(conn)
+
+
+def begin_write(conn) -> None:
+    if is_postgres_connection(conn):
+        conn.execute("BEGIN")
+    else:
+        conn.execute("BEGIN IMMEDIATE")
+
+
+def read_document(conn,key):
+    return postgres_store.read_document(conn,key) if is_postgres_connection(conn) else sqlite_read_document(conn,key)
+
+
+def read_documents(conn,keys):
+    return postgres_store.read_documents(conn,keys) if is_postgres_connection(conn) else sqlite_read_documents(conn,keys)
+
+
+def write_document(conn,key,value,updated_at=None,expected=None,enforce=False):
+    if is_postgres_connection(conn):
+        return postgres_store.write_document(conn,key,value,updated_at,expected,enforce)
+    return sqlite_write_document(conn,key,value,updated_at,expected,enforce)
+
+
+def delete_document(conn,key):
+    if is_postgres_connection(conn):
+        postgres_store.delete_document(conn,key)
+    else:
+        conn.execute("DELETE FROM documents WHERE key = ?",(key,))
+
+
+def document_keys(conn):
+    if is_postgres_connection(conn):
+        return postgres_store.document_keys(conn)
+    return [row[0] for row in conn.execute("SELECT key FROM documents ORDER BY key").fetchall()]
+
+
+def document_revisions(conn,keys):
+    if is_postgres_connection(conn):
+        return postgres_store.document_revisions(conn,keys)
+    keys=list(keys)
+    if not keys:
+        return {}
+    placeholders=",".join("?" for _ in keys)
+    return dict(conn.execute(f"SELECT key,revision FROM documents WHERE key IN ({placeholders})",keys).fetchall())
+
+
+def replication_outbox_enabled(conn=None) -> bool:
+    enabled=os.environ.get("SP_F001A_REPLICATION_OUTBOX","").strip().lower() in {"1","true","yes","on"}
+    enabled=enabled or bool(os.environ.get("SP_F001A_MIRROR_DATABASE_URL","").strip())
+    return enabled and (conn is None or not is_postgres_connection(conn))
+
+
+def cutover_read_only() -> bool:
+    enabled=os.environ.get("SP_F001A_READ_ONLY","").strip().lower() in {"1","true","yes","on"}
+    flag=os.environ.get("SP_F001A_READ_ONLY_FILE","").strip()
+    return enabled or bool(flag and Path(flag).is_file())
+
+
+def queue_upsert(conn,key,value,revision) -> None:
+    if replication_outbox_enabled(conn):
+        enqueue_upsert(conn,key,value,revision)
+
+
+def queue_delete(conn,key) -> None:
+    if replication_outbox_enabled(conn):
+        enqueue_delete(conn,key)
 
 
 def init_database(data_dir: Path) -> tuple[Path, int]:
@@ -136,14 +219,14 @@ def init_database(data_dir: Path) -> tuple[Path, int]:
                 key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at REAL NOT NULL)""")
             imported = import_legacy_json(conn, data_dir)
         if not conn.in_transaction:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn)
         init_schema(conn)
         migrate(conn)
         conn.commit()
     return db_path, imported
 
 
-def ensure_admin_account(conn: sqlite3.Connection) -> None:
+def ensure_admin_account(conn) -> None:
     if read_document(conn, "user:ADMIN"):
         return
     admin = {
@@ -163,10 +246,10 @@ def ensure_admin_account(conn: sqlite3.Connection) -> None:
         write_document(conn, "users-list", sorted(set(users)))
 
 
-def ensure_admin_database(db_path: Path) -> None:
+def ensure_admin_database(db_path: Path | str) -> None:
     with WRITE_LOCK:
         with connect_db(db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn)
             ensure_admin_account(conn)
             conn.commit()
 
@@ -192,7 +275,7 @@ def import_legacy_json(conn: sqlite3.Connection, data_dir: Path) -> int:
     return imported
 
 
-def storage_get(db_path: Path, key: str) -> str | None:
+def storage_get(db_path: Path | str, key: str) -> str | None:
     with connect_db(db_path) as conn:
         row = api_record(conn, key)
     return encode(row[0]) if row else None
@@ -215,49 +298,45 @@ def api_record(conn, key):
     return record
 
 
-def raw_user(db_path: Path, trigram: str):
+def raw_user(db_path: Path | str, trigram: str):
     with connect_db(db_path) as conn:
         return read_document(conn, f"user:{trigram.upper()}")
 
 
-def save_user(db_path: Path, user: dict, expected=None) -> int:
+def save_user(db_path: Path | str, user: dict, expected=None) -> int:
     trigram = str(user.get("trigram") or "").strip().upper()
     if not trigram:
         raise ValueError("Trigramme requis")
     user["trigram"] = trigram
     with WRITE_LOCK:
         with connect_db(db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn)
             revision = write_document(conn, f"user:{trigram}", user, expected=expected, enforce=expected is not None)
+            queue_upsert(conn,f"user:{trigram}",user,revision)
             index_record = read_document(conn, "users-list")
             users = list(index_record[0]) if index_record and isinstance(index_record[0], list) else []
             if trigram not in users:
                 users.append(trigram)
-                write_document(conn, "users-list", sorted(set(users)))
+                users=sorted(set(users))
+                index_revision=write_document(conn,"users-list",users)
+                queue_upsert(conn,"users-list",users,index_revision)
             conn.commit()
             return revision
 
 
-def storage_keys(db_path: Path) -> list[str]:
+def storage_keys(db_path: Path | str) -> list[str]:
     with connect_db(db_path) as conn:
-        rows = conn.execute("SELECT key FROM documents ORDER BY key").fetchall()
-    return [row[0] for row in rows]
+        return document_keys(conn)
 
 
-def home_documents(db_path: Path) -> dict[str, dict]:
+def home_documents(db_path: Path | str) -> dict[str, dict]:
     """Load every work-order document in a small, fixed number of SQL queries."""
     with connect_db(db_path) as conn:
         listing = read_document(conn, "of-list")
         entries = listing[0] if listing and isinstance(listing[0], list) else []
         ids = [str(entry["id"]) for entry in entries if isinstance(entry, dict) and entry.get("id")]
         keys = [f"of:{of_id}" for of_id in ids]
-        if keys:
-            placeholders = ",".join("?" for _ in keys)
-            revisions = dict(conn.execute(
-                f"SELECT key,revision FROM documents WHERE key IN ({placeholders})", keys
-            ).fetchall())
-        else:
-            revisions = {}
+        revisions = document_revisions(conn,keys)
         signature = tuple((key, revisions.get(key)) for key in keys)
         cache_key = str(db_path)
         with HOME_CACHE_LOCK:
@@ -270,23 +349,26 @@ def home_documents(db_path: Path) -> dict[str, dict]:
             return documents
 
 
-def storage_put(db_path: Path, key: str, value: str, expected=None, enforce=False) -> int:
+def storage_put(db_path: Path | str, key: str, value: str, expected=None, enforce=False) -> int:
     with WRITE_LOCK:
         with connect_db(db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            revision = write_document(conn, key, json.loads(value), expected=expected, enforce=enforce)
+            begin_write(conn)
+            document=json.loads(value)
+            revision = write_document(conn, key, document, expected=expected, enforce=enforce)
+            queue_upsert(conn,key,document,revision)
             conn.commit()
             return revision
 
 
-def storage_delete(db_path: Path, key: str, expected=None, enforce=False) -> None:
+def storage_delete(db_path: Path | str, key: str, expected=None, enforce=False) -> None:
     with WRITE_LOCK:
         with connect_db(db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn)
             row = read_document(conn, key)
             if enforce and row and row[1] != expected:
                 raise ConflictError("Le document a change. Rechargez avant de supprimer.")
-            conn.execute("DELETE FROM documents WHERE key = ?", (key,))
+            delete_document(conn,key)
+            queue_delete(conn,key)
             conn.commit()
 
 
@@ -296,7 +378,7 @@ def can_close_work_item(user: dict) -> bool:
 
 
 def set_work_item_closed(
-    db_path: Path, key: str, tab: str, row_id: str, closed: bool, trigram: str, expected: int
+    db_path: Path | str, key: str, tab: str, row_id: str, closed: bool, trigram: str, expected: int
 ) -> tuple[dict, int]:
     if not key.startswith("of:") or "/" in key or "\\" in key or len(key) > 200:
         raise ValueError("Dossier invalide")
@@ -304,7 +386,7 @@ def set_work_item_closed(
         raise ValueError("Onglet invalide")
     with WRITE_LOCK:
         with connect_db(db_path) as conn:
-            conn.execute("BEGIN IMMEDIATE")
+            begin_write(conn)
             record = read_document(conn, key)
             if not record or not isinstance(record[0], dict):
                 raise ValueError("Dossier introuvable")
@@ -339,13 +421,16 @@ def set_work_item_closed(
                 })
 
             revision = write_document(conn, key, document, expected=expected, enforce=True)
+            queue_upsert(conn,key,document,revision)
             conn.commit()
             return document, revision
 
 
 class StorageServer(SimpleHTTPRequestHandler):
     data_dir: Path = ROOT / "data"
-    db_path: Path = ROOT / "data" / DB_NAME
+    db_path: Path | str = ROOT / "data" / DB_NAME
+    database_backend = "sqlite"
+    database_schema_version = SCHEMA_VERSION
     authentication_enabled = True
 
     def translate_path(self, path: str) -> str:
@@ -373,15 +458,34 @@ class StorageServer(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:
-        if self.path == "/api/health":
-            return self.send_json({
+        request_path=urlparse(self.path).path.rstrip("/")
+        public_url=os.environ.get("SP_F001A_PUBLIC_URL","").strip()
+        if request_path=="/app-config.js" and public_url:
+            data=f"window.SP_F001A_PUBLIC_URL = {json.dumps(public_url)};\n".encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type","application/javascript; charset=utf-8")
+            self.send_header("Content-Length",str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if request_path == "/api/health":
+            try:
+                with connect_db(self.db_path) as conn:
+                    conn.execute("SELECT 1").fetchone()
+            except Exception as exc:
+                return self.send_json({"ok":False,"backend":self.database_backend,"error":str(exc)},503)
+            payload={
                 "ok": True,
-                "backend": "sqlite",
-                "schemaVersion": SCHEMA_VERSION,
-                "dataDir": str(self.data_dir),
-                "dbPath": str(self.db_path),
-            })
-        path = urlparse(self.path).path.rstrip("/")
+                "backend": self.database_backend,
+                "schemaVersion": self.database_schema_version,
+                "readOnly": cutover_read_only(),
+            }
+            if self.database_backend=="sqlite":
+                payload.update({"dataDir":str(self.data_dir),"dbPath":str(self.db_path)})
+                if replication_outbox_enabled():
+                    payload.update({"replicationMode":"sqlite-to-postgresql","replicationPending":pending_count(Path(self.db_path))})
+            return self.send_json(payload)
+        path = request_path
         if path == "/api/auth/session":
             session = self.require_session()
             if not session:
@@ -430,6 +534,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return self.auth_login()
         if path == "/api/auth/logout":
             return self.auth_logout()
+        if cutover_read_only():
+            return self.send_json({"ok":False,"error":"Bascule PostgreSQL en cours : modifications temporairement suspendues"},503)
         if path == "/api/auth/change-password":
             return self.auth_change_password()
         if path == "/api/auth/profile":
@@ -466,6 +572,8 @@ class StorageServer(SimpleHTTPRequestHandler):
         self.send_json({"ok": True, "revision": revision, "document": document})
 
     def do_PUT(self) -> None:
+        if cutover_read_only():
+            return self.send_json({"ok":False,"error":"Bascule PostgreSQL en cours : modifications temporairement suspendues"},503)
         path = urlparse(self.path).path
         if path.startswith("/api/admin/users/"):
             trigram = unquote(path[len("/api/admin/users/"):]).strip("/")
@@ -494,6 +602,8 @@ class StorageServer(SimpleHTTPRequestHandler):
         self.send_json({"ok": True, "revision": revision})
 
     def do_DELETE(self) -> None:
+        if cutover_read_only():
+            return self.send_json({"ok":False,"error":"Bascule PostgreSQL en cours : modifications temporairement suspendues"},503)
         path = urlparse(self.path).path
         if path.startswith("/api/admin/users/"):
             trigram = unquote(path[len("/api/admin/users/"):]).strip("/")
@@ -755,10 +865,12 @@ class StorageServer(SimpleHTTPRequestHandler):
         storage_delete(self.db_path, f"user:{trigram}")
         with WRITE_LOCK:
             with connect_db(self.db_path) as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                begin_write(conn)
                 record = read_document(conn, "users-list")
                 if record and isinstance(record[0], list):
-                    write_document(conn, "users-list", [item for item in record[0] if item != trigram])
+                    users=[item for item in record[0] if item != trigram]
+                    revision=write_document(conn,"users-list",users)
+                    queue_upsert(conn,"users-list",users,revision)
                 conn.commit()
         self.send_json({"ok": True})
 
@@ -778,20 +890,34 @@ class StorageServer(SimpleHTTPRequestHandler):
 
 
 def main() -> None:
+    global REPLICATION_WORKER
     parser = argparse.ArgumentParser(description="SP-F001A shared production server")
     parser.add_argument("--host", default=os.environ.get("SP_F001A_HOST", "0.0.0.0"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("SP_F001A_PORT", "5181")))
     parser.add_argument("--data-dir", default=os.environ.get("SP_F001A_DATA_DIR", str(ROOT / "data")))
+    parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL", ""), help=argparse.SUPPRESS)
     parser.add_argument("--disable-auth", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     StorageServer.data_dir = Path(args.data_dir).expanduser().resolve()
+    database_target=args.database_url
+    if not database_target and os.environ.get("SP_F001A_DATABASE_BACKEND","").strip().lower()=="postgresql":
+        database_target="postgresql-env"
+    imported = 0
     try:
-        StorageServer.data_dir.mkdir(parents=True, exist_ok=True)
-        probe = StorageServer.data_dir / ".write-test"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink(missing_ok=True)
-        StorageServer.db_path, imported = init_database(StorageServer.data_dir)
+        if database_target:
+            postgres_store.init_database(database_target)
+            StorageServer.db_path = database_target
+            StorageServer.database_backend = "postgresql"
+            StorageServer.database_schema_version = postgres_store.POSTGRES_SCHEMA_VERSION
+        else:
+            StorageServer.data_dir.mkdir(parents=True, exist_ok=True)
+            probe = StorageServer.data_dir / ".write-test"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            StorageServer.db_path, imported = init_database(StorageServer.data_dir)
+            StorageServer.database_backend = "sqlite"
+            StorageServer.database_schema_version = SCHEMA_VERSION
         ensure_admin_database(StorageServer.db_path)
         StorageServer.authentication_enabled = not args.disable_auth
     except PermissionError:
@@ -804,21 +930,37 @@ def main() -> None:
         print("- donner les droits Modifier/Ecriture a l'utilisateur qui lance le serveur;")
         print("- ou changer SP_F001A_DATA_DIR dans start-prod.bat vers un dossier autorise.")
         sys.exit(1)
-    except (sqlite3.Error, ValueError) as exc:
+    except Exception as exc:
         print("")
-        print("ERREUR: impossible d'initialiser la base SQLite.")
-        print(f"Dossier: {StorageServer.data_dir}")
+        print("ERREUR: impossible d'initialiser la base de données.")
+        print(f"Backend: {'PostgreSQL' if database_target else 'SQLite'}")
         print(f"Erreur : {exc}")
         sys.exit(1)
 
+    mirror_url=os.environ.get("SP_F001A_MIRROR_DATABASE_URL","").strip()
+    if StorageServer.database_backend=="sqlite" and mirror_url:
+        try:
+            REPLICATION_WORKER=ReplicationWorker(Path(StorageServer.db_path),mirror_url)
+            REPLICATION_WORKER.start()
+            print("PostgreSQL mirror: active")
+        except Exception as exc:
+            REPLICATION_WORKER=None
+            print(f"PostgreSQL mirror: en attente ({exc})")
+
     server = ThreadingHTTPServer((args.host, args.port), StorageServer)
     print(f"SP-F001A server: http://{args.host}:{args.port}/")
-    print(f"Data directory : {StorageServer.data_dir}")
-    print(f"SQLite DB      : {StorageServer.db_path}")
+    print(f"Database       : {StorageServer.database_backend}")
+    if StorageServer.database_backend == "sqlite":
+        print(f"Data directory : {StorageServer.data_dir}")
+        print(f"SQLite DB      : {StorageServer.db_path}")
     if imported:
         print(f"Legacy JSON imported into SQLite: {imported}")
     print("Stop with Ctrl+C")
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        if REPLICATION_WORKER:
+            REPLICATION_WORKER.stop()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,12 @@
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+data/
+tmp/
+output/
+tests/artifacts/
+deployment-backups/
+*.sqlite
+*.db
+.env

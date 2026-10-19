@@ -1,0 +1,36 @@
+services:
+  database:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-spf001a}
+      POSTGRES_USER: ${POSTGRES_USER:-spf001a}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définir POSTGRES_PASSWORD dans .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U ${POSTGRES_USER:-spf001a} -d ${POSTGRES_DB:-spf001a}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      SP_F001A_DATABASE_BACKEND: postgresql
+      PGHOST: database
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-spf001a}
+      PGUSER: ${POSTGRES_USER:-spf001a}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      SP_F001A_PORT: 5181
+      SP_F001A_PUBLIC_URL: ${SP_F001A_PUBLIC_URL:-}
+    ports:
+      - "${SP_F001A_HTTP_PORT:-5181}:5181"
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

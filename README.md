@@ -97,6 +97,17 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -Version <VERSION> -
 Le chemin de production réel est volontairement absent de ce document. Il se configure avec `-Destination` lors du déploiement et avec `SP_F001A_DATA_DIR` pour le stockage des données.
 Voir aussi [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## PostgreSQL et Docker
+
+SQLite reste utilisé tant que `DATABASE_URL` n'est pas défini. Pour démarrer l'application avec PostgreSQL :
+
+```powershell
+$env:DATABASE_URL = "postgresql://<utilisateur>:<mot-de-passe>@<serveur>:5432/<base>"
+python server.py
+```
+
+Une configuration Docker Compose est fournie pour les essais sur une machine équipée de Docker. La migration progressive et son retour arrière sont documentés dans [POSTGRESQL-MIGRATION.md](POSTGRESQL-MIGRATION.md).
+
 ### Adresse des liens vers les dossiers
 
 Les liens copiés depuis un dossier et ajoutés aux emails contiennent l'OF et le SN/lot en plus des identifiants internes. Ils restent ainsi utilisables après une migration des données.

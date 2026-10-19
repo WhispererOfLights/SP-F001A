@@ -34,8 +34,9 @@ if (Test-Path -LiteralPath $targetConfig) {
 }
 
 $deployItems = @(
-    "index.html", "migration.html", "server.py", "relational_store.py", "src", "assets", "vendor", "scripts", "tests",
-    "README.md", "ARCHITECTURE.md", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
+    "index.html", "migration.html", "server.py", "relational_store.py", "postgres_store.py", "replication_bridge.py",
+    "requirements.txt", "Dockerfile", "compose.yaml", ".dockerignore", ".env.example", "src", "assets", "vendor", "scripts", "tests",
+    "README.md", "ARCHITECTURE.md", "POSTGRESQL-MIGRATION.md", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
     "start-prod-invisible.vbs", "server-status.vbs", "install-scheduled-task.ps1", "inspect-scheduled-task.ps1",
     "test-scheduled-task.ps1"
 )

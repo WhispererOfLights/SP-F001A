@@ -13,6 +13,7 @@ src/App.runtime.jsx
 __pycache__/
 .venv/
 venv/
+.env
 
 # OS / editor
 .DS_Store

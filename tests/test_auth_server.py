@@ -5,6 +5,7 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+from unittest.mock import patch
 from pathlib import Path
 from http.server import ThreadingHTTPServer
 
@@ -155,6 +156,23 @@ class AuthServerTests(unittest.TestCase):
             {"If-Match": headers["ETag"]},
         )
         self.assertEqual(status, 403)
+
+    def test_cutover_read_only_keeps_reads_and_rejects_writes(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "jgr", "password": "ancien"}
+        )
+        self.assertEqual(status, 200)
+        status, _, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        with patch.dict("os.environ", {"SP_F001A_READ_ONLY": "1"}):
+            status, payload, _ = self.request(
+                "/api/storage/of%3Atest", "PUT", {"header": {"of": "9999"}},
+                {"If-Match": headers["ETag"]},
+            )
+            self.assertEqual(status, 503)
+            self.assertIn("Bascule PostgreSQL", payload["error"])
+            status, _, _ = self.request("/api/storage/of%3Atest")
+            self.assertEqual(status, 200)
 
 
 if __name__ == "__main__":
