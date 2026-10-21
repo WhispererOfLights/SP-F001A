@@ -108,6 +108,16 @@ python server.py
 
 Une configuration Docker Compose est fournie pour les essais sur une machine équipée de Docker. La migration progressive et son retour arrière sont documentés dans [POSTGRESQL-MIGRATION.md](POSTGRESQL-MIGRATION.md).
 
+### Sauvegarde PostgreSQL sous Windows
+
+La connexion PostgreSQL reste dans `C:\ProgramData\SP-F001A\postgres.env`. Le dossier de sauvegarde est configuré séparément, hors Git, dans `C:\ProgramData\SP-F001A\backup.env` :
+
+```text
+BACKUP_DIR=<DOSSIER_RESEAU>\SP-F001A\migration-backups
+```
+
+`scripts\backup-postgres.ps1` produit un dump atomique et conserve 60 jours de sauvegardes quotidiennes. `scripts\install-postgres-backup-task.ps1`, exécuté en administrateur, installe son lancement à 18:00 et à l'ouverture de session. La tâche utilise l'identité Windows de l'utilisateur afin de conserver son accès au partage réseau.
+
 ### Adresse des liens vers les dossiers
 
 Les liens copiés depuis un dossier et ajoutés aux emails contiennent l'OF et le SN/lot en plus des identifiants internes. Ils restent ainsi utilisables après une migration des données.
