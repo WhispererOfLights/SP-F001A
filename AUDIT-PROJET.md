@@ -21,7 +21,7 @@ Date de l'audit : 21 octobre 2026.
 - Ajout de contrôles serveur sur l'identité des OF, les visas d'annulation/restauration et les suppressions définitives.
 - Remplacement des bundles React de développement par les bundles de production React 18.3.1.
 - Ajout de `package-lock.json` pour figer les versions exactes des outils JavaScript.
-- Premier découpage de `src/App.jsx` : les rapports et Adjust/Rework sont désormais isolés dans `src/modules/`.
+- Découpage de `src/App.jsx`, ramené de 8 254 à 2 786 lignes : accueil, rapports et onglets métier sont isolés dans `src/modules/`.
 - Les statuts OF/SN et le SN produit fini modifiés depuis l'accueil utilisent désormais une commande serveur atomique et ciblée.
 - Les autorisations de cette commande sont couvertes par des tests serveur Manager/Admin et opérateur.
 
@@ -34,7 +34,7 @@ Date de l'audit : 21 octobre 2026.
 
 ### Priorité moyenne
 
-1. Continuer le découpage progressif de `src/App.jsx`, ramené de 8 254 à 6 270 lignes, par domaine : accueil, consommables, étuvages et suivi technique.
+1. Continuer à extraire les utilitaires partagés de `src/App.jsx` uniquement lorsque leur évolution le justifie ; les principaux domaines sont désormais séparés.
 
 ### Priorité basse
 
