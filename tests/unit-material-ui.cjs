@@ -32,7 +32,17 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.evaluate(({entry, data, user,otherEntry}) => {
       localStorage.setItem('sp-f001-theme', 'light');
       localStorage.setItem('sp-f001-last-activity', String(Date.now()));
-      Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copiedHomeText=value;}}});
+      window.ClipboardItem=class ClipboardItem{
+        constructor(data){this.data=data;}
+        getType(type){return Promise.resolve(this.data[type]);}
+      };
+      Object.defineProperty(navigator,'clipboard',{configurable:true,value:{
+        writeText:async value=>{window.copiedHomeText=value;},
+        write:async items=>{
+          window.copiedHomeText=await (await items[0].getType('text/plain')).text();
+          window.copiedHomeHtml=await (await items[0].getType('text/html')).text();
+        }
+      }});
       window.testRecords = {'session': user, 'of-list': [entry,otherEntry], 'of:test-of': data,'of:other-of':{header:otherEntry,units:{rows:otherEntry._snRows}}};
       const different={id:'different-of',of:'100DIFFERENT',codeArticle:'999',status:'en_cours',_snRows:[{id:'different-unit',sn:'DIFFERENTSN'}]};
       window.testRecords['of-list'].push(different);
@@ -83,21 +93,25 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.getByRole('toolbar',{name:'Actions sur la sélection',exact:true}).count(),0);
     const copyWholeOf=page.getByRole('button',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true}).first();
     await copyWholeOf.click();
+    await page.waitForFunction(()=>window.copiedHomeHtml?.includes('<table'));
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
-      'N° OF | Article - Description | SN ou LOT | Qté si lot | OTP',
-      '100TEST | 250001163 - Article de test | SN1 |  | 7400-TEST',
-      '100TEST | 250001163 - Article de test | SN2 |  | 7400-TEST',
-      '100TEST | 250001163 - Article de test | LOT LOT-A | 10 | 7400-TEST'
+      'N° OF\tArticle - Description\tSN ou LOT\tQté si lot\tOTP',
+      '100TEST\t250001163 - Article de test\tSN1\t\t7400-TEST',
+      '100TEST\t250001163 - Article de test\tSN2\t\t7400-TEST',
+      '100TEST\t250001163 - Article de test\tLOT LOT-A\t10\t7400-TEST'
     ].join('\n'));
+    assert.ok((await page.evaluate(()=>window.copiedHomeHtml)).includes('<th style="border:1px solid #000'));
+    assert.ok((await page.evaluate(()=>window.copiedHomeHtml)).includes('<td style="border:1px solid #000'));
     await page.getByRole('checkbox',{name:'Sélectionner SN1 - OF 100TEST',exact:true}).check();
     await page.getByRole('cell',{name:'SN2',exact:true}).click();
     assert.ok(await page.getByRole('checkbox',{name:'Sélectionner SN2 - OF 100TEST',exact:true}).isChecked());
     assert.equal(await page.getByRole('toolbar',{name:'Actions sur la sélection',exact:true}).count(),1);
     await page.getByRole('button',{name:'📋 Copier la sélection',exact:true}).click();
+    await page.waitForFunction(()=>window.copiedHomeText?.split('\n').length===3);
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
-      'N° OF | Article - Description | SN ou LOT | Qté si lot | OTP',
-      '100TEST | 250001163 - Article de test | SN1 |  | 7400-TEST',
-      '100TEST | 250001163 - Article de test | SN2 |  | 7400-TEST'
+      'N° OF\tArticle - Description\tSN ou LOT\tQté si lot\tOTP',
+      '100TEST\t250001163 - Article de test\tSN1\t\t7400-TEST',
+      '100TEST\t250001163 - Article de test\tSN2\t\t7400-TEST'
     ].join('\n'));
     const sheetsDownloadPromise=page.waitForEvent('download');
     await page.getByRole('button',{name:'Feuilles composants',exact:true}).click();
@@ -176,6 +190,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.screenshot({path: path.join(__dirname, 'artifacts/home-units-1920.png')});
     const homeTeamsCopy=page.getByRole('button',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true}).first();
     await homeTeamsCopy.click();
+    await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.getAttribute('aria-label')==="Copier toutes les lignes de l'OF 100TEST dans le presse-papier"&&button.textContent.trim()==='✓'));
     assert.equal((await homeTeamsCopy.textContent()).trim(),'✓');
     await page.getByRole('button', {name: 'Ouvrir OF 100TEST - SN2', exact: true}).click();
     await page.waitForFunction(() => document.getElementById('active-work-sn')?.value === 'u2');

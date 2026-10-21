@@ -295,6 +295,34 @@ const copyToClipboard = text => {
     document.body.removeChild(ta);
   }catch{}
 };
+const copyRichToClipboard = async ({plain,html}) => {
+  const text=String(plain||"").trimEnd();
+  if(!text) return false;
+  try{
+    if(navigator.clipboard?.write&&typeof ClipboardItem!=="undefined"){
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain":new Blob([text],{type:"text/plain"}),
+        "text/html":new Blob([String(html||"")],{type:"text/html"})
+      })]);
+      return true;
+    }
+  }catch{}
+  try{
+    let copied=false;
+    const onCopy=event=>{
+      event.clipboardData?.setData("text/plain",text);
+      event.clipboardData?.setData("text/html",String(html||""));
+      event.preventDefault();
+      copied=true;
+    };
+    document.addEventListener("copy",onCopy);
+    const accepted=document.execCommand("copy");
+    document.removeEventListener("copy",onCopy);
+    if(accepted&&copied) return true;
+  }catch{}
+  copyToClipboard(text);
+  return false;
+};
 const buildTeamsOfText = (header,units=[]) => {
   const article=String(header?.codeArticle||header?.articleNo||"N/A").trim()||"N/A";
   const description=String(header?.description||"N/A").trim()||"N/A";

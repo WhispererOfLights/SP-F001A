@@ -154,9 +154,10 @@ const homeWorkedFilter = (rows,workedIds,onlyWorked,searchActive) => {
 };
 const homeRowKey = row => `${row.id}:${row._homeUnitId||"of"}`;
 const homeUnitName = row => row.sn||row.lot||"Sans SN / LOT";
-const homeClipboardText = rows => {
+const escapeClipboardHtml = value => String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+const homeClipboardData = rows => {
   const seen=new Set();
-  const lines=(rows||[]).filter(row=>{
+  const values=(rows||[]).filter(row=>{
     const key=homeRowKey(row);
     if(seen.has(key)) return false;
     seen.add(key);
@@ -167,9 +168,15 @@ const homeClipboardText = rows => {
     const article=compactArticleCode(row.codeArticle||row.articleNo)||"N/A";
     const description=String(row.description||"N/A").trim()||"N/A";
     const quantity=isLot?(String(row._homeQty||"").trim()||"N/A"):"";
-    return [row.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,row.otp||row.projet||"N/A"].join(" | ");
+    return [row.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,row.otp||row.projet||"N/A"];
   });
-  return ["N° OF | Article - Description | SN ou LOT | Qté si lot | OTP",...lines].join("\n");
+  const headers=["N° OF","Article - Description","SN ou LOT","Qté si lot","OTP"];
+  const cellStyle="border:1px solid #000;padding:5px 7px;text-align:left;vertical-align:top;";
+  const headerStyle=`${cellStyle}background:#e8edf3;font-weight:bold;`;
+  const html=`<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt;">`
+    +`<thead><tr>${headers.map(value=>`<th style="${headerStyle}">${escapeClipboardHtml(value)}</th>`).join("")}</tr></thead>`
+    +`<tbody>${values.map((cells,index)=>`<tr style="background:${index%2?"#f3f4f6":"#ffffff"};">${cells.map(value=>`<td style="${cellStyle}">${escapeClipboardHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  return {plain:[headers,...values].map(cells=>cells.join("\t")).join("\n"),html};
 };
 const homeOtpName = row => String(row.otp||row.projet||"Non renseigné").trim()||"Non renseigné";
 const hasSingleMeetingOtp = rows => new Set(rows.map(homeOtpName)).size===1;
@@ -652,8 +659,8 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const togglePageSelection=checked=>setSelectedKeys(keys=>checked
     ? [...new Set([...keys,...pageSelectionKeys])]
     : keys.filter(key=>!pageSelectionKeys.includes(key)));
-  const copyHomeRows=(rows,key)=>{
-    copyToClipboard(homeClipboardText(rows));
+  const copyHomeRows=async(rows,key)=>{
+    await copyRichToClipboard(homeClipboardData(rows));
     setCopiedTeamsKey(key);
     setTimeout(()=>setCopiedTeamsKey(current=>current===key?"":current),1800);
   };
