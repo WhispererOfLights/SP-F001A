@@ -18734,6 +18734,23 @@ var homeRowKey = function homeRowKey(row) {
 var homeUnitName = function homeUnitName(row) {
   return row.sn || row.lot || "Sans SN / LOT";
 };
+var homeClipboardText = function homeClipboardText(rows) {
+  var seen = new Set();
+  var lines = (rows || []).filter(function (row) {
+    var key = homeRowKey(row);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(function (row) {
+    var isLot = row._homeUnitKind === "lot" || !cleanSn(row.sn) && !!cleanSn(row.lot);
+    var identity = cleanSn(isLot ? row.lot || row.sn : row.sn || row.lot) || "N/A";
+    var article = compactArticleCode(row.codeArticle || row.articleNo) || "N/A";
+    var description = String(row.description || "N/A").trim() || "N/A";
+    var quantity = isLot ? String(row._homeQty || "").trim() || "N/A" : "";
+    return [row.of || "N/A", "".concat(article, " - ").concat(description), isLot ? "LOT ".concat(identity) : identity, quantity, row.otp || row.projet || "N/A"].join(" | ");
+  });
+  return ["N° OF | Article - Description | SN ou LOT | Qté si lot | OTP"].concat(_toConsumableArray(lines)).join("\n");
+};
 var homeOtpName = function homeOtpName(row) {
   return String(row.otp || row.projet || "Non renseigné").trim() || "Non renseigné";
 };
@@ -20103,6 +20120,15 @@ var OFSelector = function OFSelector(_ref122) {
       });
     });
   };
+  var copyHomeRows = function copyHomeRows(rows, key) {
+    copyToClipboard(homeClipboardText(rows));
+    setCopiedTeamsKey(key);
+    setTimeout(function () {
+      return setCopiedTeamsKey(function (current) {
+        return current === key ? "" : current;
+      });
+    }, 1800);
+  };
   var exportBulkPdf = /*#__PURE__*/function () {
     var _exportBulkPdf = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee30(options) {
       var logoImage, grouped, blobs, _iterator6, _step6, _step6$value, id, group, data, stored, merged, ofNumbers, suffix, _t40, _t41;
@@ -20768,6 +20794,12 @@ var OFSelector = function OFSelector(_ref122) {
     }
   }, selectedRows.length, " s\xE9lectionn\xE9e", selectedRows.length > 1 ? "s" : ""), /*#__PURE__*/React.createElement(Btn, {
     onClick: function onClick() {
+      return copyHomeRows(selectedRows, "selection");
+    },
+    color: copiedTeamsKey === "selection" ? C.green : C.blue,
+    small: true
+  }, copiedTeamsKey === "selection" ? "✓ Copié" : "📋 Copier la sélection"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: function onClick() {
       return setShowBulkPdf(true);
     },
     color: C.blue,
@@ -21178,7 +21210,6 @@ var OFSelector = function OFSelector(_ref122) {
     var groupStatuses = _toConsumableArray(new Set(ofRows.map(function (row) {
       return row.unitStatus || "en_cours";
     })));
-    var copyRows = collapsed ? ofRows : [o];
     var actionKey = collapsed ? "".concat(o.id, ":all") : homeRowKey(o);
     return /*#__PURE__*/React.createElement("tr", {
       key: "".concat(o.id, ":").concat(o._homeUnitId || "global"),
@@ -21475,17 +21506,11 @@ var OFSelector = function OFSelector(_ref122) {
     }, "\u2014"))), /*#__PURE__*/React.createElement(TD, {
       center: true
     }, /*#__PURE__*/React.createElement("button", {
-      title: "Copier N\xB0 article, description et SN dans le presse-papier",
-      "aria-label": collapsed ? "Copier les informations de l'OF ".concat(o.of, " dans le presse-papier") : "Copier les informations de l'OF ".concat(o.of, " - ").concat(homeUnitName(o), " dans le presse-papier"),
+      title: "Copier toutes les lignes SN / LOT de cet OF",
+      "aria-label": "Copier toutes les lignes de l'OF ".concat(o.of, " dans le presse-papier"),
       onClick: function onClick(e) {
         e.stopPropagation();
-        copyToClipboard(buildTeamsOfText(o, copyRows));
-        setCopiedTeamsKey(actionKey);
-        setTimeout(function () {
-          return setCopiedTeamsKey(function (current) {
-            return current === actionKey ? "" : current;
-          });
-        }, 1800);
+        copyHomeRows(ofRows, actionKey);
       },
       style: {
         background: copiedTeamsKey === actionKey ? C.green : C.blue,

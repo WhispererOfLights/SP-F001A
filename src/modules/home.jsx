@@ -154,6 +154,23 @@ const homeWorkedFilter = (rows,workedIds,onlyWorked,searchActive) => {
 };
 const homeRowKey = row => `${row.id}:${row._homeUnitId||"of"}`;
 const homeUnitName = row => row.sn||row.lot||"Sans SN / LOT";
+const homeClipboardText = rows => {
+  const seen=new Set();
+  const lines=(rows||[]).filter(row=>{
+    const key=homeRowKey(row);
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(row=>{
+    const isLot=row._homeUnitKind==="lot"||(!cleanSn(row.sn)&&!!cleanSn(row.lot));
+    const identity=cleanSn(isLot?(row.lot||row.sn):(row.sn||row.lot))||"N/A";
+    const article=compactArticleCode(row.codeArticle||row.articleNo)||"N/A";
+    const description=String(row.description||"N/A").trim()||"N/A";
+    const quantity=isLot?(String(row._homeQty||"").trim()||"N/A"):"";
+    return [row.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,row.otp||row.projet||"N/A"].join(" | ");
+  });
+  return ["N° OF | Article - Description | SN ou LOT | Qté si lot | OTP",...lines].join("\n");
+};
 const homeOtpName = row => String(row.otp||row.projet||"Non renseigné").trim()||"Non renseigné";
 const hasSingleMeetingOtp = rows => new Set(rows.map(homeOtpName)).size===1;
 const FOLDER_LINK_TABS=new Set(["rework","consommables","etuvage","testequip","demating","faits"]);
@@ -635,6 +652,11 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const togglePageSelection=checked=>setSelectedKeys(keys=>checked
     ? [...new Set([...keys,...pageSelectionKeys])]
     : keys.filter(key=>!pageSelectionKeys.includes(key)));
+  const copyHomeRows=(rows,key)=>{
+    copyToClipboard(homeClipboardText(rows));
+    setCopiedTeamsKey(key);
+    setTimeout(()=>setCopiedTeamsKey(current=>current===key?"":current),1800);
+  };
   const exportBulkPdf=async options=>{
     const logoImage=await loadPdfLogoImage("assets/logo.png");
     const grouped=new Map();
@@ -804,6 +826,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
 
       {selectionMode&&<div role="toolbar" aria-label="Actions sur la sélection" style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:12,padding:"8px 10px",background:C.blue+"10",border:`1px solid ${C.blue}`,borderRadius:6}}>
         <strong style={{color:C.blue,fontSize:12,minWidth:105}}>{selectedRows.length} sélectionnée{selectedRows.length>1?"s":""}</strong>
+        <Btn onClick={()=>copyHomeRows(selectedRows,"selection")} color={copiedTeamsKey==="selection"?C.green:C.blue} small>{copiedTeamsKey==="selection"?"✓ Copié":"📋 Copier la sélection"}</Btn>
         <Btn onClick={()=>setShowBulkPdf(true)} color={C.blue} small>Imprimer les dossiers</Btn>
         <Btn onClick={exportBulkComponentSheets} color={C.blue} small>Feuilles composants</Btn>
         {isAdminManager(user)&&<>
@@ -946,7 +969,6 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const lotSummary=lotCount?`${lotCount} LOT`:"—";
                 const summaryName=[snCount&&`${snCount} SN`,lotCount&&`${lotCount} LOT`].filter(Boolean).join(" / ")||`${ofRows.length} élément(s)`;
                 const groupStatuses=[...new Set(ofRows.map(row=>row.unitStatus||"en_cours"))];
-                const copyRows=collapsed?ofRows:[o];
                 const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
                 return (
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
@@ -1020,8 +1042,8 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                       </div>
                     </TD>
                     <TD center>
-                      <button title="Copier N° article, description et SN dans le presse-papier" aria-label={collapsed?`Copier les informations de l'OF ${o.of} dans le presse-papier`:`Copier les informations de l'OF ${o.of} - ${homeUnitName(o)} dans le presse-papier`}
-                        onClick={e=>{e.stopPropagation();copyToClipboard(buildTeamsOfText(o,copyRows));setCopiedTeamsKey(actionKey);setTimeout(()=>setCopiedTeamsKey(current=>current===actionKey?"":current),1800);}}
+                      <button title="Copier toutes les lignes SN / LOT de cet OF" aria-label={`Copier toutes les lignes de l'OF ${o.of} dans le presse-papier`}
+                        onClick={e=>{e.stopPropagation();copyHomeRows(ofRows,actionKey);}}
                         style={{background:copiedTeamsKey===actionKey?C.green:C.blue,border:"none",borderRadius:4,color:"#fff",padding:"4px 7px",cursor:"pointer",marginRight:6,fontWeight:800}}>
                         {copiedTeamsKey===actionKey?"✓":"📋"}
                       </button>
