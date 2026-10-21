@@ -10,3 +10,4 @@ deployment-backups/
 *.sqlite
 *.db
 .env
+node_modules/

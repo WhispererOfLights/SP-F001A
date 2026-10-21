@@ -4,8 +4,6 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 const sourcePath = path.join(root, "src", "App.jsx");
-const browserPath = path.join(root, "src", "App.browser.jsx");
-const runtimeSourcePath = path.join(root, "src", "App.runtime.jsx");
 const runtimePath = path.join(root, "src", "App.runtime.js");
 const babelPath = path.join(root, "vendor", "babel.min.js");
 
@@ -38,7 +36,5 @@ const transformed = context.Babel.transform(browserSource, {
   compact: false,
 }).code;
 
-fs.writeFileSync(browserPath, browserSource, "utf8");
-fs.writeFileSync(runtimeSourcePath, browserSource, "utf8");
 fs.writeFileSync(runtimePath, transformed + "\n", "utf8");
 console.log("Application reconstruite : src/App.runtime.js");

@@ -8,6 +8,8 @@ output/
 data/
 tests/artifacts/
 src/App.runtime.jsx
+src/App.browser.jsx
+node_modules/
 
 # Python
 __pycache__/

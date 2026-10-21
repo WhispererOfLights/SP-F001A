@@ -1,0 +1,13 @@
+{
+  "name": "sp-f001a",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-app.cjs",
+    "test": "npm run build && npm run test:js",
+    "test:js": "node scripts/test-js.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

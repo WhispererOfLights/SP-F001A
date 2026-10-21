@@ -18,7 +18,7 @@ http://127.0.0.1:5180/
 
 Ce mode est pratique pour tester l'interface, mais les donnees restent dans le navigateur.
 
-## Lancer en prod partagee
+## Ancien démarrage SQLite
 
 Copier tout le dossier du site dans un emplacement réseau accessible aux utilisateurs, par exemple :
 
@@ -44,7 +44,7 @@ Les postes production ouvrent ensuite le lien du PC qui fait tourner le serveur 
 http://NOM-DU-PC-SERVEUR:5181/
 ```
 
-Le PC/serveur doit rester allume. Toutes les donnees persistantes sont ecrites dans la base SQLite `sp-f001a.sqlite`.
+Ce mode historique reste disponible pour les essais ou un retour arrière. La production actuelle utilise PostgreSQL.
 Si d'anciens fichiers JSON sont presents dans `data`, le serveur les importe automatiquement dans SQLite au demarrage sans les supprimer.
 
 Important : en production il faut ouvrir l'application avec `http://NOM-DU-PC-SERVEUR:5181/`, pas en double-cliquant sur `index.html`. Le mode `file:///.../index.html` garde les donnees dans le navigateur local.
@@ -79,11 +79,13 @@ Les sessions sont gérées par le serveur dans un cookie `HttpOnly` et expirent 
 Depuis la racine du projet :
 
 ```powershell
+npm install
 node scripts\build-app.cjs
 powershell -ExecutionPolicy Bypass -File scripts\test-all.ps1
 ```
 
-`build-app.cjs` assemble les modules source et régénère `src/App.browser.jsx`, `src/App.runtime.jsx` et `src/App.runtime.js`.
+`npm install` installe la dépendance de test navigateur.
+`build-app.cjs` assemble les modules source et régénère uniquement `src/App.runtime.js`.
 `test-all.ps1` exécute les tests Python, les tests métier JavaScript et les scénarios navigateur/SQLite.
 
 ## Déployer
@@ -99,7 +101,7 @@ Voir aussi [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## PostgreSQL et Docker
 
-SQLite reste utilisé tant que `DATABASE_URL` n'est pas défini. Pour démarrer l'application avec PostgreSQL :
+La production utilise PostgreSQL. SQLite reste disponible comme solution locale et comme chemin de retour arrière. Pour démarrer l'application avec PostgreSQL :
 
 ```powershell
 $env:DATABASE_URL = "postgresql://<utilisateur>:<mot-de-passe>@<serveur>:5432/<base>"
@@ -161,5 +163,6 @@ python scripts\generate_report.py C:\chemin\vers\rapport.json --output C:\chemin
 
 - L'interface reste livrée comme des fichiers HTML/JS précompilés, servis par `server.py`.
 - En mode `python -m http.server`, les donnees sont stockees dans le navigateur via `localStorage`.
-- En mode `server.py`, les donnees persistantes passent par `/api/storage` et sont stockees dans une base SQLite unique : `data\sp-f001a.sqlite`.
-- Les données métier et comptes sont stockés dans SQLite; les mots de passe ne sont jamais renvoyés au navigateur.
+- En production, les données persistantes passent par `/api/storage` et sont stockées dans PostgreSQL.
+- En mode SQLite local, elles restent dans `data\sp-f001a.sqlite`.
+- Les mots de passe ne sont jamais renvoyés au navigateur.

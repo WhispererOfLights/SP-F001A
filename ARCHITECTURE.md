@@ -14,7 +14,7 @@
 
 ## Données
 
-SQLite reste le backend par défaut et la source de vérité de la production actuelle. Lorsque `DATABASE_URL` est défini, PostgreSQL devient le backend principal. Les deux backends conservent les documents et leurs révisions sans modifier le contrat HTTP de l'interface.
+PostgreSQL est la source de vérité de la production actuelle. SQLite reste pris en charge pour les essais locaux et comme solution de retour arrière. Les deux backends conservent les documents et leurs révisions sans modifier le contrat HTTP de l'interface.
 
 Pendant la migration, l'outbox SQLite et le miroir PostgreSQL permettent de préparer et vérifier la nouvelle base sans interrompre le travail courant. La procédure complète est décrite dans `POSTGRESQL-MIGRATION.md`.
 
