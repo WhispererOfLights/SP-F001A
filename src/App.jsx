@@ -2181,6 +2181,28 @@ export default function App(){
     }catch(error){window.alert(`Statuts non enregistrés : ${error.message||error}`);}
   };
 
+  const saveSection=async (tab,updated)=>{
+    if(!currentId||!window.storage.updateWorkOrderSection){save(updated);return;}
+    setSaving(true);
+    try{
+      await window.storage.updateWorkOrderSection(`of:${currentId}`,tab,updated[tab]||{});
+      setSaveError("");setPendingSave(null);
+      setLastSaved(new Date().toLocaleTimeString("fr-FR"));
+      if(tab==="units") setOfList(list=>list.map(entry=>entry.id===currentId
+        ? {...entry,_snRows:updated.units?.rows||[]} : entry));
+      if(tab==="etuvage"){
+        const rows=effectiveEtuvageRows(updated).filter(row=>row.entreeDT);
+        const sortable=value=>String(value||"").replace(/^(\d{2})\/(\d{2})\/(\d{4})/,"$3-$2-$1");
+        const last=rows.length?rows.reduce((a,b)=>sortable(b.entreeDT)>sortable(a.entreeDT)?b:a).entreeDT:null;
+        setOfList(list=>list.map(entry=>entry.id===currentId?{...entry,lastEtuvageDT:last}:entry));
+      }
+    }catch(error){
+      setPendingSave(updated);
+      setSaveError(error?.message||"La modification n'a pas été enregistrée.");
+    }
+    setSaving(false);
+  };
+
   const updateTab=(tab,tabData)=>{
     if(!canWriteData(user)) return;
     if(tab==="units"&&!isAdminManager(user)) return;
@@ -2193,7 +2215,7 @@ export default function App(){
       }
     }
     const updated=withUnitMetadata({...ofData,[tab]:tabData});
-    setOfData(updated);save(updated);
+    setOfData(updated);saveSection(tab,updated);
   };
 
   const copyReworkAcross = async (requestedRows,targets,includeChecks,copyMode="new",reuseSample=false) => {

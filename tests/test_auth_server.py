@@ -211,6 +211,38 @@ class AuthServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 403)
 
+    def test_operator_can_update_one_business_section_only(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        next_rework = json.loads(json.dumps(document["rework"]))
+        next_rework["rows"][1]["repere"] = "R2-MOD"
+        status, payload, _ = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "rework", "value": next_rework},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["document"]["rework"]["rows"][1]["repere"], "R2-MOD")
+        self.assertEqual(payload["document"]["header"]["of"], "1000")
+
+    def test_operator_cannot_update_units_section(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        status, _, _ = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "units", "value": {"rows": []}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
+
     def test_operator_cannot_bypass_of_identity_or_audit_rules(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}

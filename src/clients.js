@@ -179,5 +179,19 @@ window.storage = {
       this._versions.set(key, res.headers.get("ETag"));
       return (await res.json()).document;
     });
+  },
+  async updateWorkOrderSection(key, section, value) {
+    if (!this._useApi(true)) return null;
+    return this._queue(key, async () => {
+      const res = await fetch("/api/work-orders/update-section", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json; charset=utf-8", ...await this._conditions(key) },
+        body: JSON.stringify({ key, section, value })
+      });
+      if (!res.ok) return this._failure(res);
+      this._versions.set(key, res.headers.get("ETag"));
+      return (await res.json()).document;
+    });
   }
 };

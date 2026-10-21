@@ -24,13 +24,15 @@ Date de l'audit : 21 octobre 2026.
 - Découpage de `src/App.jsx`, ramené de 8 254 à 2 786 lignes : accueil, rapports et onglets métier sont isolés dans `src/modules/`.
 - Les statuts OF/SN et le SN produit fini modifiés depuis l'accueil utilisent désormais une commande serveur atomique et ciblée.
 - Les autorisations de cette commande sont couvertes par des tests serveur Manager/Admin et opérateur.
+- Les saisies courantes enregistrent désormais uniquement l'onglet métier concerné ; le serveur refuse toute modification indirecte des autres onglets ou de l'en-tête.
+- Une sauvegarde PostgreSQL récente a été recréée et son archive contrôlée : 20 ensembles de données sont lisibles par `pg_restore`.
 
 ## Travaux recommandés
 
 ### Priorité haute
 
-1. Continuer à remplacer progressivement les autres écritures de documents complets par des commandes métier ciblées. La clôture du suivi technique et les modifications rapides depuis l'accueil utilisent déjà ce mécanisme.
-2. Tester régulièrement une restauration complète des sauvegardes PostgreSQL, pas seulement leur création.
+1. Continuer à remplacer les quelques opérations multi-onglets par des commandes métier dédiées. Les saisies d'onglet, la clôture du suivi technique et les modifications rapides depuis l'accueil sont déjà ciblées.
+2. Faire attribuer à un compte technique de restauration le droit de créer une base PostgreSQL temporaire, puis automatiser le test complet. Le compte de l'application ne possède volontairement pas ce droit.
 
 ### Priorité moyenne
 

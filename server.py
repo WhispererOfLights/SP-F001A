@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import copy
 import hashlib
 import hmac
 import json
@@ -555,6 +556,35 @@ def update_work_order_summary(
             return document, revision
 
 
+def update_work_order_section(
+    db_path: Path | str, key: str, section: str, value: dict, user: dict, expected: int
+) -> tuple[dict, int]:
+    """Replace one business section without accepting changes to the rest of the OF."""
+    allowed_sections = {"units", "rework", "consommables", "etuvage", "testequip", "faits", "openwork", "demating"}
+    if not key.startswith("of:") or "/" in key or "\\" in key or len(key) > 200:
+        raise ValueError("Dossier invalide")
+    if section not in allowed_sections or not isinstance(value, dict):
+        raise ValueError("Onglet invalide")
+    if section == "units" and user.get("role") not in MANAGER_ROLES:
+        raise PermissionError("Seuls Admin et Manager peuvent modifier les SN et lots")
+    with WRITE_LOCK:
+        with connect_db(db_path) as conn:
+            begin_write(conn)
+            record = read_document(conn, key)
+            if not record or not isinstance(record[0], dict):
+                raise ValueError("Dossier introuvable")
+            current = record[0]
+            document = copy.deepcopy(current)
+            document[section] = value
+            if section == "units":
+                document.setdefault("header", {})["_snRows"] = value.get("rows", [])
+            validate_of_document_update(user, current, document)
+            revision = write_document(conn, key, document, expected=expected, enforce=True)
+            queue_upsert(conn, key, document, revision)
+            conn.commit()
+            return document, revision
+
+
 class StorageServer(SimpleHTTPRequestHandler):
     data_dir: Path = ROOT / "data"
     db_path: Path | str = ROOT / "data" / DB_NAME
@@ -673,6 +703,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return self.close_work_item()
         if path == "/api/work-orders/update-summary":
             return self.update_work_order_summary()
+        if path == "/api/work-orders/update-section":
+            return self.update_work_order_section()
         if path == "/api/admin/users/import":
             return self.admin_import_users()
         if path.startswith("/api/admin/users/") and path.endswith("/reset-password"):
@@ -715,6 +747,30 @@ class StorageServer(SimpleHTTPRequestHandler):
                 payload.get("units") or [],
                 self.expected_revision(),
             )
+        except (ConflictError, ValueError, AttributeError) as exc:
+            status = 409 if isinstance(exc, ConflictError) else 400
+            return self.send_json({"ok": False, "error": str(exc)}, status)
+        self.send_json({"ok": True, "revision": revision, "document": document})
+
+    def update_work_order_section(self) -> None:
+        session = self.require_session()
+        if not session:
+            return
+        try:
+            payload = self.read_json_body()
+            key = str(payload.get("key") or "")
+            if not self.can_write_key(session["user"], key):
+                return self.send_json({"ok": False, "error": "Droits insuffisants"}, 403)
+            document, revision = update_work_order_section(
+                self.db_path,
+                key,
+                str(payload.get("section") or ""),
+                payload.get("value"),
+                session["user"],
+                self.expected_revision(),
+            )
+        except PermissionError as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, 403)
         except (ConflictError, ValueError, AttributeError) as exc:
             status = 409 if isinstance(exc, ConflictError) else 400
             return self.send_json({"ok": False, "error": str(exc)}, status)
