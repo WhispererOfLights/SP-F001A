@@ -18,12 +18,13 @@ Date de l'audit : 21 octobre 2026.
 - Extension des CI GitLab et GitHub à toute la suite Python et JavaScript.
 - Mise à jour de la documentation : PostgreSQL est désormais indiqué comme base de production.
 - Nettoyage local des caches Python, captures et répertoires temporaires. Le dossier `data` est volontairement conservé.
+- Ajout de contrôles serveur sur l'identité des OF, les visas d'annulation/restauration et les suppressions définitives.
 
 ## Travaux recommandés
 
 ### Priorité haute
 
-1. Renforcer les règles métier côté serveur. L'API de stockage autorise actuellement un rôle en écriture à remplacer un document OF complet. Les restrictions fines de l'interface, comme le God Mode, devraient aussi être contrôlées par le serveur.
+1. Continuer à remplacer progressivement les écritures de documents complets par des commandes métier ciblées. Une première protection serveur couvre désormais l'identité des OF, les visas d'audit et le God Mode.
 2. Tester régulièrement une restauration complète des sauvegardes PostgreSQL, pas seulement leur création.
 
 ### Priorité moyenne

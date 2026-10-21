@@ -33,9 +33,19 @@ class AuthServerTests(unittest.TestCase):
             "trigram": "LCT", "role": "Consultation", "prenom": "Lecteur",
             "passwordAuth": server.password_record("lecture-test"),
         })
+        server.save_user(db_path, {
+            "trigram": "OPR", "role": "Opérateur", "prenom": "Opérateur",
+            "passwordAuth": server.password_record("op-test"),
+        })
         server.storage_put(db_path, "of-list", json.dumps([{"id": "test", "of": "1000"}]))
         server.storage_put(db_path, "of:test", json.dumps({
-            "header": {"of": "1000"},
+            "header": {"id": "test", "of": "1000", "status": "en_cours"},
+            "rework": {"rows": [
+                {"id": "validated-1", "createdVisa": "OPR", "createdDT": "20/10/2026 08:00",
+                 "validated": True, "deleted": False, "repere": "R1"},
+                {"id": "draft-1", "createdVisa": "OPR", "createdDT": "20/10/2026 08:05",
+                 "validated": False, "deleted": False, "repere": "R2"},
+            ]},
             "faits": {"rows": [{"id": "fait-1", "numero": "NC-1", "closedDate": "", "closedVisa": ""}]},
             "openwork": {"rows": [{"id": "ow-1", "nOW": "001", "closedDate": "", "closedVisa": ""}]},
         }))
@@ -153,6 +163,69 @@ class AuthServerTests(unittest.TestCase):
         status, _, _ = self.request(
             "/api/work-items/close", "POST",
             {"key": "of:test", "tab": "openwork", "rowId": "ow-1", "closed": True},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
+
+    def test_operator_cannot_bypass_of_identity_or_audit_rules(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        changed_header = json.loads(json.dumps(document))
+        changed_header["header"]["status"] = "cloture"
+        status, _, _ = self.request(
+            "/api/storage/of%3Atest", "PUT", changed_header, {"If-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 403)
+
+        spoofed = json.loads(json.dumps(document))
+        row = spoofed["rework"]["rows"][0]
+        row.update({"deleted": True, "deletedVisa": "OTHER", "deletedDate": "21/10/2026 08:00"})
+        status, _, _ = self.request(
+            "/api/storage/of%3Atest", "PUT", spoofed, {"If-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 403)
+
+        cancelled = json.loads(json.dumps(document))
+        row = cancelled["rework"]["rows"][0]
+        row.update({
+            "createdDT": "19/10/2026 07:30",
+            "deleted": True, "deletedVisa": "OPR", "deletedDate": "21/10/2026 08:00",
+        })
+        status, _, headers = self.request(
+            "/api/storage/of%3Atest", "PUT", cancelled, {"If-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 200)
+
+        purged = json.loads(json.dumps(cancelled))
+        purged["rework"]["rows"] = [item for item in purged["rework"]["rows"] if item["id"] != "validated-1"]
+        status, _, _ = self.request(
+            "/api/storage/of%3Atest", "PUT", purged, {"If-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 403)
+
+    def test_operator_can_remove_fresh_draft_but_not_write_of_index(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        document["rework"]["rows"] = [
+            item for item in document["rework"]["rows"] if item["id"] != "draft-1"
+        ]
+        status, _, _ = self.request(
+            "/api/storage/of%3Atest", "PUT", document, {"If-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 200)
+
+        status, _, headers = self.request("/api/storage/of-list")
+        self.assertEqual(status, 200)
+        status, _, _ = self.request(
+            "/api/storage/of-list", "PUT", [{"id": "other", "of": "9999"}],
             {"If-Match": headers["ETag"]},
         )
         self.assertEqual(status, 403)

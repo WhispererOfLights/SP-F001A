@@ -44,6 +44,16 @@ HOME_DOCUMENTS_CACHE: dict[str, tuple[tuple, dict[str, dict]]] = {}
 HOME_CACHE_LOCK = Lock()
 REPLICATION_WORKER = None
 READ_ONLY_ROLES = {"consultation", "lecteur seul", "lecture seule", "lecteur"}
+MANAGER_ROLES = {"Admin", "Manager"}
+PROTECTED_HEADER_FIELDS = {
+    "id", "of", "codeArticle", "articleNo", "description", "otp", "projet",
+    "ofRework", "typeOF", "status", "deleted", "deletedVisa", "deletedDT",
+    "createdBy", "createdAt",
+}
+AUDIT_FIELDS = {
+    "createdVisa", "deletedVisa", "deletedDate", "deletedDT",
+    "restoredVisa", "restoredDate", "restoredDT",
+}
 
 
 def legacy_hash(value: str) -> str:
@@ -377,6 +387,69 @@ def can_close_work_item(user: dict) -> bool:
     return bool(user.get("trigram")) and role not in READ_ONLY_ROLES
 
 
+def _business_rows(document: dict):
+    sections = (
+        ("units", "rows"), ("rework", "rows"), ("consommables", "ops"),
+        ("etuvage", "rows"), ("testequip", "rows"), ("faits", "rows"),
+        ("openwork", "rows"), ("demating", "connectors"),
+    )
+    for section, collection in sections:
+        rows = document.get(section, {}).get(collection, [])
+        if not isinstance(rows, list):
+            continue
+        yield f"{section}.{collection}", rows
+        if section == "consommables":
+            for row in rows:
+                if isinstance(row, dict) and isinstance(row.get("items"), list):
+                    yield f"{section}.{collection}.{row.get('id', '?')}.items", row["items"]
+        elif section == "demating":
+            for row in rows:
+                if isinstance(row, dict) and isinstance(row.get("events"), list):
+                    yield f"{section}.{collection}.{row.get('id', '?')}.events", row["events"]
+
+
+def validate_of_document_update(user: dict, current: dict | None, updated: dict) -> None:
+    """Enforce irreversible and authorship rules independently of the browser UI."""
+    if user.get("role") in MANAGER_ROLES:
+        return
+    if not isinstance(current, dict):
+        raise PermissionError("Seuls Admin et Manager peuvent créer un dossier OF")
+    if not isinstance(updated, dict):
+        raise ValueError("Document OF invalide")
+
+    old_header = current.get("header") if isinstance(current.get("header"), dict) else {}
+    new_header = updated.get("header") if isinstance(updated.get("header"), dict) else {}
+    if any(old_header.get(field) != new_header.get(field) for field in PROTECTED_HEADER_FIELDS):
+        raise PermissionError("Seuls Admin et Manager peuvent modifier l'identité ou le statut d'un OF")
+
+    trigram = str(user.get("trigram") or "").strip().upper()
+    new_collections = dict(_business_rows(updated))
+    for path, old_rows in _business_rows(current):
+        new_rows = new_collections.get(path, [])
+        old_by_id = {row.get("id"): row for row in old_rows if isinstance(row, dict) and row.get("id")}
+        new_by_id = {row.get("id"): row for row in new_rows if isinstance(row, dict) and row.get("id")}
+        for row_id, old_row in old_by_id.items():
+            new_row = new_by_id.get(row_id)
+            if new_row is None:
+                if old_row.get("validated") or old_row.get("deleted"):
+                    raise PermissionError("La suppression définitive est réservée aux Admin et Manager")
+                continue
+
+            old_deleted = bool(old_row.get("deleted"))
+            new_deleted = bool(new_row.get("deleted"))
+            for field in AUDIT_FIELDS:
+                if field in {"deletedVisa", "deletedDate", "deletedDT"} and not old_deleted and new_deleted:
+                    continue
+                if field in {"restoredVisa", "restoredDate", "restoredDT"} and old_deleted and not new_deleted:
+                    continue
+                if old_row.get(field) != new_row.get(field):
+                    raise PermissionError("Les visas et dates d'audit existants ne sont pas modifiables")
+            if not old_deleted and new_deleted and str(new_row.get("deletedVisa") or "").upper() != trigram:
+                raise PermissionError("Le visa d'annulation doit être celui de l'utilisateur connecté")
+            if old_deleted and not new_deleted and str(new_row.get("restoredVisa") or "").upper() != trigram:
+                raise PermissionError("Le visa de restauration doit être celui de l'utilisateur connecté")
+
+
 def set_work_item_closed(
     db_path: Path | str, key: str, tab: str, row_id: str, closed: bool, trigram: str, expected: int
 ) -> tuple[dict, int]:
@@ -588,15 +661,23 @@ class StorageServer(SimpleHTTPRequestHandler):
         if not self.can_write_key(session["user"], key):
             return self.send_json({"ok": False, "error": "Droits insuffisants"}, 403)
         length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > 2_000_000:
+            return self.send_json({"ok": False, "error": "Corps de requête invalide"}, 400)
         body = self.rfile.read(length)
         try:
-            json.loads(body.decode("utf-8"))
+            document = json.loads(body.decode("utf-8"))
         except Exception:
             self.send_error(400, "invalid json")
             return
         try:
             expected = self.expected_revision()
+            if key.startswith("of:"):
+                with connect_db(self.db_path) as conn:
+                    current = read_document(conn, key)
+                validate_of_document_update(session["user"], current[0] if current else None, document)
             revision = storage_put(self.db_path, key, body.decode("utf-8"), expected, True)
+        except PermissionError as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, 403)
         except (ConflictError, ValueError) as exc:
             return self.send_json({"ok": False, "error": str(exc)}, 409)
         self.send_json({"ok": True, "revision": revision})
@@ -617,6 +698,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return
         if not self.can_write_key(session["user"], key):
             return self.send_json({"ok": False, "error": "Droits insuffisants"}, 403)
+        if session["user"].get("role") not in MANAGER_ROLES:
+            return self.send_json({"ok": False, "error": "Suppression définitive réservée aux Admin et Manager"}, 403)
         try:
             storage_delete(self.db_path, key, self.expected_revision(), True)
         except (ConflictError, ValueError) as exc:
@@ -694,8 +777,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return False
         if key.startswith("user:") or key == "users-list":
             return False
-        if key in {"consommables-list", "fait-types", "status-types"}:
-            return role in {"Admin", "Manager"}
+        if key in {"of-list", "consommables-list", "fait-types", "status-types"}:
+            return role in MANAGER_ROLES
         return True
 
     def auth_login(self) -> None:

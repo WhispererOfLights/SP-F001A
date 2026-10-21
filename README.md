@@ -120,6 +120,14 @@ BACKUP_DIR=<DOSSIER_RESEAU>\SP-F001A\migration-backups
 
 `scripts\backup-postgres.ps1` produit un dump atomique et conserve 60 jours de sauvegardes quotidiennes. `scripts\install-postgres-backup-task.ps1`, exécuté en administrateur, installe son lancement à 18:00 et à l'ouverture de session. La tâche utilise l'identité Windows de l'utilisateur afin de conserver son accès au partage réseau.
 
+### Démarrage automatique du serveur Windows
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install-scheduled-task.ps1
+```
+
+Le script installe une tâche planifiée quand Windows l'autorise. Sans droits suffisants, il crée automatiquement un raccourci dans le dossier `Démarrage` de l'utilisateur, ce qui conserve l'accès au partage réseau. `inspect-scheduled-task.ps1` indique le mode actif et `test-scheduled-task.ps1` vérifie le lanceur sans arrêter un serveur lorsqu'aucune tâche n'existe.
+
 ### Adresse des liens vers les dossiers
 
 Les liens copiés depuis un dossier et ajoutés aux emails contiennent l'OF et le SN/lot en plus des identifiants internes. Ils restent ainsi utilisables après une migration des données.

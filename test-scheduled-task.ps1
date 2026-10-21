@@ -1,20 +1,27 @@
 $ErrorActionPreference = "Stop"
 
-$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principalCheck = New-Object Security.Principal.WindowsPrincipal($identity)
-if (-not $principalCheck.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell.exe -Verb RunAs -ArgumentList @(
-        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"' + $MyInvocation.MyCommand.Path + '"')
-    )
-    exit
-}
-
-$resultFile = "C:\ProgramData\SP-F001A\scheduled-task-test.txt"
+$resultDirectory = Join-Path $env:LOCALAPPDATA "SP-F001A"
+$resultFile = Join-Path $resultDirectory "scheduled-task-test.txt"
 $statusUrl = "http://127.0.0.1:5181/api/health"
 $fallback = "C:\Dev\pro\SP-F001A\start-prod-invisible.vbs"
 
-New-Item -ItemType Directory -Path (Split-Path $resultFile) -Force | Out-Null
+New-Item -ItemType Directory -Path $resultDirectory -Force | Out-Null
 Remove-Item -LiteralPath $resultFile -Force -ErrorAction SilentlyContinue
+
+$task = Get-ScheduledTask -TaskName "SP-F001A Serveur" -ErrorAction SilentlyContinue
+if (-not $task) {
+    Start-Process -FilePath "$env:WINDIR\System32\wscript.exe" -ArgumentList ('"' + $fallback + '"') -WindowStyle Hidden
+    Start-Sleep -Seconds 4
+    $ok = $false
+    try {
+        $response = Invoke-WebRequest -UseBasicParsing $statusUrl -TimeoutSec 4
+        $health = $response.Content | ConvertFrom-Json
+        $ok = $response.StatusCode -eq 200 -and $health.ok -eq $true
+    } catch {}
+    "OK=$ok`nState=Démarrage utilisateur`nAction=Lanceur vérifié sans arrêter l'instance existante" |
+        Set-Content -LiteralPath $resultFile
+    exit $(if ($ok) { 0 } else { 2 })
+}
 
 Get-CimInstance Win32_Process | Where-Object {
     $_.Name -match '^python' -and $_.CommandLine -match 'server.py' -and $_.CommandLine -match '5181'
@@ -31,7 +38,6 @@ try {
     $ok = $response.StatusCode -eq 200 -and $health.ok -eq $true
 } catch {}
 
-$task = Get-ScheduledTask -TaskName "SP-F001A Serveur"
 $info = Get-ScheduledTaskInfo -TaskName "SP-F001A Serveur"
 @(
     "OK=$ok"
