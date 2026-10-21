@@ -154,7 +154,6 @@ const homeWorkedFilter = (rows,workedIds,onlyWorked,searchActive) => {
 };
 const homeRowKey = row => `${row.id}:${row._homeUnitId||"of"}`;
 const homeUnitName = row => row.sn||row.lot||"Sans SN / LOT";
-const escapeClipboardHtml = value => String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 const homeClipboardData = rows => {
   const seen=new Set();
   const values=(rows||[]).filter(row=>{
@@ -170,13 +169,7 @@ const homeClipboardData = rows => {
     const quantity=isLot?(String(row._homeQty||"").trim()||"N/A"):"";
     return [row.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,row.otp||row.projet||"N/A"];
   });
-  const headers=["N° OF","Article - Description","SN ou LOT","Qté si lot","OTP"];
-  const cellStyle="border:1px solid #000;padding:5px 7px;text-align:left;vertical-align:top;";
-  const headerStyle=`${cellStyle}background:#e8edf3;font-weight:bold;`;
-  const html=`<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt;">`
-    +`<thead><tr>${headers.map(value=>`<th style="${headerStyle}">${escapeClipboardHtml(value)}</th>`).join("")}</tr></thead>`
-    +`<tbody>${values.map((cells,index)=>`<tr style="background:${index%2?"#f3f4f6":"#ffffff"};">${cells.map(value=>`<td style="${cellStyle}">${escapeClipboardHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-  return {plain:[headers,...values].map(cells=>cells.join("\t")).join("\n"),html};
+  return buildClipboardTableData(["N° OF","Article - Description","SN ou LOT","Qté si lot","OTP"],values);
 };
 const homeOtpName = row => String(row.otp||row.projet||"Non renseigné").trim()||"Non renseigné";
 const hasSingleMeetingOtp = rows => new Set(rows.map(homeOtpName)).size===1;

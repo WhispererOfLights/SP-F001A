@@ -323,6 +323,15 @@ const copyRichToClipboard = async ({plain,html}) => {
   copyToClipboard(text);
   return false;
 };
+const escapeClipboardHtml = value => String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+const buildClipboardTableData = (headers,rows) => {
+  const cellStyle="border:1px solid #000;padding:5px 7px;text-align:left;vertical-align:top;";
+  const headerStyle=`${cellStyle}background:#e8edf3;font-weight:bold;`;
+  const html=`<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt;">`
+    +`<thead><tr>${headers.map(value=>`<th style="${headerStyle}">${escapeClipboardHtml(value)}</th>`).join("")}</tr></thead>`
+    +`<tbody>${rows.map((cells,index)=>`<tr style="background:${index%2?"#f3f4f6":"#ffffff"};">${cells.map(value=>`<td style="${cellStyle}">${escapeClipboardHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  return {plain:[headers,...rows].map(cells=>cells.join("\t")).join("\n"),html};
+};
 const buildTeamsOfText = (header,units=[]) => {
   const article=String(header?.codeArticle||header?.articleNo||"N/A").trim()||"N/A";
   const description=String(header?.description||"N/A").trim()||"N/A";
@@ -332,6 +341,18 @@ const buildTeamsOfText = (header,units=[]) => {
     ? sourceUnits.map(unit=>cleanSn(unit.sn)||`LOT ${cleanSn(unit.lot)}`)
     : [fallback];
   return [...new Set(identities)].map(identity=>`${article} - ${description} - ${identity}`).join("\n");
+};
+const buildOfClipboardData = (header,units=[]) => {
+  const sourceUnits=(units||[]).filter(unit=>unit&&!unit.deleted&&(cleanSn(unit.sn)||cleanSn(unit.lot)));
+  const rows=(sourceUnits.length?sourceUnits:[{sn:header?.sn||"",lot:header?.lot||"",unitKind:header?.lot?"lot":"sn",qteInitiale:header?.qte||header?.qty||""}]).map(unit=>{
+    const isLot=unit.unitKind==="lot"||(!cleanSn(unit.sn)&&!!cleanSn(unit.lot));
+    const identity=cleanSn(isLot?(unit.lot||unit.sn):(unit.sn||unit.lot))||"N/A";
+    const quantity=isLot?(String(trackedLotQty(unit)||"").trim()||"N/A"):"";
+    const article=compactArticleCode(header?.codeArticle||header?.articleNo)||"N/A";
+    const description=String(header?.description||"N/A").trim()||"N/A";
+    return [header?.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,header?.otp||header?.projet||"N/A"];
+  });
+  return buildClipboardTableData(["N° OF","Article - Description","SN ou LOT","Qté si lot","OTP"],rows);
 };
 const normLot = v => {
   const s=String(v??"").trim().toUpperCase();
@@ -2743,8 +2764,8 @@ export default function App(){
                   {label}
                 </button>
               ))}
-              <button type="button" className="no-print" title="Copier N° article, description et SN dans le presse-papier" aria-label="Copier les informations du dossier dans le presse-papier" onClick={()=>{
-                copyToClipboard(buildTeamsOfText(h,activeUnit?[activeUnit]:snRows));
+              <button type="button" className="no-print" title="Copier les informations sous forme de tableau" aria-label="Copier les informations du dossier dans le presse-papier" onClick={async()=>{
+                await copyRichToClipboard(buildOfClipboardData(h,activeUnit?[activeUnit]:snRows));
                 setCopiedOfInfo(true);setTimeout(()=>setCopiedOfInfo(false),1800);
               }} style={{width:28,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:0,borderRadius:4,background:copiedOfInfo?C.green:C.blue,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800}}>{copiedOfInfo?"✓":"📋"}</button>
               <button type="button" className="no-print" title={activeUnit?`Copier le lien vers ${snTitle(activeUnit)}`:"Copier le lien vers ce dossier"} aria-label="Copier le lien vers ce dossier" onClick={()=>{

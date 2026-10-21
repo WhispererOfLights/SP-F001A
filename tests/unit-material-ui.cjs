@@ -195,6 +195,12 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button', {name: 'Ouvrir OF 100TEST - SN2', exact: true}).click();
     await page.waitForFunction(() => document.getElementById('active-work-sn')?.value === 'u2');
     await page.getByRole('button',{name:'Copier les informations du dossier dans le presse-papier',exact:true}).click();
+    await page.waitForFunction(()=>window.copiedHomeText?.split('\n').length===2&&window.copiedHomeText.includes('\tSN2\t'));
+    assert.equal(await page.evaluate(()=>window.copiedHomeText),[
+      'N° OF\tArticle - Description\tSN ou LOT\tQté si lot\tOTP',
+      '100TEST\t250001163 - Article de test\tSN2\t\t7400-TEST'
+    ].join('\n'));
+    assert.ok((await page.evaluate(()=>window.copiedHomeHtml)).includes('<table'));
     const folderLinkCopy=page.getByRole('button',{name:'Copier le lien vers ce dossier',exact:true});
     await folderLinkCopy.click();
     assert.equal((await folderLinkCopy.textContent()).trim(),'✓');

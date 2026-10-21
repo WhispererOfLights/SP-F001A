@@ -951,6 +951,34 @@ var copyRichToClipboard = /*#__PURE__*/function () {
   }
   return copyRichToClipboard;
 }();
+var escapeClipboardHtml = function escapeClipboardHtml(value) {
+  return String(value !== null && value !== void 0 ? value : "").replace(/[&<>"']/g, function (_char) {
+    return {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;"
+    }[_char];
+  });
+};
+var buildClipboardTableData = function buildClipboardTableData(headers, rows) {
+  var cellStyle = "border:1px solid #000;padding:5px 7px;text-align:left;vertical-align:top;";
+  var headerStyle = "".concat(cellStyle, "background:#e8edf3;font-weight:bold;");
+  var html = "<table style=\"border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt;\">" + "<thead><tr>".concat(headers.map(function (value) {
+    return "<th style=\"".concat(headerStyle, "\">").concat(escapeClipboardHtml(value), "</th>");
+  }).join(""), "</tr></thead>") + "<tbody>".concat(rows.map(function (cells, index) {
+    return "<tr style=\"background:".concat(index % 2 ? "#f3f4f6" : "#ffffff", ";\">").concat(cells.map(function (value) {
+      return "<td style=\"".concat(cellStyle, "\">").concat(escapeClipboardHtml(value), "</td>");
+    }).join(""), "</tr>");
+  }).join(""), "</tbody></table>");
+  return {
+    plain: [headers].concat(_toConsumableArray(rows)).map(function (cells) {
+      return cells.join("\t");
+    }).join("\n"),
+    html: html
+  };
+};
 var buildTeamsOfText = function buildTeamsOfText(header) {
   var units = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
   var article = String((header === null || header === void 0 ? void 0 : header.codeArticle) || (header === null || header === void 0 ? void 0 : header.articleNo) || "N/A").trim() || "N/A";
@@ -965,6 +993,26 @@ var buildTeamsOfText = function buildTeamsOfText(header) {
   return _toConsumableArray(new Set(identities)).map(function (identity) {
     return "".concat(article, " - ").concat(description, " - ").concat(identity);
   }).join("\n");
+};
+var buildOfClipboardData = function buildOfClipboardData(header) {
+  var units = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
+  var sourceUnits = (units || []).filter(function (unit) {
+    return unit && !unit.deleted && (cleanSn(unit.sn) || cleanSn(unit.lot));
+  });
+  var rows = (sourceUnits.length ? sourceUnits : [{
+    sn: (header === null || header === void 0 ? void 0 : header.sn) || "",
+    lot: (header === null || header === void 0 ? void 0 : header.lot) || "",
+    unitKind: header !== null && header !== void 0 && header.lot ? "lot" : "sn",
+    qteInitiale: (header === null || header === void 0 ? void 0 : header.qte) || (header === null || header === void 0 ? void 0 : header.qty) || ""
+  }]).map(function (unit) {
+    var isLot = unit.unitKind === "lot" || !cleanSn(unit.sn) && !!cleanSn(unit.lot);
+    var identity = cleanSn(isLot ? unit.lot || unit.sn : unit.sn || unit.lot) || "N/A";
+    var quantity = isLot ? String(trackedLotQty(unit) || "").trim() || "N/A" : "";
+    var article = compactArticleCode((header === null || header === void 0 ? void 0 : header.codeArticle) || (header === null || header === void 0 ? void 0 : header.articleNo)) || "N/A";
+    var description = String((header === null || header === void 0 ? void 0 : header.description) || "N/A").trim() || "N/A";
+    return [(header === null || header === void 0 ? void 0 : header.of) || "N/A", "".concat(article, " - ").concat(description), isLot ? "LOT ".concat(identity) : identity, quantity, (header === null || header === void 0 ? void 0 : header.otp) || (header === null || header === void 0 ? void 0 : header.projet) || "N/A"];
+  });
+  return buildClipboardTableData(["N° OF", "Article - Description", "SN ou LOT", "Qté si lot", "OTP"], rows);
 };
 var normLot = function normLot(v) {
   var s = String(v !== null && v !== void 0 ? v : "").trim().toUpperCase();
@@ -18805,17 +18853,6 @@ var homeRowKey = function homeRowKey(row) {
 var homeUnitName = function homeUnitName(row) {
   return row.sn || row.lot || "Sans SN / LOT";
 };
-var escapeClipboardHtml = function escapeClipboardHtml(value) {
-  return String(value !== null && value !== void 0 ? value : "").replace(/[&<>"']/g, function (_char) {
-    return {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;"
-    }[_char];
-  });
-};
 var homeClipboardData = function homeClipboardData(rows) {
   var seen = new Set();
   var values = (rows || []).filter(function (row) {
@@ -18831,22 +18868,7 @@ var homeClipboardData = function homeClipboardData(rows) {
     var quantity = isLot ? String(row._homeQty || "").trim() || "N/A" : "";
     return [row.of || "N/A", "".concat(article, " - ").concat(description), isLot ? "LOT ".concat(identity) : identity, quantity, row.otp || row.projet || "N/A"];
   });
-  var headers = ["N° OF", "Article - Description", "SN ou LOT", "Qté si lot", "OTP"];
-  var cellStyle = "border:1px solid #000;padding:5px 7px;text-align:left;vertical-align:top;";
-  var headerStyle = "".concat(cellStyle, "background:#e8edf3;font-weight:bold;");
-  var html = "<table style=\"border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt;\">" + "<thead><tr>".concat(headers.map(function (value) {
-    return "<th style=\"".concat(headerStyle, "\">").concat(escapeClipboardHtml(value), "</th>");
-  }).join(""), "</tr></thead>") + "<tbody>".concat(values.map(function (cells, index) {
-    return "<tr style=\"background:".concat(index % 2 ? "#f3f4f6" : "#ffffff", ";\">").concat(cells.map(function (value) {
-      return "<td style=\"".concat(cellStyle, "\">").concat(escapeClipboardHtml(value), "</td>");
-    }).join(""), "</tr>");
-  }).join(""), "</tbody></table>");
-  return {
-    plain: [headers].concat(_toConsumableArray(values)).map(function (cells) {
-      return cells.join("\t");
-    }).join("\n"),
-    html: html
-  };
+  return buildClipboardTableData(["N° OF", "Article - Description", "SN ou LOT", "Qté si lot", "OTP"], values);
 };
 var homeOtpName = function homeOtpName(row) {
   return String(row.otp || row.projet || "Non renseigné").trim() || "Non renseigné";
@@ -24731,15 +24753,24 @@ function App() {
   }), /*#__PURE__*/React.createElement("button", {
     type: "button",
     className: "no-print",
-    title: "Copier N\xB0 article, description et SN dans le presse-papier",
+    title: "Copier les informations sous forme de tableau",
     "aria-label": "Copier les informations du dossier dans le presse-papier",
-    onClick: function onClick() {
-      copyToClipboard(buildTeamsOfText(h, activeUnit ? [activeUnit] : snRows));
-      setCopiedOfInfo(true);
-      setTimeout(function () {
-        return setCopiedOfInfo(false);
-      }, 1800);
-    },
+    onClick: /*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee63() {
+      return _regenerator().w(function (_context66) {
+        while (1) switch (_context66.n) {
+          case 0:
+            _context66.n = 1;
+            return copyRichToClipboard(buildOfClipboardData(h, activeUnit ? [activeUnit] : snRows));
+          case 1:
+            setCopiedOfInfo(true);
+            setTimeout(function () {
+              return setCopiedOfInfo(false);
+            }, 1800);
+          case 2:
+            return _context66.a(2);
+        }
+      }, _callee63);
+    })),
     style: {
       width: 28,
       height: 24,
@@ -24838,34 +24869,34 @@ function App() {
       save(u);
     },
     onUpdateStatus: (/*#__PURE__*/function () {
-      var _ref159 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee63(status) {
+      var _ref160 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee64(status) {
         var stored, _updated, _updated2, _t84;
-        return _regenerator().w(function (_context66) {
-          while (1) switch (_context66.p = _context66.n) {
+        return _regenerator().w(function (_context67) {
+          while (1) switch (_context67.p = _context67.n) {
             case 0:
               if (isAdminManager(user)) {
-                _context66.n = 1;
+                _context67.n = 1;
                 break;
               }
-              return _context66.a(2);
+              return _context67.a(2);
             case 1:
-              _context66.p = 1;
+              _context67.p = 1;
               if (!window.storage.updateWorkOrderSummary) {
-                _context66.n = 3;
+                _context67.n = 3;
                 break;
               }
-              _context66.n = 2;
+              _context67.n = 2;
               return window.storage.updateWorkOrderSummary("of:".concat(currentId), {
                 header: {
                   status: status
                 }
               });
             case 2:
-              stored = _context66.v;
+              stored = _context67.v;
               _updated = applyHomeDocument(currentId, stored);
               setOfData(_updated);
               setLastSaved(new Date().toLocaleTimeString("fr-FR"));
-              return _context66.a(2);
+              return _context67.a(2);
             case 3:
               _updated2 = _objectSpread(_objectSpread({}, ofData), {}, {
                 header: _objectSpread(_objectSpread({}, ofData.header), {}, {
@@ -24874,19 +24905,19 @@ function App() {
               });
               setOfData(_updated2);
               save(_updated2);
-              _context66.n = 5;
+              _context67.n = 5;
               break;
             case 4:
-              _context66.p = 4;
-              _t84 = _context66.v;
+              _context67.p = 4;
+              _t84 = _context67.v;
               setSaveError((_t84 === null || _t84 === void 0 ? void 0 : _t84.message) || "Le statut n'a pas été enregistré.");
             case 5:
-              return _context66.a(2);
+              return _context67.a(2);
           }
-        }, _callee63, null, [[1, 4]]);
+        }, _callee64, null, [[1, 4]]);
       }));
       return function (_x38) {
-        return _ref159.apply(this, arguments);
+        return _ref160.apply(this, arguments);
       };
     }())
   }) : /*#__PURE__*/React.createElement(TrackedSNs, {
