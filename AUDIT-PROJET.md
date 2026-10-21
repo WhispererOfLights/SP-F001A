@@ -22,18 +22,19 @@ Date de l'audit : 21 octobre 2026.
 - Remplacement des bundles React de développement par les bundles de production React 18.3.1.
 - Ajout de `package-lock.json` pour figer les versions exactes des outils JavaScript.
 - Premier découpage de `src/App.jsx` : les rapports et Adjust/Rework sont désormais isolés dans `src/modules/`.
+- Les statuts OF/SN et le SN produit fini modifiés depuis l'accueil utilisent désormais une commande serveur atomique et ciblée.
+- Les autorisations de cette commande sont couvertes par des tests serveur Manager/Admin et opérateur.
 
 ## Travaux recommandés
 
 ### Priorité haute
 
-1. Continuer à remplacer progressivement les écritures de documents complets par des commandes métier ciblées. Une première protection serveur couvre désormais l'identité des OF, les visas d'audit et le God Mode.
+1. Continuer à remplacer progressivement les autres écritures de documents complets par des commandes métier ciblées. La clôture du suivi technique et les modifications rapides depuis l'accueil utilisent déjà ce mécanisme.
 2. Tester régulièrement une restauration complète des sauvegardes PostgreSQL, pas seulement leur création.
 
 ### Priorité moyenne
 
 1. Continuer le découpage progressif de `src/App.jsx`, ramené de 8 254 à 6 270 lignes, par domaine : accueil, consommables, étuvages et suivi technique.
-2. Ajouter des tests serveur portant sur les autorisations de modification et de suppression à l'intérieur d'un OF.
 
 ### Priorité basse
 

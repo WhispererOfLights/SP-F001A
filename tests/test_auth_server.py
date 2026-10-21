@@ -167,6 +167,50 @@ class AuthServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 403)
 
+    def test_manager_can_update_home_summary_fields_atomically(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        document["units"] = {"rows": [
+            {"id": "unit-1", "sn": "SN001", "status": "en_cours", "deleted": False}
+        ]}
+        status, _, headers = self.request(
+            "/api/storage/of%3Atest", "PUT", document, {"If-Match": headers["ETag"]}
+        )
+        self.assertEqual(status, 200)
+
+        status, payload, _ = self.request(
+            "/api/work-orders/update-summary", "POST",
+            {
+                "key": "of:test",
+                "header": {"status": "a_cloturer"},
+                "units": [{"id": "unit-1", "status": "cloture", "snProduitFini": "PF-42"}],
+            },
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["document"]["header"]["status"], "a_cloturer")
+        unit = payload["document"]["units"]["rows"][0]
+        self.assertEqual(unit["status"], "cloture")
+        self.assertEqual(unit["snProduitFini"], "PF-42")
+
+    def test_operator_cannot_use_home_summary_command(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        status, _, _ = self.request(
+            "/api/work-orders/update-summary", "POST",
+            {"key": "of:test", "header": {"status": "cloture"}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
+
     def test_operator_cannot_bypass_of_identity_or_audit_rules(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}

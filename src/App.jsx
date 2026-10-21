@@ -5428,8 +5428,21 @@ export default function App(){
     homeSaveQueue.current=pending;
     return pending;
   };
+  const applyHomeDocument=(id,data)=>{
+    const normalized=withUnitMetadata(data);
+    setOfList(list=>list.map(entry=>entry.id===id
+      ? {...entry,...normalized.header,_snRows:normalized.units?.rows||[]}
+      : entry));
+    return normalized;
+  };
   const updateHomeUnit=(id,unitId,fields)=>enqueueHomeSave(async()=>{
     if(!isAdminManager(user)) return;
+    if(window.storage.updateWorkOrderSummary){
+      const data=await window.storage.updateWorkOrderSummary(`of:${id}`,{units:[{id:unitId,...fields}]});
+      if(!data) throw new Error("Modification non enregistrée");
+      applyHomeDocument(id,data);
+      return;
+    }
     const r=await window.storage.get(`of:${id}`,true);
     if(!r) throw new Error("OF introuvable");
     await persistHomeData(id,patchTrackedUnit(JSON.parse(r.value),unitId,fields));
@@ -5442,6 +5455,16 @@ export default function App(){
       groups.get(row.id).add(row._homeUnitId);
     });
     if(!groups.size) return;
+    if(window.storage.updateWorkOrderSummary){
+      const records=await Promise.all([...groups].map(async([id,unitIds])=>({
+        id,
+        data:await window.storage.updateWorkOrderSummary(`of:${id}`,{
+          units:[...unitIds].map(unitId=>({id:unitId,status}))
+        })
+      })));
+      records.forEach(record=>applyHomeDocument(record.id,record.data));
+      return;
+    }
     const records=await Promise.all([...groups].map(async([id,unitIds])=>{
       const record=await window.storage.get(`of:${id}`,true);
       if(!record) throw new Error(`OF ${id} introuvable`);
@@ -5460,6 +5483,12 @@ export default function App(){
   const updateHomeStatus=(id,status)=>enqueueHomeSave(async()=>{
     if(!isAdminManager(user)) return;
     try{
+      if(window.storage.updateWorkOrderSummary){
+        const data=await window.storage.updateWorkOrderSummary(`of:${id}`,{header:{status}});
+        if(!data) throw new Error("Modification non enregistrée");
+        applyHomeDocument(id,data);
+        return;
+      }
       const r=await window.storage.get(`of:${id}`,true);
       if(!r) throw new Error("OF introuvable");
       const data=JSON.parse(r.value);
@@ -6192,13 +6221,19 @@ export default function App(){
             </div>}
           </div>
           {headerPanel==="dossier" ? (
-            <Header of={workHeader} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={status=>{
+            <Header of={workHeader} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={async status=>{
               if(!isAdminManager(user)) return;
-              const updated={...ofData,header:{...ofData.header,status}};
-              const newList=ofList.map(o=>o.id===currentId?{...o,status}:o);
-              setOfList(newList);
-              try{window.storage.set("of-list",JSON.stringify(newList),true);}catch{}
-              setOfData(updated);save(updated);
+              try{
+                if(window.storage.updateWorkOrderSummary){
+                  const stored=await window.storage.updateWorkOrderSummary(`of:${currentId}`,{header:{status}});
+                  const updated=applyHomeDocument(currentId,stored);
+                  setOfData(updated);
+                  setLastSaved(new Date().toLocaleTimeString("fr-FR"));
+                  return;
+                }
+                const updated={...ofData,header:{...ofData.header,status}};
+                setOfData(updated);save(updated);
+              }catch(error){setSaveError(error?.message||"Le statut n'a pas été enregistré.");}
             }}/>
           ) : (
             <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}

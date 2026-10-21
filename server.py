@@ -499,6 +499,62 @@ def set_work_item_closed(
             return document, revision
 
 
+def update_work_order_summary(
+    db_path: Path | str, key: str, header_fields: dict, unit_updates: list, expected: int
+) -> tuple[dict, int]:
+    """Update the small set of fields editable directly from the home table."""
+    if not key.startswith("of:") or "/" in key or "\\" in key or len(key) > 200:
+        raise ValueError("Dossier invalide")
+    if not isinstance(header_fields, dict) or not isinstance(unit_updates, list):
+        raise ValueError("Modification invalide")
+    if set(header_fields) - {"status"}:
+        raise ValueError("Champ d'en-tête non autorisé")
+    if len(unit_updates) > 500:
+        raise ValueError("Trop de pièces à modifier")
+
+    def clean_status(value) -> str:
+        status = str(value or "").strip()
+        if not status or len(status) > 60 or not all(char.isalnum() or char in "_-" for char in status):
+            raise ValueError("Statut invalide")
+        return status
+
+    with WRITE_LOCK:
+        with connect_db(db_path) as conn:
+            begin_write(conn)
+            record = read_document(conn, key)
+            if not record or not isinstance(record[0], dict):
+                raise ValueError("Dossier introuvable")
+            document = record[0]
+            header = document.setdefault("header", {})
+            if "status" in header_fields:
+                header["status"] = clean_status(header_fields["status"])
+
+            rows = document.setdefault("units", {}).setdefault("rows", [])
+            rows_by_id = {
+                str(row.get("id")): row for row in rows
+                if isinstance(row, dict) and row.get("id") and not row.get("deleted")
+            }
+            for update in unit_updates:
+                if not isinstance(update, dict) or set(update) - {"id", "status", "snProduitFini"}:
+                    raise ValueError("Modification de pièce invalide")
+                row = rows_by_id.get(str(update.get("id") or ""))
+                if not row:
+                    raise ValueError("Pièce introuvable dans cet OF")
+                if "status" in update:
+                    row["status"] = clean_status(update["status"])
+                if "snProduitFini" in update:
+                    value = str(update["snProduitFini"] or "").strip()
+                    if len(value) > 200:
+                        raise ValueError("SN produit fini trop long")
+                    row["snProduitFini"] = value
+
+            header["_snRows"] = rows
+            revision = write_document(conn, key, document, expected=expected, enforce=True)
+            queue_upsert(conn, key, document, revision)
+            conn.commit()
+            return document, revision
+
+
 class StorageServer(SimpleHTTPRequestHandler):
     data_dir: Path = ROOT / "data"
     db_path: Path | str = ROOT / "data" / DB_NAME
@@ -615,6 +671,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return self.auth_profile()
         if path == "/api/work-items/close":
             return self.close_work_item()
+        if path == "/api/work-orders/update-summary":
+            return self.update_work_order_summary()
         if path == "/api/admin/users/import":
             return self.admin_import_users()
         if path.startswith("/api/admin/users/") and path.endswith("/reset-password"):
@@ -637,6 +695,24 @@ class StorageServer(SimpleHTTPRequestHandler):
                 str(payload.get("rowId") or ""),
                 bool(payload.get("closed")),
                 str(session["user"].get("trigram") or "").upper(),
+                self.expected_revision(),
+            )
+        except (ConflictError, ValueError, AttributeError) as exc:
+            status = 409 if isinstance(exc, ConflictError) else 400
+            return self.send_json({"ok": False, "error": str(exc)}, status)
+        self.send_json({"ok": True, "revision": revision, "document": document})
+
+    def update_work_order_summary(self) -> None:
+        session = self.require_session(MANAGER_ROLES)
+        if not session:
+            return
+        try:
+            payload = self.read_json_body()
+            document, revision = update_work_order_summary(
+                self.db_path,
+                str(payload.get("key") or ""),
+                payload.get("header") or {},
+                payload.get("units") or [],
                 self.expected_revision(),
             )
         except (ConflictError, ValueError, AttributeError) as exc:
