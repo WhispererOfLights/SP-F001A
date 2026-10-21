@@ -23325,13 +23325,16 @@ function App() {
     }
     return saveStatusTypes;
   }();
-  var saveSection = /*#__PURE__*/function () {
-    var _saveSection = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee56(tab, updated) {
-      var rows, sortable, last, _t78;
+  var saveSections = /*#__PURE__*/function () {
+    var _saveSections = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee56(tabs, updated) {
+      var names, sections, rows, sortable, last, _t78;
       return _regenerator().w(function (_context57) {
         while (1) switch (_context57.p = _context57.n) {
           case 0:
-            if (!(!currentId || !window.storage.updateWorkOrderSection)) {
+            names = _toConsumableArray(new Set(tabs)).filter(function (name) {
+              return Object.hasOwn(updated, name);
+            });
+            if (!(!currentId || !names.length || !window.storage.updateWorkOrderSections)) {
               _context57.n = 1;
               break;
             }
@@ -23340,13 +23343,16 @@ function App() {
           case 1:
             setSaving(true);
             _context57.p = 2;
+            sections = Object.fromEntries(names.map(function (name) {
+              return [name, updated[name]];
+            }));
             _context57.n = 3;
-            return window.storage.updateWorkOrderSection("of:".concat(currentId), tab, updated[tab] || {});
+            return window.storage.updateWorkOrderSections("of:".concat(currentId), sections);
           case 3:
             setSaveError("");
             setPendingSave(null);
             setLastSaved(new Date().toLocaleTimeString("fr-FR"));
-            if (tab === "units") setOfList(function (list) {
+            if (names.includes("units")) setOfList(function (list) {
               return list.map(function (entry) {
                 var _updated$units;
                 return entry.id === currentId ? _objectSpread(_objectSpread({}, entry), {}, {
@@ -23354,7 +23360,7 @@ function App() {
                 }) : entry;
               });
             });
-            if (tab === "etuvage") {
+            if (names.includes("etuvage")) {
               rows = effectiveEtuvageRows(updated).filter(function (row) {
                 return row.entreeDT;
               });
@@ -23386,11 +23392,14 @@ function App() {
         }
       }, _callee56, null, [[2, 4]]);
     }));
-    function saveSection(_x29, _x30) {
-      return _saveSection.apply(this, arguments);
+    function saveSections(_x29, _x30) {
+      return _saveSections.apply(this, arguments);
     }
-    return saveSection;
+    return saveSections;
   }();
+  var saveSection = function saveSection(tab, updated) {
+    return saveSections([tab], updated);
+  };
   var updateTab = function updateTab(tab, tabData) {
     if (!canWriteData(user)) return;
     if (tab === "units" && !isAdminManager(user)) return;
@@ -23628,24 +23637,36 @@ function App() {
                         rows: [].concat(_toConsumableArray(((_destination$testequi2 = destination.testequip) === null || _destination$testequi2 === void 0 ? void 0 : _destination$testequi2.rows) || []), copiedOvens)
                       })
                     } : {});
+                    if (!window.storage.updateWorkOrderSections) {
+                      _context59.n = 14;
+                      break;
+                    }
                     _context59.n = 13;
-                    return window.storage.set("of:".concat(ofId), JSON.stringify(next), true);
+                    return window.storage.updateWorkOrderSections("of:".concat(ofId), _objectSpread(_defineProperty({}, tab, next[tab]), copiedOvens.length ? {
+                      testequip: next.testequip
+                    } : {}));
                   case 13:
+                    _context59.n = 15;
+                    break;
+                  case 14:
+                    _context59.n = 15;
+                    return window.storage.set("of:".concat(ofId), JSON.stringify(next), true);
+                  case 15:
                     copied.push.apply(copied, _toConsumableArray(destinations.map(function (t) {
                       return t.key;
                     })));
                     copyCount += additions.length;
                     if (ofId === currentId) setOfData(next);
-                    _context59.n = 15;
+                    _context59.n = 17;
                     break;
-                  case 14:
-                    _context59.p = 14;
+                  case 16:
+                    _context59.p = 16;
                     _t80 = _context59.v;
                     errors.push("OF ".concat(destinations[0].of, " : ").concat(_t80.message || "Copie impossible"));
-                  case 15:
+                  case 17:
                     return _context59.a(2);
                 }
-              }, _loop3, null, [[5, 10, 11, 12], [1, 14]]);
+              }, _loop3, null, [[5, 10, 11, 12], [1, 16]]);
             });
             _iterator0.s();
           case 6:
@@ -24740,17 +24761,17 @@ function App() {
     onSplitLot: function onSplitLot(id, remaining, destinations) {
       var updated = splitTrackedLot(ofData, id, remaining, destinations, user);
       setOfData(updated);
-      save(updated);
+      saveSections(["units", "lotSplits", "rework", "consommables", "testequip", "faits", "etuvage", "demating", "openwork"], updated);
     },
     onLotQuantity: function onLotQuantity(id, qty) {
       var updated = changeTrackedLotQuantity(ofData, id, qty, user);
       setOfData(updated);
-      save(updated);
+      saveSections(["units"], updated);
     },
     onConvertUnit: function onConvertUnit(id, kind) {
       var updated = convertTrackedUnitKind(ofData, id, kind, user);
       setOfData(updated);
-      save(updated);
+      saveSections(["units"], updated);
     },
     header: h,
     user: user,

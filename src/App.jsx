@@ -2181,16 +2181,18 @@ export default function App(){
     }catch(error){window.alert(`Statuts non enregistrés : ${error.message||error}`);}
   };
 
-  const saveSection=async (tab,updated)=>{
-    if(!currentId||!window.storage.updateWorkOrderSection){save(updated);return;}
+  const saveSections=async (tabs,updated)=>{
+    const names=[...new Set(tabs)].filter(name=>Object.hasOwn(updated,name));
+    if(!currentId||!names.length||!window.storage.updateWorkOrderSections){save(updated);return;}
     setSaving(true);
     try{
-      await window.storage.updateWorkOrderSection(`of:${currentId}`,tab,updated[tab]||{});
+      const sections=Object.fromEntries(names.map(name=>[name,updated[name]]));
+      await window.storage.updateWorkOrderSections(`of:${currentId}`,sections);
       setSaveError("");setPendingSave(null);
       setLastSaved(new Date().toLocaleTimeString("fr-FR"));
-      if(tab==="units") setOfList(list=>list.map(entry=>entry.id===currentId
+      if(names.includes("units")) setOfList(list=>list.map(entry=>entry.id===currentId
         ? {...entry,_snRows:updated.units?.rows||[]} : entry));
-      if(tab==="etuvage"){
+      if(names.includes("etuvage")){
         const rows=effectiveEtuvageRows(updated).filter(row=>row.entreeDT);
         const sortable=value=>String(value||"").replace(/^(\d{2})\/(\d{2})\/(\d{4})/,"$3-$2-$1");
         const last=rows.length?rows.reduce((a,b)=>sortable(b.entreeDT)>sortable(a.entreeDT)?b:a).entreeDT:null;
@@ -2202,6 +2204,7 @@ export default function App(){
     }
     setSaving(false);
   };
+  const saveSection=(tab,updated)=>saveSections([tab],updated);
 
   const updateTab=(tab,tabData)=>{
     if(!canWriteData(user)) return;
@@ -2278,7 +2281,12 @@ export default function App(){
             [tab]:{...destination[tab],[collection]:[...(destination[tab]?.[collection]||[]),...additions]},
             ...(copiedOvens.length?{testequip:{...destination.testequip,rows:[...(destination.testequip?.rows||[]),...copiedOvens]}}:{})
           };
-          await window.storage.set(`of:${ofId}`,JSON.stringify(next),true);
+          if(window.storage.updateWorkOrderSections){
+            await window.storage.updateWorkOrderSections(`of:${ofId}`,{
+              [tab]:next[tab],
+              ...(copiedOvens.length?{testequip:next.testequip}:{})
+            });
+          }else await window.storage.set(`of:${ofId}`,JSON.stringify(next),true);
           copied.push(...destinations.map(t=>t.key));
           copyCount+=additions.length;
           if(ofId===currentId) setOfData(next);
@@ -2740,9 +2748,9 @@ export default function App(){
             }}/>
           ) : (
             <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
-              splitHistory={ofData.lotSplits||[]} onSplitLot={(id,remaining,destinations)=>{const updated=splitTrackedLot(ofData,id,remaining,destinations,user);setOfData(updated);save(updated);}}
-              onLotQuantity={(id,qty)=>{const updated=changeTrackedLotQuantity(ofData,id,qty,user);setOfData(updated);save(updated);}}
-              onConvertUnit={(id,kind)=>{const updated=convertTrackedUnitKind(ofData,id,kind,user);setOfData(updated);save(updated);}}
+              splitHistory={ofData.lotSplits||[]} onSplitLot={(id,remaining,destinations)=>{const updated=splitTrackedLot(ofData,id,remaining,destinations,user);setOfData(updated);saveSections(["units","lotSplits","rework","consommables","testequip","faits","etuvage","demating","openwork"],updated);}}
+              onLotQuantity={(id,qty)=>{const updated=changeTrackedLotQuantity(ofData,id,qty,user);setOfData(updated);saveSections(["units"],updated);}}
+              onConvertUnit={(id,kind)=>{const updated=convertTrackedUnitKind(ofData,id,kind,user);setOfData(updated);saveSections(["units"],updated);}}
               header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
           )}
         </div>

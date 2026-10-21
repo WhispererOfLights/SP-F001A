@@ -33,25 +33,42 @@ if (Test-Path -LiteralPath $targetConfig) {
     Copy-Item -LiteralPath $targetConfig -Destination $backup -Force
 }
 
-$deployItems = @(
-    "index.html", "migration.html", "server.py", "relational_store.py", "postgres_store.py", "postgres_relational.py", "replication_bridge.py",
-    "requirements.txt", "Dockerfile", "compose.yaml", ".dockerignore", ".env.example", "src", "assets", "vendor", "scripts", "tests",
-    "README.md", "ARCHITECTURE.md", "POSTGRESQL-MIGRATION.md", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
-    "start-prod-invisible.vbs", "server-status.vbs", "install-scheduled-task.ps1", "inspect-scheduled-task.ps1",
-    "test-scheduled-task.ps1"
+$runtimeItems = @(
+    "index.html", "server.py", "relational_store.py", "postgres_store.py", "postgres_relational.py", "replication_bridge.py",
+    "requirements.txt", "src", "assets", "vendor", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
+    "start-prod-invisible.vbs", "server-status.vbs"
 )
+$obsoleteDeployItems = @(
+    "migration.html", "Dockerfile", "compose.yaml", ".dockerignore", ".env.example", "scripts", "tests",
+    "README.md", "ARCHITECTURE.md", "POSTGRESQL-MIGRATION.md", "install-scheduled-task.ps1",
+    "inspect-scheduled-task.ps1", "test-scheduled-task.ps1"
+)
+$backupItems = @($runtimeItems + $obsoleteDeployItems | Select-Object -Unique)
 
-foreach ($relative in $deployItems) {
+foreach ($relative in $backupItems) {
     $target = Join-Path $Destination $relative
     if (Test-Path -LiteralPath $target) {
         Copy-Item -LiteralPath $target -Destination $backup -Recurse -Force
     }
 }
 
-foreach ($relative in $deployItems) {
+foreach ($relative in $runtimeItems) {
     $source = Join-Path $root $relative
     if (Test-Path -LiteralPath $source) {
         Copy-Item -LiteralPath $source -Destination $Destination -Recurse -Force
+    }
+}
+
+# Les outils de développement restent dans Git mais ne font plus partie du paquet exécuté.
+$destinationFull = [IO.Path]::GetFullPath($Destination).TrimEnd("\")
+foreach ($relative in $obsoleteDeployItems) {
+    $target = Join-Path $Destination $relative
+    $targetFull = [IO.Path]::GetFullPath($target)
+    if (-not $targetFull.StartsWith($destinationFull + "\", [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Chemin de nettoyage hors du dossier de déploiement : $targetFull"
+    }
+    if (Test-Path -LiteralPath $target) {
+        Remove-Item -LiteralPath $target -Recurse -Force
     }
 }
 
@@ -62,3 +79,4 @@ if (-not (Test-Path -LiteralPath $targetConfig)) {
 
 Write-Host "Version v$Version deployee dans $Destination" -ForegroundColor Green
 Write-Host "Sauvegarde precedente : $backup"
+Write-Host "Paquet production : $($runtimeItems.Count) elements, outils de developpement exclus."

@@ -556,16 +556,23 @@ def update_work_order_summary(
             return document, revision
 
 
-def update_work_order_section(
-    db_path: Path | str, key: str, section: str, value: dict, user: dict, expected: int
+def update_work_order_sections(
+    db_path: Path | str, key: str, sections: dict, user: dict, expected: int
 ) -> tuple[dict, int]:
-    """Replace one business section without accepting changes to the rest of the OF."""
-    allowed_sections = {"units", "rework", "consommables", "etuvage", "testequip", "faits", "openwork", "demating"}
+    """Replace selected business sections without accepting changes to the rest of the OF."""
+    allowed_sections = {
+        "units", "rework", "consommables", "etuvage", "testequip",
+        "faits", "openwork", "demating", "lotSplits",
+    }
     if not key.startswith("of:") or "/" in key or "\\" in key or len(key) > 200:
         raise ValueError("Dossier invalide")
-    if section not in allowed_sections or not isinstance(value, dict):
-        raise ValueError("Onglet invalide")
-    if section == "units" and user.get("role") not in MANAGER_ROLES:
+    if not isinstance(sections, dict) or not sections or set(sections) - allowed_sections:
+        raise ValueError("Onglets invalides")
+    if any(name != "lotSplits" and not isinstance(value, dict) for name, value in sections.items()):
+        raise ValueError("Contenu d'onglet invalide")
+    if "lotSplits" in sections and not isinstance(sections["lotSplits"], list):
+        raise ValueError("Historique de lot invalide")
+    if {"units", "lotSplits"}.intersection(sections) and user.get("role") not in MANAGER_ROLES:
         raise PermissionError("Seuls Admin et Manager peuvent modifier les SN et lots")
     with WRITE_LOCK:
         with connect_db(db_path) as conn:
@@ -575,14 +582,20 @@ def update_work_order_section(
                 raise ValueError("Dossier introuvable")
             current = record[0]
             document = copy.deepcopy(current)
-            document[section] = value
-            if section == "units":
-                document.setdefault("header", {})["_snRows"] = value.get("rows", [])
+            document.update(sections)
+            if "units" in sections:
+                document.setdefault("header", {})["_snRows"] = sections["units"].get("rows", [])
             validate_of_document_update(user, current, document)
             revision = write_document(conn, key, document, expected=expected, enforce=True)
             queue_upsert(conn, key, document, revision)
             conn.commit()
             return document, revision
+
+
+def update_work_order_section(
+    db_path: Path | str, key: str, section: str, value: dict, user: dict, expected: int
+) -> tuple[dict, int]:
+    return update_work_order_sections(db_path, key, {section: value}, user, expected)
 
 
 class StorageServer(SimpleHTTPRequestHandler):
@@ -705,6 +718,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return self.update_work_order_summary()
         if path == "/api/work-orders/update-section":
             return self.update_work_order_section()
+        if path == "/api/work-orders/update-sections":
+            return self.update_work_order_sections()
         if path == "/api/admin/users/import":
             return self.admin_import_users()
         if path.startswith("/api/admin/users/") and path.endswith("/reset-password"):
@@ -766,6 +781,29 @@ class StorageServer(SimpleHTTPRequestHandler):
                 key,
                 str(payload.get("section") or ""),
                 payload.get("value"),
+                session["user"],
+                self.expected_revision(),
+            )
+        except PermissionError as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, 403)
+        except (ConflictError, ValueError, AttributeError) as exc:
+            status = 409 if isinstance(exc, ConflictError) else 400
+            return self.send_json({"ok": False, "error": str(exc)}, status)
+        self.send_json({"ok": True, "revision": revision, "document": document})
+
+    def update_work_order_sections(self) -> None:
+        session = self.require_session()
+        if not session:
+            return
+        try:
+            payload = self.read_json_body()
+            key = str(payload.get("key") or "")
+            if not self.can_write_key(session["user"], key):
+                return self.send_json({"ok": False, "error": "Droits insuffisants"}, 403)
+            document, revision = update_work_order_sections(
+                self.db_path,
+                key,
+                payload.get("sections"),
                 session["user"],
                 self.expected_revision(),
             )

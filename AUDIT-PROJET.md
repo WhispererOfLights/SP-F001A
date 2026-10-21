@@ -25,14 +25,15 @@ Date de l'audit : 21 octobre 2026.
 - Les statuts OF/SN et le SN produit fini modifiés depuis l'accueil utilisent désormais une commande serveur atomique et ciblée.
 - Les autorisations de cette commande sont couvertes par des tests serveur Manager/Admin et opérateur.
 - Les saisies courantes enregistrent désormais uniquement l'onglet métier concerné ; le serveur refuse toute modification indirecte des autres onglets ou de l'en-tête.
+- Les opérations réellement multi-onglets utilisent une écriture atomique ciblée : copie d'un étuvage avec son four, scission de lot, changement de quantité et conversion SN/lot.
 - Une sauvegarde PostgreSQL récente a été recréée et son archive contrôlée : 20 ensembles de données sont lisibles par `pg_restore`.
+- Le paquet de production est limité aux fichiers d'exécution. Les tests, outils de migration, fichiers Docker et documents techniques restent dans Git et sont sauvegardés avant leur retrait d'une ancienne installation.
 
 ## Travaux recommandés
 
 ### Priorité haute
 
-1. Continuer à remplacer les quelques opérations multi-onglets par des commandes métier dédiées. Les saisies d'onglet, la clôture du suivi technique et les modifications rapides depuis l'accueil sont déjà ciblées.
-2. Faire attribuer à un compte technique de restauration le droit de créer une base PostgreSQL temporaire, puis automatiser le test complet. Le compte de l'application ne possède volontairement pas ce droit.
+1. Faire attribuer à un compte technique de restauration le droit de créer une base PostgreSQL temporaire, puis automatiser le test complet. Le compte de l'application ne possède volontairement pas ce droit. Ce point reste en attente des informations de l'IT.
 
 ### Priorité moyenne
 
@@ -40,9 +41,7 @@ Date de l'audit : 21 octobre 2026.
 
 ### Priorité basse
 
-1. Créer des tags Git pour les versions déployées, à commencer par la prochaine version.
-2. Retirer les outils de migration SQLite uniquement après validation de la durée de conservation du retour arrière.
-3. Séparer, à terme, les fichiers nécessaires en production des tests et documents copiés par le script de déploiement.
+1. Retirer les outils de migration SQLite du dépôt uniquement après validation de la durée de conservation du retour arrière.
 
 ## Limites de cet audit
 

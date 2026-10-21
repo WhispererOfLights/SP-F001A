@@ -243,6 +243,25 @@ class AuthServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 403)
 
+    def test_manager_can_update_multiple_sections_atomically(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        units = {"rows": [{"id": "unit-42", "sn": "SN0042", "deleted": False}]}
+        test_equipment = {"rows": [{"id": "oven-42", "nInv": "FOUR-42", "deleted": False}]}
+        status, payload, _ = self.request(
+            "/api/work-orders/update-sections", "POST",
+            {"key": "of:test", "sections": {"units": units, "testequip": test_equipment}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["document"]["units"]["rows"][0]["sn"], "SN0042")
+        self.assertEqual(payload["document"]["testequip"]["rows"][0]["nInv"], "FOUR-42")
+        self.assertEqual(payload["document"]["header"]["of"], document["header"]["of"])
+
     def test_operator_cannot_bypass_of_identity_or_audit_rules(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}

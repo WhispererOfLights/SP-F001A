@@ -97,6 +97,8 @@ powershell -ExecutionPolicy Bypass -File scripts\deploy.ps1 -Version <VERSION> -
 ```
 
 Le chemin de production réel est volontairement absent de ce document. Il se configure avec `-Destination` lors du déploiement et avec `SP_F001A_DATA_DIR` pour le stockage des données.
+
+Le paquet de production contient uniquement le serveur, le runtime navigateur, les dépendances Python et les lanceurs. Les tests, outils de migration, fichiers Docker et documents techniques restent dans Git ; lorsqu'ils existaient dans une ancienne version déployée, ils sont archivés avec celle-ci avant d'être retirés du dossier actif.
 Voir aussi [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## PostgreSQL et Docker
