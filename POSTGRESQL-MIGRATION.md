@@ -81,3 +81,23 @@ python scripts\verify_sqlite_postgres.py --sqlite "<chemin>\sp-f001a.sqlite"
 Si un problème apparaît avant que des écritures soient autorisées sur PostgreSQL, rediriger simplement l'adresse vers l'ancien serveur et retirer son fichier de lecture seule.
 
 Après l'ouverture des écritures PostgreSQL, ne pas revenir directement vers SQLite : effectuer d'abord une exportation PostgreSQL contrôlée. La base SQLite d'origine et les sauvegardes restent conservées jusqu'à validation formelle de la migration.
+
+## Projection relationnelle PostgreSQL (schéma 2)
+
+À partir du schéma PostgreSQL 2, le document JSONB exhaustif est conservé pour
+le retour arrière et chaque écriture alimente dans la même transaction les
+tables métier suivantes :
+
+- `work_orders` pour les OF et `of_units` pour leurs SN/LOT ;
+- `rework_operations`, `consumable_operations`, `consumable_items`,
+  `oven_runs`, `equipment_operations`, `technical_events` et
+  `connector_operations` pour les onglets ;
+- `users`, `roles`, `status_types`, `consumable_catalog` et
+  `technical_event_types` pour les comptes et référentiels ;
+- `comments`, `operation_unit_scopes` et `connector_events` pour les relations
+  transverses.
+
+Le passage du schéma 1 au schéma 2 est transactionnel au démarrage. Toutes les
+lignes sont reconstruites depuis `documents`; une erreur annule intégralement la
+création des tables. La vue `user_directory` permet la consultation des comptes
+sans rendre accessibles les données d'authentification.

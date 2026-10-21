@@ -50,6 +50,50 @@ class PostgresStoreTests(unittest.TestCase):
         self.assertEqual(unit,("1000123","SN0012","0000020516"))
         self.assertEqual(operation,("r1","JGR",True))
 
+    def test_relational_projection_tracks_references_users_and_tabs(self):
+        statuses=[{"id":"en_cours","label":"En cours","color":"#1f6feb","closed":False}]
+        consumables=[{"id":"glue-1","cat":"Colle","sap":"1600000001","code":"COL-1",
+                      "label":"Colle test","polymerizationHours":"72"}]
+        facts=[{"id":"NC","label":"Non-conformité","color":"#da3633"},
+               {"id":"OW","label":"Open Work","color":"#e05c00"}]
+        user={"trigram":"TST","prenom":"Test","nom":"Projection","service":"Méthodes",
+              "role":"Manager","passwordAuth":{"scheme":"pbkdf2-sha256","iterations":240000,
+              "salt":"salt","digest":"digest"}}
+        document={
+            "header":{"id":"relational-of","of":"OF-REL","codeArticle":"2500000001",
+                      "description":"Article relationnel","status":"en_cours"},
+            "units":{"rows":[{"id":"unit-1","sn":"SN-REL","status":"en_cours"}]},
+            "rework":{"rows":[{"id":"rw-1","unitId":"unit-1","repere":"R10","action1":"S",
+                                "createdVisa":"TST","validated":True,
+                                "comments":[{"id":"c1","visa":"TST","text":"Contrôle visuel"}]}]},
+            "consommables":{"ops":[{"id":"co-1","unitId":"unit-1","items":[
+                {"id":"ci-1","consoId":"glue-1","lot":"LOT-1","echantillon":"ECH-1"}]}]},
+            "etuvage":{"rows":[{"id":"ov-1","unitId":"unit-1","fourN":"F1","duree":"72","temp":"60"}]},
+            "testequip":{"rows":[{"id":"eq-1","unitId":"unit-1","nInv":"INV-1"}]},
+            "faits":{"rows":[{"id":"fact-1","unitId":"unit-1","type":"OW","numero":"OW001"}]},
+            "demating":{"connectors":[{"id":"cn-1","unitId":"unit-1","nConect":"J1",
+                                        "events":[{"action":"M","visa":"TST"}]}]},
+        }
+        server.storage_put(DATABASE_URL,"status-types",json.dumps(statuses),0,True)
+        server.storage_put(DATABASE_URL,"consommables-list",json.dumps(consumables),0,True)
+        server.storage_put(DATABASE_URL,"fait-types",json.dumps(facts),0,True)
+        server.storage_put(DATABASE_URL,"user:TST",json.dumps(user),0,True)
+        server.storage_put(DATABASE_URL,"of:relational-of",json.dumps(document),0,True)
+        with postgres_store.connect_database(DATABASE_URL) as conn:
+            self.assertEqual(conn.execute("SELECT role_code FROM users WHERE trigram='TST'").fetchone()[0],"manager")
+            self.assertEqual(conn.execute("SELECT label FROM consumable_catalog WHERE id='glue-1'").fetchone()[0],"Colle test")
+            self.assertEqual(conn.execute("SELECT count(*) FROM of_units").fetchone()[0],1)
+            for table in ("rework_operations","consumable_operations","consumable_items","oven_runs",
+                          "equipment_operations","technical_events","connector_operations",
+                          "connector_events","comments"):
+                self.assertEqual(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0],1,table)
+
+        document["rework"]["rows"]=[]
+        server.storage_put(DATABASE_URL,"of:relational-of",json.dumps(document),1,True)
+        with postgres_store.connect_database(DATABASE_URL) as conn:
+            self.assertEqual(conn.execute("SELECT count(*) FROM rework_operations").fetchone()[0],0)
+            self.assertEqual(conn.execute("SELECT count(*) FROM comments").fetchone()[0],0)
+
     def test_server_helpers_use_postgresql_backend(self):
         entry={"id":"pg-of","of":"PG100","status":"en_cours"}
         document={"header":entry,"units":{"rows":[]}}
