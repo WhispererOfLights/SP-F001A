@@ -65,14 +65,21 @@ class PostgresStoreTests(unittest.TestCase):
             "units":{"rows":[{"id":"unit-1","sn":"SN-REL","status":"en_cours"}]},
             "rework":{"rows":[{"id":"rw-1","unitId":"unit-1","repere":"R10","action1":"S",
                                 "createdVisa":"TST","validated":True,
+                                "deleted":True,"deletedReason":"Erreur de saisie",
+                                "deletedVisa":"TST","deletedDate":"21/10/2026 08:00",
                                 "comments":[{"id":"c1","visa":"TST","text":"Contrôle visuel"}]}]},
             "consommables":{"ops":[{"id":"co-1","unitId":"unit-1","items":[
                 {"id":"ci-1","consoId":"glue-1","lot":"LOT-1","echantillon":"ECH-1"}]}]},
-            "etuvage":{"rows":[{"id":"ov-1","unitId":"unit-1","fourN":"F1","duree":"72","temp":"60"}]},
+            "etuvage":{"rows":[{"id":"ov-1","unitId":"unit-1","fourN":"F1","duree":"72","temp":"60",
+                                  "deleted":True,"deletedReason":"Cycle annulé","deletedVisa":"TST",
+                                  "deletedDate":"21/10/2026 08:05","restoredReason":"Cycle confirmé",
+                                  "restoredVisa":"MGR","restoredDate":"21/10/2026 08:10"}]},
             "testequip":{"rows":[{"id":"eq-1","unitId":"unit-1","nInv":"INV-1"}]},
             "faits":{"rows":[{"id":"fact-1","unitId":"unit-1","type":"OW","numero":"OW001"}]},
             "demating":{"connectors":[{"id":"cn-1","unitId":"unit-1","nConect":"J1",
-                                        "events":[{"action":"M","visa":"TST"}]}]},
+                                        "events":[{"action":"M","visa":"TST","deleted":True,
+                                                   "deletedReason":"Mauvais connecteur","deletedVisa":"TST",
+                                                   "deletedDate":"21/10/2026 08:15"}]}]},
         }
         server.storage_put(DATABASE_URL,"status-types",json.dumps(statuses),0,True)
         server.storage_put(DATABASE_URL,"consommables-list",json.dumps(consumables),0,True)
@@ -87,6 +94,18 @@ class PostgresStoreTests(unittest.TestCase):
                           "equipment_operations","technical_events","connector_operations",
                           "connector_events","comments"):
                 self.assertEqual(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0],1,table)
+            self.assertEqual(
+                conn.execute("SELECT deletion_reason,deleted_by,deleted_at_text FROM rework_operations").fetchone(),
+                ("Erreur de saisie","TST","21/10/2026 08:00"),
+            )
+            self.assertEqual(
+                conn.execute("SELECT deletion_reason,restoration_reason,restored_by FROM oven_runs").fetchone(),
+                ("Cycle annulé","Cycle confirmé","MGR"),
+            )
+            self.assertEqual(
+                conn.execute("SELECT deleted,deletion_reason FROM connector_events").fetchone(),
+                (True,"Mauvais connecteur"),
+            )
 
         document["rework"]["rows"]=[]
         server.storage_put(DATABASE_URL,"of:relational-of",json.dumps(document),1,True)

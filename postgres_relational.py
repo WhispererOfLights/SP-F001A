@@ -40,6 +40,12 @@ DEFAULT_TECHNICAL_EVENT_TYPES = (
 
 ROLE_CODES = {label.casefold(): code for code, label, *_ in DEFAULT_ROLES}
 
+LIFECYCLE_TABLES = (
+    "work_orders", "of_units", "rework_operations", "consumable_operations",
+    "consumable_items", "oven_runs", "equipment_operations", "technical_events",
+    "connector_operations", "connector_events",
+)
+
 
 def _text(value):
     if value is None:
@@ -207,6 +213,17 @@ def create_schema(conn, Jsonb) -> None:
     for statement in statements:
         conn.execute(statement)
 
+    # Additive upgrades keep existing rows intact while exposing the audit
+    # fields directly to SQL clients.
+    for table in LIFECYCLE_TABLES:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS deletion_reason TEXT")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS deleted_by TEXT")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS deleted_at_text TEXT")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS restoration_reason TEXT")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS restored_by TEXT")
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS restored_at_text TEXT")
+    conn.execute("ALTER TABLE connector_events ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE")
+
     conn.execute("""CREATE OR REPLACE VIEW user_directory AS
         SELECT u.trigram,u.first_name,u.last_name,u.service,u.email,
                u.role_code,r.label AS role,u.must_change_password,u.updated_at
@@ -343,6 +360,19 @@ def _common(row):
     )
 
 
+def _set_lifecycle(conn, table, document_key, id_column, row_id, row, extra_where="", extra_values=()):
+    conn.execute(
+        f"""UPDATE {table} SET deletion_reason=%s,deleted_by=%s,deleted_at_text=%s,
+            restoration_reason=%s,restored_by=%s,restored_at_text=%s
+            WHERE document_key=%s AND {id_column}=%s{extra_where}""",
+        (_text(row.get("deletedReason")), _text(row.get("deletedVisa")),
+         _text(row.get("deletedDate") or row.get("deletedDT")),
+         _text(row.get("restoredReason")), _text(row.get("restoredVisa")),
+         _text(row.get("restoredDate") or row.get("restoredDT")),
+         document_key, row_id, *extra_values),
+    )
+
+
 def _add_scopes(conn, document_key, owner_table, owner_id, row):
     for excluded, field in ((False, "snIds"), (True, "snExcludeIds")):
         for unit_id in _rows(row.get(field)):
@@ -385,6 +415,7 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
          _text(header.get("createdBy")), _text(header.get("createdAt")), _boolean(header.get("deleted")),
          revision, updated_at, Jsonb(header)),
     )
+    _set_lifecycle(conn, "work_orders", key, "document_key", key, header)
 
     for position, unit in enumerate(_rows(_object(document.get("units")).get("rows"))):
         unit = _object(unit)
@@ -402,6 +433,7 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
              _boolean(unit.get("validated")), _boolean(unit.get("deleted")),
              _text(unit.get("createdVisa")), _text(unit.get("createdDT")), Jsonb(unit)),
         )
+        _set_lifecycle(conn, "of_units", key, "unit_id", unit_id, unit)
 
     section_specs = (
         ("rework", "rows", "rework_operations"),
@@ -462,6 +494,10 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
                          _boolean(item.get("validated")), _boolean(item.get("deleted")),
                          _text(item.get("createdVisa")), _text(item.get("createdDT")), Jsonb(item)),
                     )
+                    _set_lifecycle(
+                        conn, "consumable_items", key, "item_id", item_id, item,
+                        " AND operation_id=%s", (row_id,),
+                    )
                     _add_comments(conn, Jsonb, key, "consumable_items", item_id, item)
             elif table == "oven_runs":
                 conn.execute(
@@ -513,6 +549,25 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
                         (key, row_id, event_position, _text(event.get("dt")), _text(event.get("visa")),
                          _text(event.get("action")), _text(event.get("remarque")), Jsonb(event)),
                     )
+                    conn.execute(
+                        """UPDATE connector_events SET deleted=%s,deletion_reason=%s,deleted_by=%s,
+                           deleted_at_text=%s,restoration_reason=%s,restored_by=%s,restored_at_text=%s
+                           WHERE document_key=%s AND connector_id=%s AND event_position=%s""",
+                        (_boolean(event.get("deleted")), _text(event.get("deletedReason")),
+                         _text(event.get("deletedVisa")), _text(event.get("deletedDate") or event.get("deletedDT")),
+                         _text(event.get("restoredReason")), _text(event.get("restoredVisa")),
+                         _text(event.get("restoredDate") or event.get("restoredDT")),
+                         key, row_id, event_position),
+                    )
+            id_columns = {
+                "rework_operations": "operation_id",
+                "consumable_operations": "operation_id",
+                "oven_runs": "run_id",
+                "equipment_operations": "operation_id",
+                "technical_events": "event_id",
+                "connector_operations": "connector_id",
+            }
+            _set_lifecycle(conn, table, key, id_columns[table], row_id, row)
             _add_scopes(conn, key, table, row_id, row)
             _add_comments(conn, Jsonb, key, table, row_id, row)
 

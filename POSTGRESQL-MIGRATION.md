@@ -101,3 +101,8 @@ Le passage du schéma 1 au schéma 2 est transactionnel au démarrage. Toutes le
 lignes sont reconstruites depuis `documents`; une erreur annule intégralement la
 création des tables. La vue `user_directory` permet la consultation des comptes
 sans rendre accessibles les données d'authentification.
+
+Le schéma 3 expose en plus, dans chaque table de lignes métier, les colonnes
+`deletion_reason`, `deleted_by`, `deleted_at_text`, `restoration_reason`,
+`restored_by` et `restored_at_text`. Les annulations et restaurations restent
+également présentes dans le document source exhaustif.

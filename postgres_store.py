@@ -14,7 +14,7 @@ from relational_store import ConflictError
 import postgres_relational
 
 
-POSTGRES_SCHEMA_VERSION = 2
+POSTGRES_SCHEMA_VERSION = 3
 
 
 def _psycopg():
