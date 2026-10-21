@@ -17,8 +17,8 @@ const user = {trigram:'JGR',prenom:'Julien',role:'Manager'};
     page.on('pageerror',error=>errors.push(error.message));
     await page.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<html><body><div id="root"></div></body></html>'}));
     await page.goto('http://sp-f001-test.local/?dossier=old-id&piece=old-unit&of=100TEST&sn=SN2&onglet=faits');
-    await page.addScriptTag({path:path.join(root,'vendor/react.development.js')});
-    await page.addScriptTag({path:path.join(root,'vendor/react-dom.development.js')});
+    await page.addScriptTag({path:path.join(root,'vendor/react.production.min.js')});
+    await page.addScriptTag({path:path.join(root,'vendor/react-dom.production.min.js')});
     await page.evaluate(({entry,data,user})=>{
       localStorage.setItem('sp-f001-last-activity',String(Date.now()));
       const records={'session':user,'of-list':[entry],'of:new-technical-id':data};

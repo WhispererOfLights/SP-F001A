@@ -27,8 +27,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       ? {contentType: 'image/png', body: fs.readFileSync(path.join(root, 'assets/logo.png'))}
       : {contentType: 'text/html', body: '<html><head><style>body{margin:0;font-family:Arial}*{box-sizing:border-box}</style></head><body><div id="root"></div></body></html>'}));
     await page.goto('http://sp-f001-test.local/');
-    await page.addScriptTag({path: path.join(root, 'vendor/react.development.js')});
-    await page.addScriptTag({path: path.join(root, 'vendor/react-dom.development.js')});
+    await page.addScriptTag({path: path.join(root, 'vendor/react.production.min.js')});
+    await page.addScriptTag({path: path.join(root, 'vendor/react-dom.production.min.js')});
     await page.evaluate(({entry, data, user,otherEntry}) => {
       localStorage.setItem('sp-f001-theme', 'light');
       localStorage.setItem('sp-f001-last-activity', String(Date.now()));

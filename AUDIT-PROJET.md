@@ -19,6 +19,9 @@ Date de l'audit : 21 octobre 2026.
 - Mise à jour de la documentation : PostgreSQL est désormais indiqué comme base de production.
 - Nettoyage local des caches Python, captures et répertoires temporaires. Le dossier `data` est volontairement conservé.
 - Ajout de contrôles serveur sur l'identité des OF, les visas d'annulation/restauration et les suppressions définitives.
+- Remplacement des bundles React de développement par les bundles de production React 18.3.1.
+- Ajout de `package-lock.json` pour figer les versions exactes des outils JavaScript.
+- Premier découpage de `src/App.jsx` : les rapports et Adjust/Rework sont désormais isolés dans `src/modules/`.
 
 ## Travaux recommandés
 
@@ -29,10 +32,8 @@ Date de l'audit : 21 octobre 2026.
 
 ### Priorité moyenne
 
-1. Découper progressivement `src/App.jsx`, qui dépasse 8 000 lignes, par domaine : accueil, Adjust/Rework, consommables, étuvages, suivi technique et rapports.
-2. Remplacer les bibliothèques React de développement par leurs versions de production pour alléger le chargement navigateur.
-3. Ajouter un verrou de dépendances Node dès que `npm` est installé sur le poste de développement ou généré par la CI.
-4. Ajouter des tests serveur portant sur les autorisations de modification et de suppression à l'intérieur d'un OF.
+1. Continuer le découpage progressif de `src/App.jsx`, ramené de 8 254 à 6 270 lignes, par domaine : accueil, consommables, étuvages et suivi technique.
+2. Ajouter des tests serveur portant sur les autorisations de modification et de suppression à l'intérieur d'un OF.
 
 ### Priorité basse
 

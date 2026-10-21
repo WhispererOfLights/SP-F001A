@@ -9,8 +9,8 @@ const root=path.join(__dirname,'..');
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.route('**/*',r=>r.fulfill({contentType:'text/html',body:'<div id="root"></div>'}));
     await page.goto('http://password-test.local');
-    await page.addScriptTag({path:path.join(root,'vendor/react.development.js')});
-    await page.addScriptTag({path:path.join(root,'vendor/react-dom.development.js')});
+    await page.addScriptTag({path:path.join(root,'vendor/react.production.min.js')});
+    await page.addScriptTag({path:path.join(root,'vendor/react-dom.production.min.js')});
     await page.evaluate(()=>{
       const hash=str=>{let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+str.charCodeAt(i)|0;return h.toString(36);};
       const manager={trigram:'JGR',role:'Manager',pwd:hash('old')};
