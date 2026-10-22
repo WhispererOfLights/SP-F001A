@@ -292,6 +292,34 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.setViewportSize({width:1920,height:1080});
     const ficheHeading=page.getByRole('columnheader',{name:'Fiche suiveuse',exact:true});
     assert.ok(await ficheHeading.evaluate(el=>el.scrollWidth<=el.clientWidth));
+    await page.getByRole('button',{name:'Importer un plan de travail',exact:true}).click();
+    const importDialog=page.getByRole('dialog',{name:'Importer un plan de travail ADJ/Rework',exact:true});
+    await importDialog.waitFor();
+    assert.deepEqual(await page.evaluate(()=>window.parseReworkClipboard('R200\nC201').rows.map(row=>row.repere)),['R200','C201']);
+    assert.equal(await importDialog.getByLabel('Destination des brouillons importés',{exact:true}).inputValue(),'u2');
+    await importDialog.getByLabel('Tableau ADJ/Rework à importer',{exact:true}).fill([
+      'Repère topo\tQté\tADJ\tAct.\tCode article\tValeur - description\tLOT\tDC\tSN composant\tFiche suiveuse\tOP',
+      'R-IMP1\t1\tOui\tS\t250009999\t10K\t0000012345\t2642\tSN-IMP-01\tDOC-IMPORT_1\t30',
+      'C-IMP2\t\tNon\tObservation\t\tConstat préparé\t\t\t\tDOC-IMPORT_1\t30'
+    ].join('\n'));
+    await importDialog.getByText('2 brouillons prêts à importer',{exact:true}).waitFor();
+    await importDialog.getByRole('button',{name:'Importer 2 brouillons',exact:true}).click();
+    await page.waitForFunction(()=>window.testRecords['of:test-of'].rework.rows.filter(row=>row.importOrigin?.source==='clipboard').length===2);
+    const importedRows=await page.evaluate(()=>window.testRecords['of:test-of'].rework.rows.filter(row=>row.importOrigin?.source==='clipboard'));
+    assert.deepEqual(importedRows.map(row=>row.repere).sort(),['C-IMP2','R-IMP1']);
+    assert.ok(importedRows.every(row=>!row.validated&&!row.createdVisa&&!row.createdDT&&row.snIds?.join(',')==='u2'));
+    assert.ok(importedRows.every(row=>row.importOrigin.importedBy==='JGR'&&row.importOrigin.importedAt));
+    assert.equal(importedRows.find(row=>row.repere==='C-IMP2').remarques,'Constat préparé');
+    const importedMain=page.locator('[data-rework-row]').filter({has:page.locator('[data-entry-field="repere"][value="R-IMP1"]')});
+    await importedMain.getByLabel('Importé',{exact:true}).waitFor();
+    await importedMain.locator('[data-entry-field="valeur"]').fill('12K');
+    await importedMain.getByLabel('Importé, modifié',{exact:true}).waitFor();
+    await importedMain.getByTitle('Valider',{exact:true}).click();
+    await page.waitForFunction(()=>{
+      const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.repere==='R-IMP1');
+      return row?.validated&&row.createdVisa==='JGR'&&!!row.createdDT&&row.importOrigin?.modifiedBy==='JGR';
+    });
+    assert.equal(await importedMain.getByLabel('Importé, modifié',{exact:true}).count(),1);
     for(const action of ['S','M','P']) {
       await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
       const focused=page.locator('[data-entry-field="repere"]:focus');

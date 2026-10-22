@@ -29,6 +29,95 @@ const reworkRequiredFields = action => action==="O"
       ...(["S","D","P"].includes(action)?[{key:"valeur",label:"Valeur"}]:[]),
       ...(["S","P","M"].includes(action)?[{key:"codeERP",label:"Code article"}]:[]),
     ];
+const REWORK_IMPORT_TEMPLATE = [
+  "Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Observation"
+].join("\t");
+const normalizeReworkImportHeader = value => String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .toLowerCase().replace(/[°№]/g,"n").replace(/[^a-z0-9]+/g," ").trim();
+const REWORK_IMPORT_HEADER_ALIASES = new Map([
+  ["repere","repere"],["repere topo","repere"],["topo","repere"],
+  ["qte","qty"],["quantite","qty"],["quantity","qty"],
+  ["adj","isAdjust"],["adjust","isAdjust"],["ajustement","isAdjust"],
+  ["act","action1"],["action","action1"],
+  ["code article","codeERP"],["article","codeERP"],["code erp","codeERP"],["sap","codeERP"],["n article","codeERP"],
+  ["valeur","valeur"],["valeur description","valeur"],["description","valeur"],
+  ["lot","lot"],["dc","dc"],["date code","dc"],["datecode","dc"],
+  ["sn","sn"],["sn composant","sn"],["n serie","sn"],["numero serie","sn"],
+  ["fiche","fiche"],["fiche suiveuse","fiche"],["fiche suiveuse fait","fiche"],["document","fiche"],
+  ["op","etape"],["n op","etape"],["operation","etape"],["etape","etape"],
+  ["observation","remarques"],["observations","remarques"],["remarque","remarques"],["commentaire","remarques"],
+]);
+const normalizeImportedReworkAction = value => {
+  const raw=String(value||"").trim().toUpperCase();
+  if(ACTIONS.includes(raw)) return raw;
+  const text=normalizeReworkImportHeader(value);
+  if(/^soud/.test(text)) return "S";
+  if(/^desoud/.test(text)) return "D";
+  if(/^point/.test(text)) return "P";
+  if(/^matier/.test(text)) return "M";
+  if(/^rework|^retouche/.test(text)) return "R";
+  if(/^observ|^information/.test(text)) return "O";
+  return raw;
+};
+const parseImportedAdjust = value => /^(1|x|oui|o|yes|true)$/i.test(String(value||"").trim());
+const parseReworkClipboard = text => {
+  const source=String(text||"").replace(/\r/g,"");
+  const lines=source.split("\n").filter(line=>line.trim());
+  if(!lines.length) return {rows:[],errors:[],unknownHeaders:[],hasHeader:false};
+  const delimiter=lines.some(line=>line.includes("\t"))?"\t":lines.some(line=>line.includes(";"))?";":null;
+  const split=line=>delimiter?line.split(delimiter).map(cell=>cell.trim()):[line.trim()];
+  const first=split(lines[0]);
+  const mapped=first.map(cell=>REWORK_IMPORT_HEADER_ALIASES.get(normalizeReworkImportHeader(cell))||"");
+  const hasHeader=mapped.includes("repere");
+  if(first.length>1&&!hasHeader) return {
+    rows:[],unknownHeaders:[],hasHeader:false,
+    errors:["La première ligne doit contenir les en-têtes, notamment « Repère topo »."],
+  };
+  const fieldMap=hasHeader?mapped:["repere"];
+  const unknownHeaders=hasHeader?first.filter((cell,index)=>cell&&!mapped[index]):[];
+  const rows=[];
+  const errors=[];
+  const dataLines=hasHeader?lines.slice(1):lines;
+  dataLines.slice(0,250).forEach((line,index)=>{
+    const cells=split(line);
+    const row={};
+    fieldMap.forEach((field,column)=>{if(field) row[field]=cells[column]||"";});
+    row.repere=String(row.repere||"").trim().toUpperCase();
+    row.action1=normalizeImportedReworkAction(row.action1);
+    row.isAdjust=parseImportedAdjust(row.isAdjust);
+    row.qty=String(row.qty||"").trim();
+    row.codeERP=String(row.codeERP||"").trim();
+    row.valeur=String(row.valeur||"").trim();
+    row.lot=String(row.lot||"").trim().toUpperCase();
+    row.dc=String(row.dc||"").trim().toUpperCase();
+    row.sn=String(row.sn||"").trim();
+    row.fiche=String(row.fiche||"").trim().toUpperCase();
+    row.etape=String(row.etape||"").trim();
+    row.remarques=String(row.remarques||"").trim();
+    if(row.action1==="O"&&!row.remarques&&row.valeur){row.remarques=row.valeur;row.valeur="";}
+    const lineNumber=index+(hasHeader?2:1);
+    if(!row.repere) errors.push(`Ligne ${lineNumber} : repère topo manquant.`);
+    else rows.push({...row,lineNumber});
+  });
+  if(dataLines.length>250) errors.push("L'import est limité à 250 lignes par opération.");
+  return {rows,errors,unknownHeaders,hasHeader};
+};
+const IMPORTED_REWORK_COMPARE_FIELDS = REWORK_EDIT_FIELDS.filter(field=>field.key!=="createdDT");
+const importedReworkChanges = row => row?.importOrigin?.originalFields
+  ? changedFields(row.importOrigin.originalFields,row,IMPORTED_REWORK_COMPARE_FIELDS)
+  : [];
+const ImportOriginMark = ({row}) => {
+  if(!row?.importOrigin) return null;
+  const modified=importedReworkChanges(row).length>0;
+  const origin=row.importOrigin;
+  const title=[`Importé le ${origin.importedAt||"N/A"} par ${origin.importedBy||"N/A"}`,
+    modified?`Modifié le ${origin.modifiedAt||"N/A"} par ${origin.modifiedBy||"N/A"}`:"Aucune modification depuis l'import"].join("\n");
+  return <span aria-label={modified?"Importé, modifié":"Importé"} title={title}
+    style={{display:"inline-block",marginTop:3,padding:"1px 4px",border:`1px solid ${modified?C.yellow:C.blue}`,
+      borderRadius:3,color:modified?C.yellow:C.blue,fontSize:8,fontWeight:800,whiteSpace:"nowrap"}}>
+    {modified?"Importé · modifié":"Importé"}
+  </span>;
+};
 const parseActivityDate = raw => {
   if(raw instanceof Date&&!Number.isNaN(raw.getTime())) return raw;
   const value=String(raw||"").trim();
@@ -424,6 +513,79 @@ const CopyReworkModal = ({row,sourceRows=[],ofList,user,onCopy,onClose,busy,sour
     </div>
   </div>;
 };
+const ReworkImportModal = ({header,existingRows=[],onImport,onClose}) => {
+  const units=snRowsFromHeader(header);
+  const preferred=(header?._entrySnIds||header?._defaultSnIds||[]).find(id=>units.some(unit=>unit.id===id));
+  const [targetId,setTargetId]=useState(preferred||units[0]?.id||"all");
+  const [text,setText]=useState("");
+  const parsed=React.useMemo(()=>parseReworkClipboard(text),[text]);
+  const unknownActions=parsed.rows.filter(row=>row.action1&&!ACTIONS.includes(row.action1));
+  const existingKeys=new Set(existingRows.filter(row=>!row.deleted).map(row=>`${String(row.repere||"").trim().toUpperCase()}|${row.action1||""}`));
+  const importKeyCounts=parsed.rows.reduce((counts,row)=>{
+    const key=`${row.repere}|${row.action1||""}`;
+    counts.set(key,(counts.get(key)||0)+1);
+    return counts;
+  },new Map());
+  const isDuplicate=row=>existingKeys.has(`${row.repere}|${row.action1||""}`)||(importKeyCounts.get(`${row.repere}|${row.action1||""}`)||0)>1;
+  const duplicateCount=parsed.rows.filter(isDuplicate).length;
+  const canImport=parsed.rows.length>0&&!parsed.errors.length;
+  return <div style={{position:"fixed",inset:0,zIndex:360,background:"#000000bb",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div role="dialog" aria-modal="true" aria-labelledby="rework-import-title"
+      style={{width:1120,maxWidth:"100%",maxHeight:"92vh",overflowY:"auto",background:C.surface,color:C.text,border:`1px solid ${C.blue}`,borderRadius:6,padding:18}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:12}}>
+        <div>
+          <h2 id="rework-import-title" style={{margin:0,fontSize:16}}>Importer un plan de travail ADJ/Rework</h2>
+          <div style={{fontSize:11,color:C.muted,marginTop:4}}>Les lignes seront créées en brouillon. Le visa opérateur sera attribué uniquement lors de leur validation.</div>
+        </div>
+        <Btn small onClick={onClose} color={C.border}>Fermer</Btn>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) 270px",gap:12,alignItems:"end",marginBottom:10}}>
+        <label style={{display:"block",fontSize:11,color:C.muted}}>
+          Tableau copié depuis Excel
+          <textarea autoFocus aria-label="Tableau ADJ/Rework à importer" value={text} onChange={event=>setText(event.target.value)}
+            placeholder={`${REWORK_IMPORT_TEMPLATE}\nR12\t1\tOui\tS\t250001234\t10K\t0000012345\t2642\tSN-COMP-01\tDOC-0013405_1\t30`}
+            style={{display:"block",width:"100%",height:145,boxSizing:"border-box",marginTop:5,resize:"vertical",background:C.input,color:C.text,border:`1px solid ${parsed.errors.length?C.red:C.border}`,borderRadius:4,padding:9,fontFamily:"monospace",fontSize:11}}/>
+        </label>
+        <div>
+          <label style={{display:"block",fontSize:11,color:C.muted,marginBottom:10}}>
+            Destination des brouillons
+            <select aria-label="Destination des brouillons importés" value={targetId} onChange={event=>setTargetId(event.target.value)}
+              style={{display:"block",width:"100%",marginTop:5,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:"7px 8px",fontSize:11}}>
+              {units.length>1&&<option value="all">Tous les SN / LOT</option>}
+              {units.map(unit=><option key={unit.id} value={unit.id}>{snTitle(unit)}</option>)}
+              {!units.length&&<option value="all">Dossier complet</option>}
+            </select>
+          </label>
+          <Btn small color={C.blue} onClick={()=>copyToClipboard(REWORK_IMPORT_TEMPLATE)}>Copier les en-têtes</Btn>
+        </div>
+      </div>
+      {parsed.errors.map(error=><div key={error} role="alert" style={{color:C.red,fontSize:11,marginBottom:4}}>{error}</div>)}
+      {!!parsed.unknownHeaders.length&&<div style={{color:C.yellow,fontSize:11,marginBottom:6}}>Colonnes ignorées : {parsed.unknownHeaders.join(", ")}</div>}
+      {!!unknownActions.length&&<div style={{color:C.yellow,fontSize:11,marginBottom:6}}>Certaines actions ne sont pas reconnues. Elles resteront à corriger dans les brouillons.</div>}
+      {!!duplicateCount&&<div style={{color:C.yellow,fontSize:11,marginBottom:6}}>{duplicateCount} ligne{duplicateCount>1?"s":""} possède{duplicateCount>1?"nt":""} déjà le même repère et la même action. L'import reste autorisé.</div>}
+      {!!parsed.rows.length&&<div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:4,marginTop:10}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
+          <thead><tr style={{background:C.raised}}>
+            {["État","Ligne","Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Observation"].map(label=><TH key={label}>{label}</TH>)}
+          </tr></thead>
+          <tbody>{parsed.rows.slice(0,40).map((row,index)=><tr key={`${row.lineNumber}-${index}`} style={{background:index%2?C.stripe:"transparent"}}>
+            <TD><span style={{color:isDuplicate(row)?C.yellow:C.green,fontWeight:800}}>{isDuplicate(row)?"Doublon possible":"Prêt"}</span></TD>
+            {[row.lineNumber,row.repere,row.qty,row.isAdjust?"Oui":"Non",row.action1,row.codeERP,row.valeur,row.lot,row.dc,row.sn,row.fiche,row.etape,row.remarques].map((value,column)=><TD key={column}>{value||""}</TD>)}
+          </tr>)}</tbody>
+        </table>
+        {parsed.rows.length>40&&<div style={{padding:7,color:C.muted,fontSize:10}}>Aperçu limité aux 40 premières lignes sur {parsed.rows.length}.</div>}
+      </div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginTop:14}}>
+        <span style={{fontSize:11,color:parsed.rows.length?C.green:C.muted}}>{parsed.rows.length} brouillon{parsed.rows.length>1?"s":""} prêt{parsed.rows.length>1?"s":""} à importer</span>
+        <div style={{display:"flex",gap:8}}>
+          <Btn small onClick={onClose} color={C.border}>Annuler</Btn>
+          <Btn small onClick={()=>canImport&&onImport(parsed.rows,targetId)} color={C.blue} disabled={!canImport}>Importer {parsed.rows.length||""} brouillon{parsed.rows.length>1?"s":""}</Btn>
+        </div>
+      </div>
+    </div>
+  </div>;
+};
+
 const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross,contextData}) => {
   const rows = data.rows||[];
   const [requestIds,setRequestIds]=useState([]);
@@ -444,7 +606,8 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
     if(next){e.preventDefault();next.focus();}
   };
   const [showMaterialDraft,setShowMaterialDraft]=useState(false);
-  useEffect(()=>{setRequestIds([]);setShowMaterialDraft(false);},[header?.of,header?._defaultSnIds?.join("|")]);
+  const [showImport,setShowImport]=useState(false);
+  useEffect(()=>{setRequestIds([]);setShowMaterialDraft(false);setShowImport(false);},[header?.of,header?._defaultSnIds?.join("|")]);
   const canEdit = row => canEditLine(user,row);
   const canCommentRow = () => perms.canComment!==false;
   const snRows = snRowsFromHeader(header);
@@ -495,16 +658,57 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       tracaOk:false,visaTraca:"",dateTraca:""
     }]});
   };
+  const importDrafts=(importRows,targetId)=>{
+    if(!perms.canWrite||!importRows.length) return;
+    const last=latestSharedFicheOp(contextData||{rework:data},header);
+    const importedAt=nowDT();
+    const batchId=uid();
+    const scope=targetId&&targetId!=="all"
+      ? {snScope:"custom",snIds:[targetId],unitId:targetId}
+      : {snScope:"all",snIds:[],unitId:""};
+    const drafts=importRows.map(source=>{
+      const row={
+        id:uid(),createdVisa:"",createdDT:"",...scope,
+        sortieVisa:"",repere:source.repere||"",
+        qty:source.action1==="O"?"":source.qty||(source.repere&&source.action1!=="M"?"1":""),
+        action1:ACTIONS.includes(source.action1)?source.action1:"",
+        codeERP:source.action1==="O"?"":source.codeERP||"",
+        valeur:source.action1==="O"?"":source.valeur||"",
+        lot:source.action1==="O"?"":normLot(source.lot||""),
+        dc:source.action1==="O"?"":source.dc||"",
+        sn:source.action1==="O"?"":source.sn||"",
+        fiche:source.fiche||last.fiche||"",etape:source.etape||last.op||"",ficheOpUpdatedAt:Date.now(),
+        isAdjust:source.action1==="O"?false:!!source.isAdjust,
+        visaOper:"",dateOper:"",visaCtrl:"",dateCtrl:"",
+        remarques:source.remarques||"",editHistory:[],validated:false,validError:"",deleted:false,
+        tracaOk:false,visaTraca:"",dateTraca:"",
+      };
+      return {...row,importOrigin:{source:"clipboard",batchId,rowNumber:source.lineNumber,
+        importedBy:user?.trigram||"",importedAt,modifiedBy:"",modifiedAt:"",
+        originalFields:snapshotFields(row,REWORK_EDIT_FIELDS)}};
+    });
+    setFilters({snTarget:workSnFilter(header),repere:"",action1:"",codeERP:"",valeur:"",lot:"",dc:"",sn:"",fiche:"",etape:"",adjust:"all"});
+    setShowImport(false);
+    setFocusNewId(drafts[0]?.id||null);
+    onChange({rows:[...rows,...drafts.slice().reverse()]});
+  };
   const [deleteTarget,setDeleteTarget] = useState(null);
   const [restoreTarget,setRestoreTarget] = useState(null);
   const [showDeleted,setShowDeleted]   = useState(false);
   const [hideAchevees,setHideAchevees] = useState(true);
   const [filters,setFilters] = useState({snTarget:workSnFilter(header), repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"});
   useEffect(()=>setFilters(s=>({...s,snTarget:workSnFilter(header)})),[header?._defaultSnIds?.join("|"),header?._snRows?.length]);
+  const importAwarePatch=(row,patch)=>{
+    const fields=typeof patch==="function"?patch(row):patch;
+    if(!row?.importOrigin) return fields;
+    const next={...row,...fields};
+    const changed=IMPORTED_REWORK_COMPARE_FIELDS.some(field=>String(row?.[field.key]??"")!==String(next?.[field.key]??""));
+    return changed?{...fields,importOrigin:{...row.importOrigin,modifiedBy:user?.trigram||"",modifiedAt:nowDT()}}:fields;
+  };
   const upd=(id,f,v)=>{
     const r=rows.find(x=>x.id===id);
     if(f==="comments" ? !canCommentRow() : !canEdit(r)) return;
-    onChange({rows:scopedRowsPatch(rows,id,header,{[f]:v,...(["fiche","etape"].includes(f)?{ficheOpUpdatedAt:Date.now()}:{})})});
+    onChange({rows:scopedRowsPatch(rows,id,header,current=>importAwarePatch(current,{[f]:v,...(["fiche","etape"].includes(f)?{ficheOpUpdatedAt:Date.now()}:{})}))});
   };
   const updAction=(id,nextAction)=>{
     const r=rows.find(x=>x.id===id);
@@ -512,7 +716,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
     if(r.visaCtrl&&!canActionReceiveCtrl(nextAction)){
       const actionLabel=ACTION_LABELS[nextAction]||nextAction;
       if(!window.confirm(`L'action ${actionLabel} ne permet pas de contrôle. Retirer le CTRL existant avant de changer l'action ?`)) return;
-      onChange({rows:scopedRowsPatch(rows,id,header,{
+      onChange({rows:scopedRowsPatch(rows,id,header,current=>importAwarePatch(current,{
         action1:nextAction,
         visaCtrl:"",
         dateCtrl:"",
@@ -523,28 +727,28 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
           cancelledDT:nowDT(),
           reason:`Action modifiée de ${r.action1||"N/A"} vers ${nextAction}`,
         }],
-      })});
+      }))});
       return;
     }
     upd(id,"action1",nextAction);
   };
-  const patchRow=(id,fields)=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:scopedRowsPatch(rows,id,header,fields)}); };
+  const patchRow=(id,fields)=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:scopedRowsPatch(rows,id,header,current=>importAwarePatch(current,fields))}); };
   const updRepere=(id,v)=>{
     const row=rows.find(x=>x.id===id);
     if(!canEdit(row)) return;
     onChange({rows:scopedRowsPatch(rows,id,header,r=>{
-    const nextKey=String(v||"").trim().toUpperCase();
-    return {
-      repere:String(v||"").toUpperCase(),
-      qty:nextKey&&r.qty===""&&r.action1!=="M"?"1":r.qty,
-      isAdjust:priorAdjust(r,nextKey)||!!r.isAdjust
-    };
-  })});
+      const nextKey=String(v||"").trim().toUpperCase();
+      return importAwarePatch(r,{
+        repere:String(v||"").toUpperCase(),
+        qty:nextKey&&r.qty===""&&r.action1!=="M"?"1":r.qty,
+        isAdjust:priorAdjust(r,nextKey)||!!r.isAdjust
+      });
+    })});
   };
   const updAdjust=(id,checked)=>{
     const row=rows.find(r=>r.id===id);
     if(!canEdit(row)) return;
-    onChange({rows:scopedRowsPatch(rows,id,header,{isAdjust:checked})});
+    onChange({rows:scopedRowsPatch(rows,id,header,current=>importAwarePatch(current,{isAdjust:checked}))});
   };
   const dup=id=>{ const r=rows.find(x=>x.id===id); if(!r||!perms.canWrite) return; if(onCopyAcross&&!r.deleted){onCopyAcross(r);return;} onChange({rows:[...rows,duplicateRow(r,user,{
     visaOper:"",dateOper:"",visaCtrl:"",dateCtrl:"",tracaOk:false,visaTraca:"",dateTraca:""
@@ -627,7 +831,10 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         refuse(sequence.map(w=>`${w.snLabel} - ${w.repere} : ${w.previous.action1} → ${w.row.action1} interdit`).join(" ; "));
         return;
       }
-      onChange({rows:scopedRowsPatch(rows,id,header,x=>withEditHistory(x,user,REWORK_EDIT_FIELDS))});
+      onChange({rows:scopedRowsPatch(rows,id,header,x=>{
+        const finalized=withEditHistory(x,user,REWORK_EDIT_FIELDS);
+        return x.importOrigin?{...finalized,createdVisa:user?.trigram||"",createdDT:nowDT()}:finalized;
+      })});
     }
   };
   const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(r,REWORK_EDIT_FIELDS)}:r)}); };
@@ -678,6 +885,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
         <div style={{color:C.muted,fontSize:11,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           {perms.canWrite&&<Btn onClick={add} small>+ Ligne</Btn>}
+          {perms.canWrite&&<Btn onClick={()=>setShowImport(true)} color={C.blue} small>Importer un plan de travail</Btn>}
           {perms.canWrite&&<Btn onClick={()=>setShowMaterialDraft(true)} color={C.blue} disabled={!requestRows.length} small>Demande matière ({requestRows.length})</Btn>}
           <Btn onClick={printRetentionSheets} color={C.blue} small>Feuille composants</Btn>
           {ACTIONS.map(a=><span key={a}><Badge label={a} color={C.accent}/> {ACTION_LABELS[a]}&nbsp;&nbsp;</span>)}
@@ -763,7 +971,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 pointerEvents:r.deleted?"none":undefined,
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                 <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
-                <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
+                <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/><ImportOriginMark row={r}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                 <TD><Input entryField="repere" value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
                 <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
@@ -894,7 +1102,8 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         </table>
         {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucune ligne</div>}
       </div>
-      <div style={{marginTop:8,fontSize:11,color:C.muted}}>✦ Visa Opér. pré-rempli · ✓ Valider pour verrouiller · × Annuler sur ligne validée = barre et conserve la traçabilité</div>
+      <div style={{marginTop:8,fontSize:11,color:C.muted}}>✦ Visa Opér. pré-rempli hors import · ✓ Valider pour verrouiller · × Annuler sur ligne validée = barre et conserve la traçabilité</div>
+      {showImport&&perms.canWrite&&<ReworkImportModal header={header} existingRows={rows} onImport={importDrafts} onClose={()=>setShowImport(false)}/>}
       {showMaterialDraft&&perms.canWrite&&requestRows.length>0&&<MaterialRequestModal header={header} rows={requestRows} user={user} onClose={()=>setShowMaterialDraft(false)}/>}
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}
       {restoreTarget&&<RestoreModal onConfirm={restore} onCancel={()=>setRestoreTarget(null)}/>}

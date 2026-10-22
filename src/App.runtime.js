@@ -6749,6 +6749,129 @@ var reworkRequiredFields = function reworkRequiredFields(action) {
     label: "Code article"
   }] : []));
 };
+var REWORK_IMPORT_TEMPLATE = ["Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Observation"].join("\t");
+var normalizeReworkImportHeader = function normalizeReworkImportHeader(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[°№]/g, "n").replace(/[^a-z0-9]+/g, " ").trim();
+};
+var REWORK_IMPORT_HEADER_ALIASES = new Map([["repere", "repere"], ["repere topo", "repere"], ["topo", "repere"], ["qte", "qty"], ["quantite", "qty"], ["quantity", "qty"], ["adj", "isAdjust"], ["adjust", "isAdjust"], ["ajustement", "isAdjust"], ["act", "action1"], ["action", "action1"], ["code article", "codeERP"], ["article", "codeERP"], ["code erp", "codeERP"], ["sap", "codeERP"], ["n article", "codeERP"], ["valeur", "valeur"], ["valeur description", "valeur"], ["description", "valeur"], ["lot", "lot"], ["dc", "dc"], ["date code", "dc"], ["datecode", "dc"], ["sn", "sn"], ["sn composant", "sn"], ["n serie", "sn"], ["numero serie", "sn"], ["fiche", "fiche"], ["fiche suiveuse", "fiche"], ["fiche suiveuse fait", "fiche"], ["document", "fiche"], ["op", "etape"], ["n op", "etape"], ["operation", "etape"], ["etape", "etape"], ["observation", "remarques"], ["observations", "remarques"], ["remarque", "remarques"], ["commentaire", "remarques"]]);
+var normalizeImportedReworkAction = function normalizeImportedReworkAction(value) {
+  var raw = String(value || "").trim().toUpperCase();
+  if (ACTIONS.includes(raw)) return raw;
+  var text = normalizeReworkImportHeader(value);
+  if (/^soud/.test(text)) return "S";
+  if (/^desoud/.test(text)) return "D";
+  if (/^point/.test(text)) return "P";
+  if (/^matier/.test(text)) return "M";
+  if (/^rework|^retouche/.test(text)) return "R";
+  if (/^observ|^information/.test(text)) return "O";
+  return raw;
+};
+var parseImportedAdjust = function parseImportedAdjust(value) {
+  return /^(1|x|oui|o|yes|true)$/i.test(String(value || "").trim());
+};
+var parseReworkClipboard = function parseReworkClipboard(text) {
+  var source = String(text || "").replace(/\r/g, "");
+  var lines = source.split("\n").filter(function (line) {
+    return line.trim();
+  });
+  if (!lines.length) return {
+    rows: [],
+    errors: [],
+    unknownHeaders: [],
+    hasHeader: false
+  };
+  var delimiter = lines.some(function (line) {
+    return line.includes("\t");
+  }) ? "\t" : lines.some(function (line) {
+    return line.includes(";");
+  }) ? ";" : null;
+  var split = function split(line) {
+    return delimiter ? line.split(delimiter).map(function (cell) {
+      return cell.trim();
+    }) : [line.trim()];
+  };
+  var first = split(lines[0]);
+  var mapped = first.map(function (cell) {
+    return REWORK_IMPORT_HEADER_ALIASES.get(normalizeReworkImportHeader(cell)) || "";
+  });
+  var hasHeader = mapped.includes("repere");
+  if (first.length > 1 && !hasHeader) return {
+    rows: [],
+    unknownHeaders: [],
+    hasHeader: false,
+    errors: ["La première ligne doit contenir les en-têtes, notamment « Repère topo »."]
+  };
+  var fieldMap = hasHeader ? mapped : ["repere"];
+  var unknownHeaders = hasHeader ? first.filter(function (cell, index) {
+    return cell && !mapped[index];
+  }) : [];
+  var rows = [];
+  var errors = [];
+  var dataLines = hasHeader ? lines.slice(1) : lines;
+  dataLines.slice(0, 250).forEach(function (line, index) {
+    var cells = split(line);
+    var row = {};
+    fieldMap.forEach(function (field, column) {
+      if (field) row[field] = cells[column] || "";
+    });
+    row.repere = String(row.repere || "").trim().toUpperCase();
+    row.action1 = normalizeImportedReworkAction(row.action1);
+    row.isAdjust = parseImportedAdjust(row.isAdjust);
+    row.qty = String(row.qty || "").trim();
+    row.codeERP = String(row.codeERP || "").trim();
+    row.valeur = String(row.valeur || "").trim();
+    row.lot = String(row.lot || "").trim().toUpperCase();
+    row.dc = String(row.dc || "").trim().toUpperCase();
+    row.sn = String(row.sn || "").trim();
+    row.fiche = String(row.fiche || "").trim().toUpperCase();
+    row.etape = String(row.etape || "").trim();
+    row.remarques = String(row.remarques || "").trim();
+    if (row.action1 === "O" && !row.remarques && row.valeur) {
+      row.remarques = row.valeur;
+      row.valeur = "";
+    }
+    var lineNumber = index + (hasHeader ? 2 : 1);
+    if (!row.repere) errors.push("Ligne ".concat(lineNumber, " : rep\xE8re topo manquant."));else rows.push(_objectSpread(_objectSpread({}, row), {}, {
+      lineNumber: lineNumber
+    }));
+  });
+  if (dataLines.length > 250) errors.push("L'import est limité à 250 lignes par opération.");
+  return {
+    rows: rows,
+    errors: errors,
+    unknownHeaders: unknownHeaders,
+    hasHeader: hasHeader
+  };
+};
+var IMPORTED_REWORK_COMPARE_FIELDS = REWORK_EDIT_FIELDS.filter(function (field) {
+  return field.key !== "createdDT";
+});
+var importedReworkChanges = function importedReworkChanges(row) {
+  var _row$importOrigin;
+  return row !== null && row !== void 0 && (_row$importOrigin = row.importOrigin) !== null && _row$importOrigin !== void 0 && _row$importOrigin.originalFields ? changedFields(row.importOrigin.originalFields, row, IMPORTED_REWORK_COMPARE_FIELDS) : [];
+};
+var ImportOriginMark = function ImportOriginMark(_ref63) {
+  var row = _ref63.row;
+  if (!(row !== null && row !== void 0 && row.importOrigin)) return null;
+  var modified = importedReworkChanges(row).length > 0;
+  var origin = row.importOrigin;
+  var title = ["Import\xE9 le ".concat(origin.importedAt || "N/A", " par ").concat(origin.importedBy || "N/A"), modified ? "Modifi\xE9 le ".concat(origin.modifiedAt || "N/A", " par ").concat(origin.modifiedBy || "N/A") : "Aucune modification depuis l'import"].join("\n");
+  return /*#__PURE__*/React.createElement("span", {
+    "aria-label": modified ? "Importé, modifié" : "Importé",
+    title: title,
+    style: {
+      display: "inline-block",
+      marginTop: 3,
+      padding: "1px 4px",
+      border: "1px solid ".concat(modified ? C.yellow : C.blue),
+      borderRadius: 3,
+      color: modified ? C.yellow : C.blue,
+      fontSize: 8,
+      fontWeight: 800,
+      whiteSpace: "nowrap"
+    }
+  }, modified ? "Importé · modifié" : "Importé");
+};
 var parseActivityDate = function parseActivityDate(raw) {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;
   var value = String(raw || "").trim();
@@ -6814,10 +6937,10 @@ var missingReworkTrace = function missingReworkTrace(row) {
     return f.label;
   }) : [];
 };
-var buildMaterialRequest = function buildMaterialRequest(_ref63) {
-  var header = _ref63.header,
-    rows = _ref63.rows,
-    user = _ref63.user;
+var buildMaterialRequest = function buildMaterialRequest(_ref64) {
+  var header = _ref64.header,
+    rows = _ref64.rows,
+    user = _ref64.user;
   var units = snRowsFromHeader(header);
   var requested = rows.filter(function (r) {
     return !r.deleted && ["S", "M"].includes(r.action1) && (!units.length || units.some(function (u) {
@@ -6900,7 +7023,7 @@ var useUserAccounts = function useUserAccounts() {
             index = _context5.v;
             _context5.n = 2;
             return Promise.all(index.map(/*#__PURE__*/function () {
-              var _ref65 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4(trigram) {
+              var _ref66 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee4(trigram) {
                 var result;
                 return _regenerator().w(function (_context4) {
                   while (1) switch (_context4.n) {
@@ -6914,7 +7037,7 @@ var useUserAccounts = function useUserAccounts() {
                 }, _callee4);
               }));
               return function (_x3) {
-                return _ref65.apply(this, arguments);
+                return _ref66.apply(this, arguments);
               };
             }()));
           case 2:
@@ -6950,18 +7073,18 @@ var useCcManagers = function useCcManagers() {
     error: error
   };
 };
-var ManagerCcPicker = function ManagerCcPicker(_ref66) {
-  var managers = _ref66.managers,
-    copyTo = _ref66.copyTo,
-    _onChange5 = _ref66.onChange,
-    _ref66$required = _ref66.required,
-    required = _ref66$required === void 0 ? false : _ref66$required,
-    _ref66$error = _ref66.error,
-    error = _ref66$error === void 0 ? "" : _ref66$error,
-    _ref66$legend = _ref66.legend,
-    legend = _ref66$legend === void 0 ? "CC manager" : _ref66$legend,
-    _ref66$mode = _ref66.mode,
-    mode = _ref66$mode === void 0 ? "cc" : _ref66$mode;
+var ManagerCcPicker = function ManagerCcPicker(_ref67) {
+  var managers = _ref67.managers,
+    copyTo = _ref67.copyTo,
+    _onChange5 = _ref67.onChange,
+    _ref67$required = _ref67.required,
+    required = _ref67$required === void 0 ? false : _ref67$required,
+    _ref67$error = _ref67.error,
+    error = _ref67$error === void 0 ? "" : _ref67$error,
+    _ref67$legend = _ref67.legend,
+    legend = _ref67$legend === void 0 ? "CC manager" : _ref67$legend,
+    _ref67$mode = _ref67.mode,
+    mode = _ref67$mode === void 0 ? "cc" : _ref67$mode;
   var usable = managers.filter(function (manager) {
     return manager.email;
   });
@@ -7057,11 +7180,11 @@ var ManagerCcPicker = function ManagerCcPicker(_ref66) {
     }
   }, error));
 };
-var MaterialRequestModal = function MaterialRequestModal(_ref67) {
-  var header = _ref67.header,
-    rows = _ref67.rows,
-    user = _ref67.user,
-    onClose = _ref67.onClose;
+var MaterialRequestModal = function MaterialRequestModal(_ref68) {
+  var header = _ref68.header,
+    rows = _ref68.rows,
+    user = _ref68.user,
+    onClose = _ref68.onClose;
   var _useState65 = useState(function () {
       return buildMaterialRequest({
         header: header,
@@ -7519,20 +7642,20 @@ var copySourcesForTab = function copySourcesForTab(tab, data, header) {
     });
   });
 };
-var CopyReworkModal = function CopyReworkModal(_ref68) {
-  var row = _ref68.row,
-    _ref68$sourceRows = _ref68.sourceRows,
-    sourceRows = _ref68$sourceRows === void 0 ? [] : _ref68$sourceRows,
-    ofList = _ref68.ofList,
-    user = _ref68.user,
-    onCopy = _ref68.onCopy,
-    onClose = _ref68.onClose,
-    busy = _ref68.busy,
-    sourceOfId = _ref68.sourceOfId,
-    sourceHeader = _ref68.sourceHeader,
-    defaultUnitIds = _ref68.defaultUnitIds,
-    _ref68$tab = _ref68.tab,
-    tab = _ref68$tab === void 0 ? "rework" : _ref68$tab;
+var CopyReworkModal = function CopyReworkModal(_ref69) {
+  var row = _ref69.row,
+    _ref69$sourceRows = _ref69.sourceRows,
+    sourceRows = _ref69$sourceRows === void 0 ? [] : _ref69$sourceRows,
+    ofList = _ref69.ofList,
+    user = _ref69.user,
+    onCopy = _ref69.onCopy,
+    onClose = _ref69.onClose,
+    busy = _ref69.busy,
+    sourceOfId = _ref69.sourceOfId,
+    sourceHeader = _ref69.sourceHeader,
+    defaultUnitIds = _ref69.defaultUnitIds,
+    _ref69$tab = _ref69.tab,
+    tab = _ref69$tab === void 0 ? "rework" : _ref69$tab;
   var _useState73 = useState([]),
     _useState74 = _slicedToArray(_useState73, 2),
     targets = _useState74[0],
@@ -7604,7 +7727,7 @@ var CopyReworkModal = function CopyReworkModal(_ref68) {
             return Promise.all(ofList.filter(function (entry) {
               return !entry.deleted;
             }).map(/*#__PURE__*/function () {
-              var _ref70 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7(entry) {
+              var _ref71 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7(entry) {
                 var _data$header2, record, data, _destinations, _iterator2, _step2, unit, _t5;
                 return _regenerator().w(function (_context7) {
                   while (1) switch (_context7.p = _context7.n) {
@@ -7672,7 +7795,7 @@ var CopyReworkModal = function CopyReworkModal(_ref68) {
                 }, _callee7, null, [[0, 4]]);
               }));
               return function (_x4) {
-                return _ref70.apply(this, arguments);
+                return _ref71.apply(this, arguments);
               };
             }()));
           case 1:
@@ -8121,28 +8244,298 @@ var CopyReworkModal = function CopyReworkModal(_ref68) {
     disabled: loading || running || busy || !selected.length || !chosenSources.length
   }, running ? "Copie…" : "Copier ".concat(chosenSources.length, " ligne(s) vers ").concat(selected.length, " destination(s)")))));
 };
-var TabRework = function TabRework(_ref71) {
-  var _header$_defaultSnIds, _header$_defaultSnIds2, _header$_defaultSnIds3, _header$_snRows;
-  var data = _ref71.data,
-    onChange = _ref71.onChange,
-    user = _ref71.user,
-    _ref71$perms = _ref71.perms,
-    perms = _ref71$perms === void 0 ? {} : _ref71$perms,
-    header = _ref71.header,
-    _ref71$forceShowDelet = _ref71.forceShowDeleted,
-    forceShowDeleted = _ref71$forceShowDelet === void 0 ? false : _ref71$forceShowDelet,
-    onCopyAcross = _ref71.onCopyAcross,
-    contextData = _ref71.contextData;
-  var rows = data.rows || [];
-  var _useState95 = useState([]),
+var ReworkImportModal = function ReworkImportModal(_ref72) {
+  var _units$;
+  var header = _ref72.header,
+    _ref72$existingRows = _ref72.existingRows,
+    existingRows = _ref72$existingRows === void 0 ? [] : _ref72$existingRows,
+    onImport = _ref72.onImport,
+    onClose = _ref72.onClose;
+  var units = snRowsFromHeader(header);
+  var preferred = ((header === null || header === void 0 ? void 0 : header._entrySnIds) || (header === null || header === void 0 ? void 0 : header._defaultSnIds) || []).find(function (id) {
+    return units.some(function (unit) {
+      return unit.id === id;
+    });
+  });
+  var _useState95 = useState(preferred || ((_units$ = units[0]) === null || _units$ === void 0 ? void 0 : _units$.id) || "all"),
     _useState96 = _slicedToArray(_useState95, 2),
-    requestIds = _useState96[0],
-    setRequestIds = _useState96[1];
-  var tableRef = React.useRef(null);
-  var _useState97 = useState(null),
+    targetId = _useState96[0],
+    setTargetId = _useState96[1];
+  var _useState97 = useState(""),
     _useState98 = _slicedToArray(_useState97, 2),
-    focusNewId = _useState98[0],
-    setFocusNewId = _useState98[1];
+    text = _useState98[0],
+    setText = _useState98[1];
+  var parsed = React.useMemo(function () {
+    return parseReworkClipboard(text);
+  }, [text]);
+  var unknownActions = parsed.rows.filter(function (row) {
+    return row.action1 && !ACTIONS.includes(row.action1);
+  });
+  var existingKeys = new Set(existingRows.filter(function (row) {
+    return !row.deleted;
+  }).map(function (row) {
+    return "".concat(String(row.repere || "").trim().toUpperCase(), "|").concat(row.action1 || "");
+  }));
+  var importKeyCounts = parsed.rows.reduce(function (counts, row) {
+    var key = "".concat(row.repere, "|").concat(row.action1 || "");
+    counts.set(key, (counts.get(key) || 0) + 1);
+    return counts;
+  }, new Map());
+  var isDuplicate = function isDuplicate(row) {
+    return existingKeys.has("".concat(row.repere, "|").concat(row.action1 || "")) || (importKeyCounts.get("".concat(row.repere, "|").concat(row.action1 || "")) || 0) > 1;
+  };
+  var duplicateCount = parsed.rows.filter(isDuplicate).length;
+  var canImport = parsed.rows.length > 0 && !parsed.errors.length;
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      position: "fixed",
+      inset: 0,
+      zIndex: 360,
+      background: "#000000bb",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-labelledby": "rework-import-title",
+    style: {
+      width: 1120,
+      maxWidth: "100%",
+      maxHeight: "92vh",
+      overflowY: "auto",
+      background: C.surface,
+      color: C.text,
+      border: "1px solid ".concat(C.blue),
+      borderRadius: 6,
+      padding: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      gap: 12,
+      alignItems: "flex-start",
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+    id: "rework-import-title",
+    style: {
+      margin: 0,
+      fontSize: 16
+    }
+  }, "Importer un plan de travail ADJ/Rework"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: C.muted,
+      marginTop: 4
+    }
+  }, "Les lignes seront cr\xE9\xE9es en brouillon. Le visa op\xE9rateur sera attribu\xE9 uniquement lors de leur validation.")), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: onClose,
+    color: C.border
+  }, "Fermer")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(0,1fr) 270px",
+      gap: 12,
+      alignItems: "end",
+      marginBottom: 10
+    }
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "block",
+      fontSize: 11,
+      color: C.muted
+    }
+  }, "Tableau copi\xE9 depuis Excel", /*#__PURE__*/React.createElement("textarea", {
+    autoFocus: true,
+    "aria-label": "Tableau ADJ/Rework \xE0 importer",
+    value: text,
+    onChange: function onChange(event) {
+      return setText(event.target.value);
+    },
+    placeholder: "".concat(REWORK_IMPORT_TEMPLATE, "\nR12\t1\tOui\tS\t250001234\t10K\t0000012345\t2642\tSN-COMP-01\tDOC-0013405_1\t30"),
+    style: {
+      display: "block",
+      width: "100%",
+      height: 145,
+      boxSizing: "border-box",
+      marginTop: 5,
+      resize: "vertical",
+      background: C.input,
+      color: C.text,
+      border: "1px solid ".concat(parsed.errors.length ? C.red : C.border),
+      borderRadius: 4,
+      padding: 9,
+      fontFamily: "monospace",
+      fontSize: 11
+    }
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "block",
+      fontSize: 11,
+      color: C.muted,
+      marginBottom: 10
+    }
+  }, "Destination des brouillons", /*#__PURE__*/React.createElement("select", {
+    "aria-label": "Destination des brouillons import\xE9s",
+    value: targetId,
+    onChange: function onChange(event) {
+      return setTargetId(event.target.value);
+    },
+    style: {
+      display: "block",
+      width: "100%",
+      marginTop: 5,
+      background: C.input,
+      color: C.text,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      padding: "7px 8px",
+      fontSize: 11
+    }
+  }, units.length > 1 && /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Tous les SN / LOT"), units.map(function (unit) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: unit.id,
+      value: unit.id
+    }, snTitle(unit));
+  }), !units.length && /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Dossier complet"))), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    color: C.blue,
+    onClick: function onClick() {
+      return copyToClipboard(REWORK_IMPORT_TEMPLATE);
+    }
+  }, "Copier les en-t\xEAtes"))), parsed.errors.map(function (error) {
+    return /*#__PURE__*/React.createElement("div", {
+      key: error,
+      role: "alert",
+      style: {
+        color: C.red,
+        fontSize: 11,
+        marginBottom: 4
+      }
+    }, error);
+  }), !!parsed.unknownHeaders.length && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.yellow,
+      fontSize: 11,
+      marginBottom: 6
+    }
+  }, "Colonnes ignor\xE9es : ", parsed.unknownHeaders.join(", ")), !!unknownActions.length && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.yellow,
+      fontSize: 11,
+      marginBottom: 6
+    }
+  }, "Certaines actions ne sont pas reconnues. Elles resteront \xE0 corriger dans les brouillons."), !!duplicateCount && /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: C.yellow,
+      fontSize: 11,
+      marginBottom: 6
+    }
+  }, duplicateCount, " ligne", duplicateCount > 1 ? "s" : "", " poss\xE8de", duplicateCount > 1 ? "nt" : "", " d\xE9j\xE0 le m\xEAme rep\xE8re et la m\xEAme action. L'import reste autoris\xE9."), !!parsed.rows.length && /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflowX: "auto",
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      marginTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("table", {
+    style: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: 10
+    }
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
+    style: {
+      background: C.raised
+    }
+  }, ["État", "Ligne", "Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Observation"].map(function (label) {
+    return /*#__PURE__*/React.createElement(TH, {
+      key: label
+    }, label);
+  }))), /*#__PURE__*/React.createElement("tbody", null, parsed.rows.slice(0, 40).map(function (row, index) {
+    return /*#__PURE__*/React.createElement("tr", {
+      key: "".concat(row.lineNumber, "-").concat(index),
+      style: {
+        background: index % 2 ? C.stripe : "transparent"
+      }
+    }, /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: isDuplicate(row) ? C.yellow : C.green,
+        fontWeight: 800
+      }
+    }, isDuplicate(row) ? "Doublon possible" : "Prêt")), [row.lineNumber, row.repere, row.qty, row.isAdjust ? "Oui" : "Non", row.action1, row.codeERP, row.valeur, row.lot, row.dc, row.sn, row.fiche, row.etape, row.remarques].map(function (value, column) {
+      return /*#__PURE__*/React.createElement(TD, {
+        key: column
+      }, value || "");
+    }));
+  }))), parsed.rows.length > 40 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: 7,
+      color: C.muted,
+      fontSize: 10
+    }
+  }, "Aper\xE7u limit\xE9 aux 40 premi\xE8res lignes sur ", parsed.rows.length, ".")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      gap: 12,
+      marginTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: parsed.rows.length ? C.green : C.muted
+    }
+  }, parsed.rows.length, " brouillon", parsed.rows.length > 1 ? "s" : "", " pr\xEAt", parsed.rows.length > 1 ? "s" : "", " \xE0 importer"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: onClose,
+    color: C.border
+  }, "Annuler"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    onClick: function onClick() {
+      return canImport && onImport(parsed.rows, targetId);
+    },
+    color: C.blue,
+    disabled: !canImport
+  }, "Importer ", parsed.rows.length || "", " brouillon", parsed.rows.length > 1 ? "s" : "")))));
+};
+var TabRework = function TabRework(_ref73) {
+  var _header$_defaultSnIds, _header$_defaultSnIds2, _header$_defaultSnIds3, _header$_snRows;
+  var data = _ref73.data,
+    onChange = _ref73.onChange,
+    user = _ref73.user,
+    _ref73$perms = _ref73.perms,
+    perms = _ref73$perms === void 0 ? {} : _ref73$perms,
+    header = _ref73.header,
+    _ref73$forceShowDelet = _ref73.forceShowDeleted,
+    forceShowDeleted = _ref73$forceShowDelet === void 0 ? false : _ref73$forceShowDelet,
+    onCopyAcross = _ref73.onCopyAcross,
+    contextData = _ref73.contextData;
+  var rows = data.rows || [];
+  var _useState99 = useState([]),
+    _useState100 = _slicedToArray(_useState99, 2),
+    requestIds = _useState100[0],
+    setRequestIds = _useState100[1];
+  var tableRef = React.useRef(null);
+  var _useState101 = useState(null),
+    _useState102 = _slicedToArray(_useState101, 2),
+    focusNewId = _useState102[0],
+    setFocusNewId = _useState102[1];
   useEffect(function () {
     var _tableRef$current;
     if (!focusNewId) return;
@@ -8166,13 +8559,18 @@ var TabRework = function TabRework(_ref71) {
       next.focus();
     }
   };
-  var _useState99 = useState(false),
-    _useState100 = _slicedToArray(_useState99, 2),
-    showMaterialDraft = _useState100[0],
-    setShowMaterialDraft = _useState100[1];
+  var _useState103 = useState(false),
+    _useState104 = _slicedToArray(_useState103, 2),
+    showMaterialDraft = _useState104[0],
+    setShowMaterialDraft = _useState104[1];
+  var _useState105 = useState(false),
+    _useState106 = _slicedToArray(_useState105, 2),
+    showImport = _useState106[0],
+    setShowImport = _useState106[1];
   useEffect(function () {
     setRequestIds([]);
     setShowMaterialDraft(false);
+    setShowImport(false);
   }, [header === null || header === void 0 ? void 0 : header.of, header === null || header === void 0 || (_header$_defaultSnIds = header._defaultSnIds) === null || _header$_defaultSnIds === void 0 ? void 0 : _header$_defaultSnIds.join("|")]);
   var canEdit = function canEdit(row) {
     return canEditLine(user, row);
@@ -8340,23 +8738,104 @@ var TabRework = function TabRework(_ref71) {
       })])
     });
   };
-  var _useState101 = useState(null),
-    _useState102 = _slicedToArray(_useState101, 2),
-    deleteTarget = _useState102[0],
-    setDeleteTarget = _useState102[1];
-  var _useState103 = useState(null),
-    _useState104 = _slicedToArray(_useState103, 2),
-    restoreTarget = _useState104[0],
-    setRestoreTarget = _useState104[1];
-  var _useState105 = useState(false),
-    _useState106 = _slicedToArray(_useState105, 2),
-    showDeleted = _useState106[0],
-    setShowDeleted = _useState106[1];
-  var _useState107 = useState(true),
+  var importDrafts = function importDrafts(importRows, targetId) {
+    var _drafts$;
+    if (!perms.canWrite || !importRows.length) return;
+    var last = latestSharedFicheOp(contextData || {
+      rework: data
+    }, header);
+    var importedAt = nowDT();
+    var batchId = uid();
+    var scope = targetId && targetId !== "all" ? {
+      snScope: "custom",
+      snIds: [targetId],
+      unitId: targetId
+    } : {
+      snScope: "all",
+      snIds: [],
+      unitId: ""
+    };
+    var drafts = importRows.map(function (source) {
+      var row = _objectSpread(_objectSpread({
+        id: uid(),
+        createdVisa: "",
+        createdDT: ""
+      }, scope), {}, {
+        sortieVisa: "",
+        repere: source.repere || "",
+        qty: source.action1 === "O" ? "" : source.qty || (source.repere && source.action1 !== "M" ? "1" : ""),
+        action1: ACTIONS.includes(source.action1) ? source.action1 : "",
+        codeERP: source.action1 === "O" ? "" : source.codeERP || "",
+        valeur: source.action1 === "O" ? "" : source.valeur || "",
+        lot: source.action1 === "O" ? "" : normLot(source.lot || ""),
+        dc: source.action1 === "O" ? "" : source.dc || "",
+        sn: source.action1 === "O" ? "" : source.sn || "",
+        fiche: source.fiche || last.fiche || "",
+        etape: source.etape || last.op || "",
+        ficheOpUpdatedAt: Date.now(),
+        isAdjust: source.action1 === "O" ? false : !!source.isAdjust,
+        visaOper: "",
+        dateOper: "",
+        visaCtrl: "",
+        dateCtrl: "",
+        remarques: source.remarques || "",
+        editHistory: [],
+        validated: false,
+        validError: "",
+        deleted: false,
+        tracaOk: false,
+        visaTraca: "",
+        dateTraca: ""
+      });
+      return _objectSpread(_objectSpread({}, row), {}, {
+        importOrigin: {
+          source: "clipboard",
+          batchId: batchId,
+          rowNumber: source.lineNumber,
+          importedBy: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+          importedAt: importedAt,
+          modifiedBy: "",
+          modifiedAt: "",
+          originalFields: snapshotFields(row, REWORK_EDIT_FIELDS)
+        }
+      });
+    });
+    setFilters({
+      snTarget: workSnFilter(header),
+      repere: "",
+      action1: "",
+      codeERP: "",
+      valeur: "",
+      lot: "",
+      dc: "",
+      sn: "",
+      fiche: "",
+      etape: "",
+      adjust: "all"
+    });
+    setShowImport(false);
+    setFocusNewId(((_drafts$ = drafts[0]) === null || _drafts$ === void 0 ? void 0 : _drafts$.id) || null);
+    onChange({
+      rows: [].concat(_toConsumableArray(rows), _toConsumableArray(drafts.slice().reverse()))
+    });
+  };
+  var _useState107 = useState(null),
     _useState108 = _slicedToArray(_useState107, 2),
-    hideAchevees = _useState108[0],
-    setHideAchevees = _useState108[1];
-  var _useState109 = useState({
+    deleteTarget = _useState108[0],
+    setDeleteTarget = _useState108[1];
+  var _useState109 = useState(null),
+    _useState110 = _slicedToArray(_useState109, 2),
+    restoreTarget = _useState110[0],
+    setRestoreTarget = _useState110[1];
+  var _useState111 = useState(false),
+    _useState112 = _slicedToArray(_useState111, 2),
+    showDeleted = _useState112[0],
+    setShowDeleted = _useState112[1];
+  var _useState113 = useState(true),
+    _useState114 = _slicedToArray(_useState113, 2),
+    hideAchevees = _useState114[0],
+    setHideAchevees = _useState114[1];
+  var _useState115 = useState({
       snTarget: workSnFilter(header),
       repere: "",
       action1: "",
@@ -8369,9 +8848,9 @@ var TabRework = function TabRework(_ref71) {
       etape: "",
       adjust: "all"
     }),
-    _useState110 = _slicedToArray(_useState109, 2),
-    filters = _useState110[0],
-    setFilters = _useState110[1];
+    _useState116 = _slicedToArray(_useState115, 2),
+    filters = _useState116[0],
+    setFilters = _useState116[1];
   useEffect(function () {
     return setFilters(function (s) {
       return _objectSpread(_objectSpread({}, s), {}, {
@@ -8379,15 +8858,32 @@ var TabRework = function TabRework(_ref71) {
       });
     });
   }, [header === null || header === void 0 || (_header$_defaultSnIds3 = header._defaultSnIds) === null || _header$_defaultSnIds3 === void 0 ? void 0 : _header$_defaultSnIds3.join("|"), header === null || header === void 0 || (_header$_snRows = header._snRows) === null || _header$_snRows === void 0 ? void 0 : _header$_snRows.length]);
+  var importAwarePatch = function importAwarePatch(row, patch) {
+    var fields = typeof patch === "function" ? patch(row) : patch;
+    if (!(row !== null && row !== void 0 && row.importOrigin)) return fields;
+    var next = _objectSpread(_objectSpread({}, row), fields);
+    var changed = IMPORTED_REWORK_COMPARE_FIELDS.some(function (field) {
+      var _row$field$key, _next$field$key;
+      return String((_row$field$key = row === null || row === void 0 ? void 0 : row[field.key]) !== null && _row$field$key !== void 0 ? _row$field$key : "") !== String((_next$field$key = next === null || next === void 0 ? void 0 : next[field.key]) !== null && _next$field$key !== void 0 ? _next$field$key : "");
+    });
+    return changed ? _objectSpread(_objectSpread({}, fields), {}, {
+      importOrigin: _objectSpread(_objectSpread({}, row.importOrigin), {}, {
+        modifiedBy: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+        modifiedAt: nowDT()
+      })
+    }) : fields;
+  };
   var upd = function upd(id, f, v) {
     var r = rows.find(function (x) {
       return x.id === id;
     });
     if (f === "comments" ? !canCommentRow() : !canEdit(r)) return;
     onChange({
-      rows: scopedRowsPatch(rows, id, header, _objectSpread(_defineProperty({}, f, v), ["fiche", "etape"].includes(f) ? {
-        ficheOpUpdatedAt: Date.now()
-      } : {}))
+      rows: scopedRowsPatch(rows, id, header, function (current) {
+        return importAwarePatch(current, _objectSpread(_defineProperty({}, f, v), ["fiche", "etape"].includes(f) ? {
+          ficheOpUpdatedAt: Date.now()
+        } : {}));
+      })
     });
   };
   var updAction = function updAction(id, nextAction) {
@@ -8399,17 +8895,19 @@ var TabRework = function TabRework(_ref71) {
       var actionLabel = ACTION_LABELS[nextAction] || nextAction;
       if (!window.confirm("L'action ".concat(actionLabel, " ne permet pas de contr\xF4le. Retirer le CTRL existant avant de changer l'action ?"))) return;
       onChange({
-        rows: scopedRowsPatch(rows, id, header, {
-          action1: nextAction,
-          visaCtrl: "",
-          dateCtrl: "",
-          ctrlCancellationHistory: [].concat(_toConsumableArray(r.ctrlCancellationHistory || []), [{
-            visaCtrl: r.visaCtrl,
-            dateCtrl: r.dateCtrl,
-            cancelledVisa: user.trigram,
-            cancelledDT: nowDT(),
-            reason: "Action modifi\xE9e de ".concat(r.action1 || "N/A", " vers ").concat(nextAction)
-          }])
+        rows: scopedRowsPatch(rows, id, header, function (current) {
+          return importAwarePatch(current, {
+            action1: nextAction,
+            visaCtrl: "",
+            dateCtrl: "",
+            ctrlCancellationHistory: [].concat(_toConsumableArray(r.ctrlCancellationHistory || []), [{
+              visaCtrl: r.visaCtrl,
+              dateCtrl: r.dateCtrl,
+              cancelledVisa: user.trigram,
+              cancelledDT: nowDT(),
+              reason: "Action modifi\xE9e de ".concat(r.action1 || "N/A", " vers ").concat(nextAction)
+            }])
+          });
         })
       });
       return;
@@ -8421,7 +8919,9 @@ var TabRework = function TabRework(_ref71) {
       return x.id === id;
     });
     if (canEdit(r)) onChange({
-      rows: scopedRowsPatch(rows, id, header, fields)
+      rows: scopedRowsPatch(rows, id, header, function (current) {
+        return importAwarePatch(current, fields);
+      })
     });
   };
   var updRepere = function updRepere(id, v) {
@@ -8432,11 +8932,11 @@ var TabRework = function TabRework(_ref71) {
     onChange({
       rows: scopedRowsPatch(rows, id, header, function (r) {
         var nextKey = String(v || "").trim().toUpperCase();
-        return {
+        return importAwarePatch(r, {
           repere: String(v || "").toUpperCase(),
           qty: nextKey && r.qty === "" && r.action1 !== "M" ? "1" : r.qty,
           isAdjust: priorAdjust(r, nextKey) || !!r.isAdjust
-        };
+        });
       })
     });
   };
@@ -8446,8 +8946,10 @@ var TabRework = function TabRework(_ref71) {
     });
     if (!canEdit(row)) return;
     onChange({
-      rows: scopedRowsPatch(rows, id, header, {
-        isAdjust: checked
+      rows: scopedRowsPatch(rows, id, header, function (current) {
+        return importAwarePatch(current, {
+          isAdjust: checked
+        });
       })
     });
   };
@@ -8548,10 +9050,10 @@ var TabRework = function TabRework(_ref71) {
     if (filters.adjust === "no" && isAdjustRow(r)) return false;
     return true;
   });
-  var hasFilters = Object.entries(filters).some(function (_ref72) {
-    var _ref73 = _slicedToArray(_ref72, 2),
-      k = _ref73[0],
-      v = _ref73[1];
+  var hasFilters = Object.entries(filters).some(function (_ref74) {
+    var _ref75 = _slicedToArray(_ref74, 2),
+      k = _ref75[0],
+      v = _ref75[1];
     return v !== "all" && filterHasValue(v);
   });
   var fset = function fset(k, v) {
@@ -8693,7 +9195,11 @@ var TabRework = function TabRework(_ref71) {
       }
       onChange({
         rows: scopedRowsPatch(rows, id, header, function (x) {
-          return withEditHistory(x, user, REWORK_EDIT_FIELDS);
+          var finalized = withEditHistory(x, user, REWORK_EDIT_FIELDS);
+          return x.importOrigin ? _objectSpread(_objectSpread({}, finalized), {}, {
+            createdVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+            createdDT: nowDT()
+          }) : finalized;
         })
       });
     }
@@ -8832,6 +9338,12 @@ var TabRework = function TabRework(_ref71) {
     onClick: add,
     small: true
   }, "+ Ligne"), perms.canWrite && /*#__PURE__*/React.createElement(Btn, {
+    onClick: function onClick() {
+      return setShowImport(true);
+    },
+    color: C.blue,
+    small: true
+  }, "Importer un plan de travail"), perms.canWrite && /*#__PURE__*/React.createElement(Btn, {
     onClick: function onClick() {
       return setShowMaterialDraft(true);
     },
@@ -9153,6 +9665,8 @@ var TabRework = function TabRework(_ref71) {
       }
     }, r.createdVisa || "—"), /*#__PURE__*/React.createElement(CopyOriginMark, {
       origin: r.copyOrigin
+    }), /*#__PURE__*/React.createElement(ImportOriginMark, {
+      row: r
     })), /*#__PURE__*/React.createElement(TD, {
       style: {
         pointerEvents: r.deleted ? "none" : "all"
@@ -9580,7 +10094,14 @@ var TabRework = function TabRework(_ref71) {
       fontSize: 11,
       color: C.muted
     }
-  }, "\u2726 Visa Op\xE9r. pr\xE9-rempli \xB7 \u2713 Valider pour verrouiller \xB7 \xD7 Annuler sur ligne valid\xE9e = barre et conserve la tra\xE7abilit\xE9"), showMaterialDraft && perms.canWrite && requestRows.length > 0 && /*#__PURE__*/React.createElement(MaterialRequestModal, {
+  }, "\u2726 Visa Op\xE9r. pr\xE9-rempli hors import \xB7 \u2713 Valider pour verrouiller \xB7 \xD7 Annuler sur ligne valid\xE9e = barre et conserve la tra\xE7abilit\xE9"), showImport && perms.canWrite && /*#__PURE__*/React.createElement(ReworkImportModal, {
+    header: header,
+    existingRows: rows,
+    onImport: importDrafts,
+    onClose: function onClose() {
+      return setShowImport(false);
+    }
+  }), showMaterialDraft && perms.canWrite && requestRows.length > 0 && /*#__PURE__*/React.createElement(MaterialRequestModal, {
     header: header,
     rows: requestRows,
     user: user,
@@ -9716,26 +10237,26 @@ var catalogFingerprint = function catalogFingerprint(items) {
 };
 
 // ─── Gestionnaire de la liste consommables (stockage partagé global) ────────
-var ConsommableListManager = function ConsommableListManager(_ref74) {
-  var items = _ref74.items,
-    onClose = _ref74.onClose,
-    onSave = _ref74.onSave;
-  var _useState111 = useState(items.map(function (i) {
+var ConsommableListManager = function ConsommableListManager(_ref76) {
+  var items = _ref76.items,
+    onClose = _ref76.onClose,
+    onSave = _ref76.onSave;
+  var _useState117 = useState(items.map(function (i) {
       return _objectSpread({}, i);
     })),
-    _useState112 = _slicedToArray(_useState111, 2),
-    list = _useState112[0],
-    setList = _useState112[1];
-  var _useState113 = useState({
+    _useState118 = _slicedToArray(_useState117, 2),
+    list = _useState118[0],
+    setList = _useState118[1];
+  var _useState119 = useState({
       label: "",
       sap: "",
       code: "",
       cat: "Flux",
       polymerizationHours: ""
     }),
-    _useState114 = _slicedToArray(_useState113, 2),
-    newItem = _useState114[0],
-    setNewItem = _useState114[1];
+    _useState120 = _slicedToArray(_useState119, 2),
+    newItem = _useState120[0],
+    setNewItem = _useState120[1];
   var CATS = ["Flux", "Soudure", "Kapton", "Colle", "Coating", "Silicone", "Primer", "Autre"];
   var hasPolymerization = function hasPolymerization(item) {
     return supportsPolymerization(item);
@@ -10189,13 +10710,13 @@ var formatAvailabilityDT = function formatAvailabilityDT(value) {
 
 // ─── Onglet Consommables — 1 ligne par consommable, liste déroulante ─────────
 // Custom dropdown for consommables — colored by category
-var ConsoDropdown = function ConsoDropdown(_ref75) {
-  var value = _ref75.value,
-    onChange = _ref75.onChange,
-    consommables = _ref75.consommables,
-    cats = _ref75.cats,
-    _ref75$display = _ref75.display,
-    display = _ref75$display === void 0 ? "label" : _ref75$display;
+var ConsoDropdown = function ConsoDropdown(_ref77) {
+  var value = _ref77.value,
+    onChange = _ref77.onChange,
+    consommables = _ref77.consommables,
+    cats = _ref77.cats,
+    _ref77$display = _ref77.display,
+    display = _ref77$display === void 0 ? "label" : _ref77$display;
   var _React$useState9 = React.useState(false),
     _React$useState0 = _slicedToArray(_React$useState9, 2),
     open = _React$useState0[0],
@@ -10204,11 +10725,11 @@ var ConsoDropdown = function ConsoDropdown(_ref75) {
     _React$useState10 = _slicedToArray(_React$useState1, 2),
     query = _React$useState10[0],
     setQuery = _React$useState10[1];
-  var _ref76 = React.useRef(null);
+  var _ref78 = React.useRef(null);
   var inputRef = React.useRef(null);
   React.useEffect(function () {
     var close = function close(e) {
-      if (_ref76.current && !_ref76.current.contains(e.target)) {
+      if (_ref78.current && !_ref78.current.contains(e.target)) {
         setOpen(false);
         setQuery("");
       }
@@ -10254,7 +10775,7 @@ var ConsoDropdown = function ConsoDropdown(_ref75) {
     }
   };
   return /*#__PURE__*/React.createElement("div", {
-    ref: _ref76,
+    ref: _ref78,
     style: {
       position: "relative",
       width: "100%"
@@ -10304,8 +10825,8 @@ var ConsoDropdown = function ConsoDropdown(_ref75) {
       marginTop: 2
     },
     ref: function ref(el) {
-      if (el && _ref76.current) {
-        var rect = _ref76.current.getBoundingClientRect();
+      if (el && _ref78.current) {
+        var rect = _ref78.current.getBoundingClientRect();
         var spaceBelow = window.innerHeight - rect.bottom;
         var h = Math.min(320, el.scrollHeight || 320);
         el.style.left = rect.left + "px";
@@ -10478,20 +10999,20 @@ var CONSO_ITEM_EDIT_FIELDS = [{
   key: "comments",
   label: "Commentaires"
 }];
-var TabConsommables = function TabConsommables(_ref77) {
+var TabConsommables = function TabConsommables(_ref79) {
   var _header$_defaultSnIds4, _header$_snRows2;
-  var data = _ref77.data,
-    onChange = _ref77.onChange,
-    user = _ref77.user,
-    _ref77$perms = _ref77.perms,
-    perms = _ref77$perms === void 0 ? {} : _ref77$perms,
-    consommables = _ref77.consommables,
-    onEditList = _ref77.onEditList,
-    header = _ref77.header,
-    _ref77$forceShowDelet = _ref77.forceShowDeleted,
-    forceShowDeleted = _ref77$forceShowDelet === void 0 ? false : _ref77$forceShowDelet,
-    contextData = _ref77.contextData,
-    onCopyAcross = _ref77.onCopyAcross;
+  var data = _ref79.data,
+    onChange = _ref79.onChange,
+    user = _ref79.user,
+    _ref79$perms = _ref79.perms,
+    perms = _ref79$perms === void 0 ? {} : _ref79$perms,
+    consommables = _ref79.consommables,
+    onEditList = _ref79.onEditList,
+    header = _ref79.header,
+    _ref79$forceShowDelet = _ref79.forceShowDeleted,
+    forceShowDeleted = _ref79$forceShowDelet === void 0 ? false : _ref79$forceShowDelet,
+    contextData = _ref79.contextData,
+    onCopyAcross = _ref79.onCopyAcross;
   // Stockage conserve opérations → consommables, mais l'interface affiche une ligne plate par consommable.
   var ops = data.ops || [];
   var canEditOp = function canEditOp(op) {
@@ -10500,27 +11021,27 @@ var TabConsommables = function TabConsommables(_ref77) {
   var canEditItem = function canEditItem(op, it) {
     return canEditLine(user, it) && canEditLine(user, op);
   };
-  var _useState115 = useState(null),
-    _useState116 = _slicedToArray(_useState115, 2),
-    deleteOpTarget = _useState116[0],
-    setDeleteOpTarget = _useState116[1];
-  var _useState117 = useState(null),
-    _useState118 = _slicedToArray(_useState117, 2),
-    deleteItemTarget = _useState118[0],
-    setDeleteItemTarget = _useState118[1]; // {oid, iid}
-  var _useState119 = useState(null),
-    _useState120 = _slicedToArray(_useState119, 2),
-    restoreOpTarget = _useState120[0],
-    setRestoreOpTarget = _useState120[1];
   var _useState121 = useState(null),
     _useState122 = _slicedToArray(_useState121, 2),
-    restoreItemTarget = _useState122[0],
-    setRestoreItemTarget = _useState122[1]; // {oid, iid}
-  var _useState123 = useState(false),
+    deleteOpTarget = _useState122[0],
+    setDeleteOpTarget = _useState122[1];
+  var _useState123 = useState(null),
     _useState124 = _slicedToArray(_useState123, 2),
-    showDeleted = _useState124[0],
-    setShowDeleted = _useState124[1];
-  var _useState125 = useState({
+    deleteItemTarget = _useState124[0],
+    setDeleteItemTarget = _useState124[1]; // {oid, iid}
+  var _useState125 = useState(null),
+    _useState126 = _slicedToArray(_useState125, 2),
+    restoreOpTarget = _useState126[0],
+    setRestoreOpTarget = _useState126[1];
+  var _useState127 = useState(null),
+    _useState128 = _slicedToArray(_useState127, 2),
+    restoreItemTarget = _useState128[0],
+    setRestoreItemTarget = _useState128[1]; // {oid, iid}
+  var _useState129 = useState(false),
+    _useState130 = _slicedToArray(_useState129, 2),
+    showDeleted = _useState130[0],
+    setShowDeleted = _useState130[1];
+  var _useState131 = useState({
       snTarget: workSnFilter(header),
       date: "",
       visa: "",
@@ -10534,15 +11055,15 @@ var TabConsommables = function TabConsommables(_ref77) {
       traca: "all",
       remarque: ""
     }),
-    _useState126 = _slicedToArray(_useState125, 2),
-    filters = _useState126[0],
-    setFilters = _useState126[1];
-  var _useState127 = useState(function () {
+    _useState132 = _slicedToArray(_useState131, 2),
+    filters = _useState132[0],
+    setFilters = _useState132[1];
+  var _useState133 = useState(function () {
       return new Date();
     }),
-    _useState128 = _slicedToArray(_useState127, 2),
-    polymerizationNow = _useState128[0],
-    setPolymerizationNow = _useState128[1];
+    _useState134 = _slicedToArray(_useState133, 2),
+    polymerizationNow = _useState134[0],
+    setPolymerizationNow = _useState134[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setPolymerizationNow(new Date());
@@ -11123,9 +11644,9 @@ var TabConsommables = function TabConsommables(_ref77) {
       };
     });
   });
-  var visibleRows = sortByNewestOperation(flatRows.filter(function (_ref78) {
-    var o = _ref78.o,
-      it = _ref78.it;
+  var visibleRows = sortByNewestOperation(flatRows.filter(function (_ref80) {
+    var o = _ref80.o,
+      it = _ref80.it;
     if (o.deleted && !showDeleted && !forceShowDeleted) return false;
     if (it.deleted && !showDeleted && !forceShowDeleted) return false;
     if (!_rowMatchesSnFilter(o, filters.snTarget, header)) return false;
@@ -11157,10 +11678,10 @@ var TabConsommables = function TabConsommables(_ref77) {
     var _entry$it$validated, _entry$it2, _entry$o2, _entry$it3, _entry$o3;
     return !((_entry$it$validated = (_entry$it2 = entry.it) === null || _entry$it2 === void 0 ? void 0 : _entry$it2.validated) !== null && _entry$it$validated !== void 0 ? _entry$it$validated : (_entry$o2 = entry.o) === null || _entry$o2 === void 0 ? void 0 : _entry$o2.validated) && !((_entry$it3 = entry.it) !== null && _entry$it3 !== void 0 && _entry$it3.deleted) && !((_entry$o3 = entry.o) !== null && _entry$o3 !== void 0 && _entry$o3.deleted);
   });
-  var hasFilters = Object.entries(filters).some(function (_ref79) {
-    var _ref80 = _slicedToArray(_ref79, 2),
-      k = _ref80[0],
-      v = _ref80[1];
+  var hasFilters = Object.entries(filters).some(function (_ref81) {
+    var _ref82 = _slicedToArray(_ref81, 2),
+      k = _ref82[0],
+      v = _ref82[1];
     return v !== "all" && filterHasValue(v);
   });
   var clearFilters = function clearFilters() {
@@ -11179,9 +11700,9 @@ var TabConsommables = function TabConsommables(_ref77) {
       remarque: ""
     });
   };
-  var expirySummary = visibleRows.reduce(function (summary, _ref81) {
-    var o = _ref81.o,
-      it = _ref81.it;
+  var expirySummary = visibleRows.reduce(function (summary, _ref83) {
+    var o = _ref83.o,
+      it = _ref83.it;
     if (it.dp && !isValidDMY(it.dp)) summary.invalid++;else {
       var status = dpStatus(it.dp, it.createdDT || o.createdDT);
       if ((status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ") summary.expired++;
@@ -11194,9 +11715,9 @@ var TabConsommables = function TabConsommables(_ref77) {
     invalid: 0
   });
   var expiryParts = [expirySummary.expired && "".concat(expirySummary.expired, " p\xE9rim\xE9").concat(expirySummary.expired > 1 ? "s" : ""), expirySummary.soon && "".concat(expirySummary.soon, " bient\xF4t"), expirySummary.invalid && "".concat(expirySummary.invalid, " date").concat(expirySummary.invalid > 1 ? "s" : "", " invalide").concat(expirySummary.invalid > 1 ? "s" : "")].filter(Boolean);
-  var polymerizations = visibleRows.flatMap(function (_ref82) {
-    var o = _ref82.o,
-      it = _ref82.it;
+  var polymerizations = visibleRows.flatMap(function (_ref84) {
+    var o = _ref84.o,
+      it = _ref84.it;
     if (!o.validated || !it.validated) return [];
     var consumable = getConso(it.consoId);
     var status = polymerizationStatus(consumable, it.createdDT || o.createdDT, polymerizationNow);
@@ -11564,11 +12085,11 @@ var TabConsommables = function TabConsommables(_ref77) {
     onClick: clearFilters,
     color: C.border,
     title: "Effacer les filtres"
-  }, "\xD7")))), /*#__PURE__*/React.createElement("tbody", null, visibleRows.flatMap(function (_ref83, idx) {
-    var o = _ref83.o,
-      it = _ref83.it,
-      oid = _ref83.oid,
-      iid = _ref83.iid;
+  }, "\xD7")))), /*#__PURE__*/React.createElement("tbody", null, visibleRows.flatMap(function (_ref85, idx) {
+    var o = _ref85.o,
+      it = _ref85.it,
+      oid = _ref85.oid,
+      iid = _ref85.iid;
     var conso = getConso(it.consoId);
     var consoCode = compactArticleCode((conso === null || conso === void 0 ? void 0 : conso.sap) || (conso === null || conso === void 0 ? void 0 : conso.code) || "");
     var catColor = CAT_COLORS[(conso === null || conso === void 0 ? void 0 : conso.cat) || "Autre"] || C.muted;
@@ -12045,16 +12566,16 @@ var TEST_EQUIP_EDIT_FIELDS = [{
   key: "checkDate",
   label: "Date contrôle"
 }];
-var TabTestEquip = function TabTestEquip(_ref84) {
-  var data = _ref84.data,
-    onChange = _ref84.onChange,
-    user = _ref84.user,
-    _ref84$perms = _ref84.perms,
-    perms = _ref84$perms === void 0 ? {} : _ref84$perms,
-    header = _ref84.header,
-    _ref84$forceShowDelet = _ref84.forceShowDeleted,
-    forceShowDeleted = _ref84$forceShowDelet === void 0 ? false : _ref84$forceShowDelet,
-    onCopyAcross = _ref84.onCopyAcross;
+var TabTestEquip = function TabTestEquip(_ref86) {
+  var data = _ref86.data,
+    onChange = _ref86.onChange,
+    user = _ref86.user,
+    _ref86$perms = _ref86.perms,
+    perms = _ref86$perms === void 0 ? {} : _ref86$perms,
+    header = _ref86.header,
+    _ref86$forceShowDelet = _ref86.forceShowDeleted,
+    forceShowDeleted = _ref86$forceShowDelet === void 0 ? false : _ref86$forceShowDelet,
+    onCopyAcross = _ref86.onCopyAcross;
   var rows = data.rows || [];
   var canEdit = function canEdit(row) {
     return canEditLine(user, row);
@@ -12078,18 +12599,18 @@ var TabTestEquip = function TabTestEquip(_ref84) {
       })])
     });
   };
-  var _useState129 = useState(null),
-    _useState130 = _slicedToArray(_useState129, 2),
-    deleteTarget = _useState130[0],
-    setDeleteTarget = _useState130[1];
-  var _useState131 = useState(null),
-    _useState132 = _slicedToArray(_useState131, 2),
-    restoreTarget = _useState132[0],
-    setRestoreTarget = _useState132[1];
-  var _useState133 = useState(false),
-    _useState134 = _slicedToArray(_useState133, 2),
-    showDeleted = _useState134[0],
-    setShowDeleted = _useState134[1];
+  var _useState135 = useState(null),
+    _useState136 = _slicedToArray(_useState135, 2),
+    deleteTarget = _useState136[0],
+    setDeleteTarget = _useState136[1];
+  var _useState137 = useState(null),
+    _useState138 = _slicedToArray(_useState137, 2),
+    restoreTarget = _useState138[0],
+    setRestoreTarget = _useState138[1];
+  var _useState139 = useState(false),
+    _useState140 = _slicedToArray(_useState139, 2),
+    showDeleted = _useState140[0],
+    setShowDeleted = _useState140[1];
   var snFilter = workSnFilter(header);
   var upd = function upd(id, f, v) {
     var r = rows.find(function (x) {
@@ -12612,24 +13133,24 @@ var getFaitColor = function getFaitColor(typeId, types) {
 };
 
 // ─── Gestionnaire types de faits ───────────────────────────────────────────
-var FaitTypesManager = function FaitTypesManager(_ref85) {
-  var types = _ref85.types,
-    onClose = _ref85.onClose,
-    onSave = _ref85.onSave;
-  var _useState135 = useState(types.map(function (t) {
+var FaitTypesManager = function FaitTypesManager(_ref87) {
+  var types = _ref87.types,
+    onClose = _ref87.onClose,
+    onSave = _ref87.onSave;
+  var _useState141 = useState(types.map(function (t) {
       return _objectSpread({}, t);
     })),
-    _useState136 = _slicedToArray(_useState135, 2),
-    list = _useState136[0],
-    setList = _useState136[1];
-  var _useState137 = useState({
+    _useState142 = _slicedToArray(_useState141, 2),
+    list = _useState142[0],
+    setList = _useState142[1];
+  var _useState143 = useState({
       id: "",
       label: "",
       color: C.purple
     }),
-    _useState138 = _slicedToArray(_useState137, 2),
-    newT = _useState138[0],
-    setNewT = _useState138[1];
+    _useState144 = _slicedToArray(_useState143, 2),
+    newT = _useState144[0],
+    setNewT = _useState144[1];
   var COLORS = [C.red, C.blue, C.yellow, C.green, C.purple, C.accent, C.muted];
   var add = function add() {
     if (!newT.id.trim() || !newT.label.trim()) return;
@@ -12857,28 +13378,28 @@ var FaitTypesManager = function FaitTypesManager(_ref85) {
     }, "\xD7"));
   }))));
 };
-var StatusTypesManager = function StatusTypesManager(_ref86) {
-  var types = _ref86.types,
-    onClose = _ref86.onClose,
-    onSave = _ref86.onSave;
-  var _useState139 = useState(function () {
+var StatusTypesManager = function StatusTypesManager(_ref88) {
+  var types = _ref88.types,
+    onClose = _ref88.onClose,
+    onSave = _ref88.onSave;
+  var _useState145 = useState(function () {
       return normalizeStatusTypes(types);
     }),
-    _useState140 = _slicedToArray(_useState139, 2),
-    list = _useState140[0],
-    setList = _useState140[1];
-  var _useState141 = useState(""),
-    _useState142 = _slicedToArray(_useState141, 2),
-    label = _useState142[0],
-    setLabel = _useState142[1];
-  var _useState143 = useState("#8957e5"),
-    _useState144 = _slicedToArray(_useState143, 2),
-    color = _useState144[0],
-    setColor = _useState144[1];
-  var _useState145 = useState(""),
     _useState146 = _slicedToArray(_useState145, 2),
-    error = _useState146[0],
-    setError = _useState146[1];
+    list = _useState146[0],
+    setList = _useState146[1];
+  var _useState147 = useState(""),
+    _useState148 = _slicedToArray(_useState147, 2),
+    label = _useState148[0],
+    setLabel = _useState148[1];
+  var _useState149 = useState("#8957e5"),
+    _useState150 = _slicedToArray(_useState149, 2),
+    color = _useState150[0],
+    setColor = _useState150[1];
+  var _useState151 = useState(""),
+    _useState152 = _slicedToArray(_useState151, 2),
+    error = _useState152[0],
+    setError = _useState152[1];
   var makeId = function makeId(value) {
     return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
   };
@@ -13136,19 +13657,19 @@ var FAITS_EDIT_FIELDS = [{
   key: "closedVisa",
   label: "Visa clôture"
 }];
-var TabFaits = function TabFaits(_ref87) {
-  var data = _ref87.data,
-    onChange = _ref87.onChange,
-    user = _ref87.user,
-    _ref87$perms = _ref87.perms,
-    perms = _ref87$perms === void 0 ? {} : _ref87$perms,
-    faitTypes = _ref87.faitTypes,
-    onEditTypes = _ref87.onEditTypes,
-    header = _ref87.header,
-    _ref87$forceShowDelet = _ref87.forceShowDeleted,
-    forceShowDeleted = _ref87$forceShowDelet === void 0 ? false : _ref87$forceShowDelet,
-    onCopyAcross = _ref87.onCopyAcross,
-    onCloseRow = _ref87.onCloseRow;
+var TabFaits = function TabFaits(_ref89) {
+  var data = _ref89.data,
+    onChange = _ref89.onChange,
+    user = _ref89.user,
+    _ref89$perms = _ref89.perms,
+    perms = _ref89$perms === void 0 ? {} : _ref89$perms,
+    faitTypes = _ref89.faitTypes,
+    onEditTypes = _ref89.onEditTypes,
+    header = _ref89.header,
+    _ref89$forceShowDelet = _ref89.forceShowDeleted,
+    forceShowDeleted = _ref89$forceShowDelet === void 0 ? false : _ref89$forceShowDelet,
+    onCopyAcross = _ref89.onCopyAcross,
+    onCloseRow = _ref89.onCloseRow;
   var rows = data.rows || [];
   var types = faitTypes;
   var isClosed = function isClosed(r) {
@@ -13227,18 +13748,18 @@ var TabFaits = function TabFaits(_ref87) {
       })])
     });
   };
-  var _useState147 = useState(null),
-    _useState148 = _slicedToArray(_useState147, 2),
-    deleteTarget = _useState148[0],
-    setDeleteTarget = _useState148[1];
-  var _useState149 = useState(null),
-    _useState150 = _slicedToArray(_useState149, 2),
-    restoreTarget = _useState150[0],
-    setRestoreTarget = _useState150[1];
-  var _useState151 = useState(false),
-    _useState152 = _slicedToArray(_useState151, 2),
-    showDeleted = _useState152[0],
-    setShowDeleted = _useState152[1];
+  var _useState153 = useState(null),
+    _useState154 = _slicedToArray(_useState153, 2),
+    deleteTarget = _useState154[0],
+    setDeleteTarget = _useState154[1];
+  var _useState155 = useState(null),
+    _useState156 = _slicedToArray(_useState155, 2),
+    restoreTarget = _useState156[0],
+    setRestoreTarget = _useState156[1];
+  var _useState157 = useState(false),
+    _useState158 = _slicedToArray(_useState157, 2),
+    showDeleted = _useState158[0],
+    setShowDeleted = _useState158[1];
   var snFilter = workSnFilter(header);
   var del = function del(id) {
     var r = rows.find(function (x) {
@@ -13852,39 +14373,39 @@ var ETUVAGE_EDIT_FIELDS = [{
   key: "sortieVisa",
   label: "Visa sortie"
 }];
-var TabEtuvage = function TabEtuvage(_ref88) {
-  var data = _ref88.data,
-    onChange = _ref88.onChange,
-    user = _ref88.user,
-    _ref88$perms = _ref88.perms,
-    perms = _ref88$perms === void 0 ? {} : _ref88$perms,
-    allRows = _ref88.allRows,
-    tstRows = _ref88.tstRows,
-    header = _ref88.header,
-    _ref88$forceShowDelet = _ref88.forceShowDeleted,
-    forceShowDeleted = _ref88$forceShowDelet === void 0 ? false : _ref88$forceShowDelet,
-    onCopyAcross = _ref88.onCopyAcross;
+var TabEtuvage = function TabEtuvage(_ref90) {
+  var data = _ref90.data,
+    onChange = _ref90.onChange,
+    user = _ref90.user,
+    _ref90$perms = _ref90.perms,
+    perms = _ref90$perms === void 0 ? {} : _ref90$perms,
+    allRows = _ref90.allRows,
+    tstRows = _ref90.tstRows,
+    header = _ref90.header,
+    _ref90$forceShowDelet = _ref90.forceShowDeleted,
+    forceShowDeleted = _ref90$forceShowDelet === void 0 ? false : _ref90$forceShowDelet,
+    onCopyAcross = _ref90.onCopyAcross;
   var rows = data.rows || [];
   var canEdit = function canEdit(row) {
     return canEditLine(user, row);
   };
   var fours = uniqueOvenChoices(tstRows);
-  var _useState153 = useState(null),
-    _useState154 = _slicedToArray(_useState153, 2),
-    deleteTarget = _useState154[0],
-    setDeleteTarget = _useState154[1];
-  var _useState155 = useState(null),
-    _useState156 = _slicedToArray(_useState155, 2),
-    restoreTarget = _useState156[0],
-    setRestoreTarget = _useState156[1];
-  var _useState157 = useState(null),
-    _useState158 = _slicedToArray(_useState157, 2),
-    weekendTarget = _useState158[0],
-    setWeekendTarget = _useState158[1];
-  var _useState159 = useState(false),
+  var _useState159 = useState(null),
     _useState160 = _slicedToArray(_useState159, 2),
-    showDeleted = _useState160[0],
-    setShowDeleted = _useState160[1];
+    deleteTarget = _useState160[0],
+    setDeleteTarget = _useState160[1];
+  var _useState161 = useState(null),
+    _useState162 = _slicedToArray(_useState161, 2),
+    restoreTarget = _useState162[0],
+    setRestoreTarget = _useState162[1];
+  var _useState163 = useState(null),
+    _useState164 = _slicedToArray(_useState163, 2),
+    weekendTarget = _useState164[0],
+    setWeekendTarget = _useState164[1];
+  var _useState165 = useState(false),
+    _useState166 = _slicedToArray(_useState165, 2),
+    showDeleted = _useState166[0],
+    setShowDeleted = _useState166[1];
   var snFilter = workSnFilter(header);
   var add = function add() {
     if (!perms.canWrite) return;
@@ -14690,12 +15211,12 @@ var CONNECTOR_EDIT_FIELDS = [{
   key: "nConect",
   label: "Connecteur"
 }];
-var ConnectorActionButton = function ConnectorActionButton(_ref89) {
-  var action = _ref89.action,
-    connector = _ref89.connector,
-    disabled = _ref89.disabled,
-    title = _ref89.title,
-    onClick = _ref89.onClick;
+var ConnectorActionButton = function ConnectorActionButton(_ref91) {
+  var action = _ref91.action,
+    connector = _ref91.connector,
+    disabled = _ref91.disabled,
+    title = _ref91.title,
+    onClick = _ref91.onClick;
   var mating = action === "Mating",
     tone = mating ? C.green : C.red;
   var half = {
@@ -14754,44 +15275,44 @@ var ConnectorActionButton = function ConnectorActionButton(_ref89) {
     style: half
   })), /*#__PURE__*/React.createElement("span", null, action));
 };
-var TabDeMating = function TabDeMating(_ref90) {
-  var data = _ref90.data,
-    onChange = _ref90.onChange,
-    user = _ref90.user,
-    _ref90$perms = _ref90.perms,
-    perms = _ref90$perms === void 0 ? {} : _ref90$perms,
-    header = _ref90.header,
-    _ref90$forceShowDelet = _ref90.forceShowDeleted,
-    forceShowDeleted = _ref90$forceShowDelet === void 0 ? false : _ref90$forceShowDelet,
-    onCopyAcross = _ref90.onCopyAcross;
+var TabDeMating = function TabDeMating(_ref92) {
+  var data = _ref92.data,
+    onChange = _ref92.onChange,
+    user = _ref92.user,
+    _ref92$perms = _ref92.perms,
+    perms = _ref92$perms === void 0 ? {} : _ref92$perms,
+    header = _ref92.header,
+    _ref92$forceShowDelet = _ref92.forceShowDeleted,
+    forceShowDeleted = _ref92$forceShowDelet === void 0 ? false : _ref92$forceShowDelet,
+    onCopyAcross = _ref92.onCopyAcross;
   var connectors = data.connectors || [];
   var canEdit = function canEdit(row) {
     return canEditLine(user, row);
   };
-  var _useState161 = useState(null),
-    _useState162 = _slicedToArray(_useState161, 2),
-    deleteEvTarget = _useState162[0],
-    setDeleteEvTarget = _useState162[1]; // {cid,eid}
-  var _useState163 = useState(null),
-    _useState164 = _slicedToArray(_useState163, 2),
-    deleteConnTarget = _useState164[0],
-    setDeleteConnTarget = _useState164[1]; // cid
-  var _useState165 = useState(null),
-    _useState166 = _slicedToArray(_useState165, 2),
-    restoreEvTarget = _useState166[0],
-    setRestoreEvTarget = _useState166[1]; // {cid,eid}
   var _useState167 = useState(null),
     _useState168 = _slicedToArray(_useState167, 2),
-    restoreConnTarget = _useState168[0],
-    setRestoreConnTarget = _useState168[1]; // cid
-  var _useState169 = useState(false),
+    deleteEvTarget = _useState168[0],
+    setDeleteEvTarget = _useState168[1]; // {cid,eid}
+  var _useState169 = useState(null),
     _useState170 = _slicedToArray(_useState169, 2),
-    showDeleted = _useState170[0],
-    setShowDeleted = _useState170[1];
-  var _useState171 = useState("all"),
+    deleteConnTarget = _useState170[0],
+    setDeleteConnTarget = _useState170[1]; // cid
+  var _useState171 = useState(null),
     _useState172 = _slicedToArray(_useState171, 2),
-    historyConnector = _useState172[0],
-    setHistoryConnector = _useState172[1];
+    restoreEvTarget = _useState172[0],
+    setRestoreEvTarget = _useState172[1]; // {cid,eid}
+  var _useState173 = useState(null),
+    _useState174 = _slicedToArray(_useState173, 2),
+    restoreConnTarget = _useState174[0],
+    setRestoreConnTarget = _useState174[1]; // cid
+  var _useState175 = useState(false),
+    _useState176 = _slicedToArray(_useState175, 2),
+    showDeleted = _useState176[0],
+    setShowDeleted = _useState176[1];
+  var _useState177 = useState("all"),
+    _useState178 = _slicedToArray(_useState177, 2),
+    historyConnector = _useState178[0],
+    setHistoryConnector = _useState178[1];
   var snFilter = workSnFilter(header);
   var scopeIds = function scopeIds(row) {
     var snRows = snRowsFromHeader(header);
@@ -15295,9 +15816,9 @@ var TabDeMating = function TabDeMating(_ref90) {
       };
     }).sort(function (a, b) {
       return String(cycleLastDt(b.cy)).localeCompare(String(cycleLastDt(a.cy)));
-    }).map(function (_ref91) {
-      var cy = _ref91.cy,
-        idx = _ref91.idx;
+    }).map(function (_ref93) {
+      var cy = _ref93.cy,
+        idx = _ref93.idx;
       return {
         c: c,
         status: status,
@@ -15322,8 +15843,8 @@ var TabDeMating = function TabDeMating(_ref90) {
       };
     }).sort(function (a, b) {
       return String(cycleLastDt(b.cy)).localeCompare(String(cycleLastDt(a.cy))) || b.n - a.n;
-    }).map(function (_ref92, i) {
-      var cy = _ref92.cy;
+    }).map(function (_ref94, i) {
+      var cy = _ref94.cy;
       return {
         idx: i + 1,
         mat: cy.mat,
@@ -15727,11 +16248,11 @@ var TabDeMating = function TabDeMating(_ref90) {
     w: 42
   }, "\uD83D\uDCAC"), /*#__PURE__*/React.createElement(TH, {
     w: 112
-  }, "Actions"))), /*#__PURE__*/React.createElement("tbody", null, cycleGroups.flatMap(function (_ref93, gi) {
-    var c = _ref93.c,
-      status = _ref93.status,
-      last = _ref93.last,
-      cycles = _ref93.cycles;
+  }, "Actions"))), /*#__PURE__*/React.createElement("tbody", null, cycleGroups.flatMap(function (_ref95, gi) {
+    var c = _ref95.c,
+      status = _ref95.status,
+      last = _ref95.last,
+      cycles = _ref95.cycles;
     var tone = connectorStateTone(last === null || last === void 0 ? void 0 : last.action);
     return [/*#__PURE__*/React.createElement("tr", {
       key: "".concat(c.id, "_group"),
@@ -15781,11 +16302,11 @@ var TabDeMating = function TabDeMating(_ref90) {
       },
       user: user,
       disabled: !perms.canComment
-    }))))].concat(_toConsumableArray(cycles.map(function (_ref94, i) {
-      var idx = _ref94.idx,
-        mat = _ref94.mat,
-        dem = _ref94.dem,
-        empty = _ref94.empty;
+    }))))].concat(_toConsumableArray(cycles.map(function (_ref96, i) {
+      var idx = _ref96.idx,
+        mat = _ref96.mat,
+        dem = _ref96.dem,
+        empty = _ref96.empty;
       return /*#__PURE__*/React.createElement("tr", {
         key: "".concat(c.id, "_").concat(idx || "empty", "_").concat(i),
         style: {
@@ -15932,17 +16453,17 @@ var OPENWORK_EDIT_FIELDS = [{
   key: "commentaires",
   label: "Commentaires"
 }];
-var TabOpenWork = function TabOpenWork(_ref95) {
-  var data = _ref95.data,
-    onChange = _ref95.onChange,
-    user = _ref95.user,
-    _ref95$perms = _ref95.perms,
-    perms = _ref95$perms === void 0 ? {} : _ref95$perms,
-    header = _ref95.header,
-    _ref95$forceShowDelet = _ref95.forceShowDeleted,
-    forceShowDeleted = _ref95$forceShowDelet === void 0 ? false : _ref95$forceShowDelet,
-    onCopyAcross = _ref95.onCopyAcross,
-    onCloseRow = _ref95.onCloseRow;
+var TabOpenWork = function TabOpenWork(_ref97) {
+  var data = _ref97.data,
+    onChange = _ref97.onChange,
+    user = _ref97.user,
+    _ref97$perms = _ref97.perms,
+    perms = _ref97$perms === void 0 ? {} : _ref97$perms,
+    header = _ref97.header,
+    _ref97$forceShowDelet = _ref97.forceShowDeleted,
+    forceShowDeleted = _ref97$forceShowDelet === void 0 ? false : _ref97$forceShowDelet,
+    onCopyAcross = _ref97.onCopyAcross,
+    onCloseRow = _ref97.onCloseRow;
   var rows = data.rows || [];
   var canEdit = function canEdit(row) {
     return canEditLine(user, row);
@@ -15968,18 +16489,18 @@ var TabOpenWork = function TabOpenWork(_ref95) {
       })])
     });
   };
-  var _useState173 = useState(null),
-    _useState174 = _slicedToArray(_useState173, 2),
-    deleteTarget = _useState174[0],
-    setDeleteTarget = _useState174[1];
-  var _useState175 = useState(null),
-    _useState176 = _slicedToArray(_useState175, 2),
-    restoreTarget = _useState176[0],
-    setRestoreTarget = _useState176[1];
-  var _useState177 = useState(false),
-    _useState178 = _slicedToArray(_useState177, 2),
-    showDeleted = _useState178[0],
-    setShowDeleted = _useState178[1];
+  var _useState179 = useState(null),
+    _useState180 = _slicedToArray(_useState179, 2),
+    deleteTarget = _useState180[0],
+    setDeleteTarget = _useState180[1];
+  var _useState181 = useState(null),
+    _useState182 = _slicedToArray(_useState181, 2),
+    restoreTarget = _useState182[0],
+    setRestoreTarget = _useState182[1];
+  var _useState183 = useState(false),
+    _useState184 = _slicedToArray(_useState183, 2),
+    showDeleted = _useState184[0],
+    setShowDeleted = _useState184[1];
   var snFilter = workSnFilter(header);
   var upd = function upd(id, f, v) {
     var r = rows.find(function (x) {
@@ -16530,9 +17051,9 @@ var readImportFile = /*#__PURE__*/function () {
   }
   return readImportFile;
 }();
-var ImportCsvFile = function ImportCsvFile(_ref96) {
-  var onText = _ref96.onText,
-    onError = _ref96.onError;
+var ImportCsvFile = function ImportCsvFile(_ref98) {
+  var onText = _ref98.onText,
+    onError = _ref98.onError;
   return /*#__PURE__*/React.createElement("input", {
     type: "file",
     accept: ".csv,.txt,.tsv",
@@ -16543,7 +17064,7 @@ var ImportCsvFile = function ImportCsvFile(_ref96) {
       marginBottom: 8
     },
     onChange: (/*#__PURE__*/function () {
-      var _ref97 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee10(e) {
+      var _ref99 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee10(e) {
         var _e$target$files;
         var file, _t8, _t9;
         return _regenerator().w(function (_context10) {
@@ -16575,7 +17096,7 @@ var ImportCsvFile = function ImportCsvFile(_ref96) {
         }, _callee10, null, [[1, 3]]);
       }));
       return function (_x6) {
-        return _ref97.apply(this, arguments);
+        return _ref99.apply(this, arguments);
       };
     }())
   });
@@ -16755,7 +17276,7 @@ var loadUserServices = /*#__PURE__*/function () {
           return Promise.all(keys.filter(function (k) {
             return k.startsWith("user:");
           }).map(/*#__PURE__*/function () {
-            var _ref98 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee13(key) {
+            var _ref100 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee13(key) {
               var _t1, _t10;
               return _regenerator().w(function (_context13) {
                 while (1) switch (_context13.p = _context13.n) {
@@ -16774,7 +17295,7 @@ var loadUserServices = /*#__PURE__*/function () {
               }, _callee13, null, [[0, 2]]);
             }));
             return function (_x8) {
-              return _ref98.apply(this, arguments);
+              return _ref100.apply(this, arguments);
             };
           }()));
         case 7:
@@ -16836,10 +17357,10 @@ var ensureDefaultAdmin = /*#__PURE__*/function () {
 }();
 
 // ─── Profil utilisateur ────────────────────────────────────────────────────
-var ProfileModal = function ProfileModal(_ref99) {
-  var user = _ref99.user,
-    onClose = _ref99.onClose,
-    onSave = _ref99.onSave;
+var ProfileModal = function ProfileModal(_ref101) {
+  var user = _ref101.user,
+    onClose = _ref101.onClose,
+    onSave = _ref101.onSave;
   var _React$useState11 = React.useState(_objectSpread({}, user)),
     _React$useState12 = _slicedToArray(_React$useState11, 2),
     profile = _React$useState12[0],
@@ -17053,11 +17574,11 @@ var ProfileModal = function ProfileModal(_ref99) {
       gridTemplateColumns: "1fr 1fr",
       gap: 10
     }
-  }, [["Prénom", "prenom", ""], ["Nom", "nom", ""]].map(function (_ref100) {
-    var _ref101 = _slicedToArray(_ref100, 3),
-      label = _ref101[0],
-      key = _ref101[1],
-      ph = _ref101[2];
+  }, [["Prénom", "prenom", ""], ["Nom", "nom", ""]].map(function (_ref102) {
+    var _ref103 = _slicedToArray(_ref102, 3),
+      label = _ref103[0],
+      key = _ref103[1],
+      ph = _ref103[2];
     return /*#__PURE__*/React.createElement("div", {
       key: key
     }, /*#__PURE__*/React.createElement("div", {
@@ -17185,11 +17706,11 @@ var ProfileModal = function ProfileModal(_ref99) {
       flexDirection: "column",
       gap: 8
     }
-  }, [["Mot de passe actuel", oldPwd, setOldPwd], ["Nouveau mot de passe", newPwd, setNewPwd], ["Confirmer le nouveau", newPwd2, setNewPwd2]].map(function (_ref102) {
-    var _ref103 = _slicedToArray(_ref102, 3),
-      label = _ref103[0],
-      val = _ref103[1],
-      set = _ref103[2];
+  }, [["Mot de passe actuel", oldPwd, setOldPwd], ["Nouveau mot de passe", newPwd, setNewPwd], ["Confirmer le nouveau", newPwd2, setNewPwd2]].map(function (_ref104) {
+    var _ref105 = _slicedToArray(_ref104, 3),
+      label = _ref105[0],
+      val = _ref105[1],
+      set = _ref105[2];
     return /*#__PURE__*/React.createElement("div", {
       key: label
     }, /*#__PURE__*/React.createElement("div", {
@@ -17225,8 +17746,8 @@ var ProfileModal = function ProfileModal(_ref99) {
     small: true
   }, "\uD83D\uDD11 Changer le mot de passe"))))));
 };
-var AdminUsersModal = function AdminUsersModal(_ref104) {
-  var onClose = _ref104.onClose;
+var AdminUsersModal = function AdminUsersModal(_ref106) {
+  var onClose = _ref106.onClose;
   var blank = {
     trigram: "",
     prenom: "",
@@ -17829,11 +18350,11 @@ var AdminUsersModal = function AdminUsersModal(_ref104) {
       letterSpacing: .8,
       marginBottom: 10
     }
-  }, "Cr\xE9er / modifier"), [["Trigramme", "trigram", "ADMIN"], ["Prénom", "prenom", "Julien"], ["Nom", "nom", "Grosjean"], ["Service", "service", "Production"], ["E-mail", "email", "prenom.nom@entreprise.com"]].map(function (_ref106) {
-    var _ref107 = _slicedToArray(_ref106, 3),
-      label = _ref107[0],
-      key = _ref107[1],
-      ph = _ref107[2];
+  }, "Cr\xE9er / modifier"), [["Trigramme", "trigram", "ADMIN"], ["Prénom", "prenom", "Julien"], ["Nom", "nom", "Grosjean"], ["Service", "service", "Production"], ["E-mail", "email", "prenom.nom@entreprise.com"]].map(function (_ref108) {
+    var _ref109 = _slicedToArray(_ref108, 3),
+      label = _ref109[0],
+      key = _ref109[1],
+      ph = _ref109[2];
     return /*#__PURE__*/React.createElement("div", {
       key: key,
       style: {
@@ -18114,26 +18635,26 @@ var AdminUsersModal = function AdminUsersModal(_ref104) {
     }, "Supprimer"))));
   })))))));
 };
-var RequiredPasswordChange = function RequiredPasswordChange(_ref108) {
-  var user = _ref108.user,
-    onDone = _ref108.onDone,
-    onLogout = _ref108.onLogout;
-  var _useState179 = useState(""),
-    _useState180 = _slicedToArray(_useState179, 2),
-    password = _useState180[0],
-    setPassword = _useState180[1];
-  var _useState181 = useState(""),
-    _useState182 = _slicedToArray(_useState181, 2),
-    confirmation = _useState182[0],
-    setConfirmation = _useState182[1];
-  var _useState183 = useState(""),
-    _useState184 = _slicedToArray(_useState183, 2),
-    error = _useState184[0],
-    setError = _useState184[1];
-  var _useState185 = useState(false),
+var RequiredPasswordChange = function RequiredPasswordChange(_ref110) {
+  var user = _ref110.user,
+    onDone = _ref110.onDone,
+    onLogout = _ref110.onLogout;
+  var _useState185 = useState(""),
     _useState186 = _slicedToArray(_useState185, 2),
-    saving = _useState186[0],
-    setSaving = _useState186[1];
+    password = _useState186[0],
+    setPassword = _useState186[1];
+  var _useState187 = useState(""),
+    _useState188 = _slicedToArray(_useState187, 2),
+    confirmation = _useState188[0],
+    setConfirmation = _useState188[1];
+  var _useState189 = useState(""),
+    _useState190 = _slicedToArray(_useState189, 2),
+    error = _useState190[0],
+    setError = _useState190[1];
+  var _useState191 = useState(false),
+    _useState192 = _slicedToArray(_useState191, 2),
+    saving = _useState192[0],
+    setSaving = _useState192[1];
   var save = /*#__PURE__*/function () {
     var _save = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee22(event) {
       var updated, result, stored, next, _t33;
@@ -18315,20 +18836,20 @@ var RequiredPasswordChange = function RequiredPasswordChange(_ref108) {
     small: true
   }, "D\xE9connexion"))));
 };
-var LoginScreen = function LoginScreen(_ref109) {
-  var onLogin = _ref109.onLogin;
-  var _useState187 = useState(""),
-    _useState188 = _slicedToArray(_useState187, 2),
-    tri = _useState188[0],
-    setTri = _useState188[1];
-  var _useState189 = useState(""),
-    _useState190 = _slicedToArray(_useState189, 2),
-    pwd = _useState190[0],
-    setPwd = _useState190[1];
-  var _useState191 = useState(""),
-    _useState192 = _slicedToArray(_useState191, 2),
-    err = _useState192[0],
-    setErr = _useState192[1];
+var LoginScreen = function LoginScreen(_ref111) {
+  var onLogin = _ref111.onLogin;
+  var _useState193 = useState(""),
+    _useState194 = _slicedToArray(_useState193, 2),
+    tri = _useState194[0],
+    setTri = _useState194[1];
+  var _useState195 = useState(""),
+    _useState196 = _slicedToArray(_useState195, 2),
+    pwd = _useState196[0],
+    setPwd = _useState196[1];
+  var _useState197 = useState(""),
+    _useState198 = _slicedToArray(_useState197, 2),
+    err = _useState198[0],
+    setErr = _useState198[1];
   var reset = function reset() {
     setErr("");
   };
@@ -18519,8 +19040,8 @@ var LoginScreen = function LoginScreen(_ref109) {
     full: true
   }, "Se connecter"))));
 };
-var ErrBox = function ErrBox(_ref110) {
-  var msg = _ref110.msg;
+var ErrBox = function ErrBox(_ref112) {
+  var msg = _ref112.msg;
   return /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.red + "22",
@@ -18661,16 +19182,16 @@ var parseOfImportPaste = function parseOfImportPaste(text) {
       return c.includes("of");
     })) return;
     var hasQtyCols = cells.length >= 8;
-    var _ref111 = hasQtyCols ? cells : [""].concat(_toConsumableArray(cells), [""]),
-      _ref112 = _slicedToArray(_ref111, 8),
-      qtyRaw = _ref112[0],
-      projet = _ref112[1],
-      articleNo = _ref112[2],
-      articleSap = _ref112[3],
-      description = _ref112[4],
-      snLot = _ref112[5],
-      ofRaw = _ref112[6],
-      repriseRaw = _ref112[7];
+    var _ref113 = hasQtyCols ? cells : [""].concat(_toConsumableArray(cells), [""]),
+      _ref114 = _slicedToArray(_ref113, 8),
+      qtyRaw = _ref114[0],
+      projet = _ref114[1],
+      articleNo = _ref114[2],
+      articleSap = _ref114[3],
+      description = _ref114[4],
+      snLot = _ref114[5],
+      ofRaw = _ref114[6],
+      repriseRaw = _ref114[7];
     var of = String(ofRaw || "").trim();
     if (!of) return;
     var key = of.toUpperCase();
@@ -18743,16 +19264,16 @@ var ofWarnings = function ofWarnings(data) {
       };
     });
   });
-  if (consoRows.some(function (_ref113) {
-    var it = _ref113.it;
+  if (consoRows.some(function (_ref115) {
+    var it = _ref115.it;
     return it.dp && !isValidDMY(it.dp);
   })) messages.push("Date de péremption consommable invalide");
-  if (consoRows.some(function (_ref114) {
-    var status = _ref114.status;
+  if (consoRows.some(function (_ref116) {
+    var status = _ref116.status;
     return (status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ";
   })) messages.push("Consommable périmé à la date d'utilisation");
-  if (consoRows.some(function (_ref115) {
-    var status = _ref115.status;
+  if (consoRows.some(function (_ref117) {
+    var status = _ref117.status;
     return (status === null || status === void 0 ? void 0 : status.label) === "BIENTÔT";
   })) messages.push("Consommable bientôt périmé à la date d'utilisation");
   var consoById = Object.fromEntries(consommables.map(function (item) {
@@ -18789,14 +19310,14 @@ var ofWarnings = function ofWarnings(data) {
   if ((data === null || data === void 0 || (_data$header4 = data.header) === null || _data$header4 === void 0 ? void 0 : _data$header4.status) === "bloque") messages.push("OF bloqué");
   return messages;
 };
-var FinishedProductSn = function FinishedProductSn(_ref116) {
-  var of = _ref116.of,
-    user = _ref116.user,
-    onSave = _ref116.onSave;
-  var _useState193 = useState(of.snProduitFini || ""),
-    _useState194 = _slicedToArray(_useState193, 2),
-    draft = _useState194[0],
-    setDraft = _useState194[1];
+var FinishedProductSn = function FinishedProductSn(_ref118) {
+  var of = _ref118.of,
+    user = _ref118.user,
+    onSave = _ref118.onSave;
+  var _useState199 = useState(of.snProduitFini || ""),
+    _useState200 = _slicedToArray(_useState199, 2),
+    draft = _useState200[0],
+    setDraft = _useState200[1];
   useEffect(function () {
     setDraft(of.snProduitFini || "");
   }, [of.snProduitFini]);
@@ -18924,18 +19445,18 @@ var currentBrowserHref = function currentBrowserHref() {
   var _window$location2;
   return typeof window !== "undefined" && (_window$location2 = window.location) !== null && _window$location2 !== void 0 && _window$location2.href ? window.location.href : "http://neu-jgr-sp:5181/";
 };
-var buildFolderLink = function buildFolderLink(_ref117) {
-  var ofId = _ref117.ofId,
-    _ref117$unitId = _ref117.unitId,
-    unitId = _ref117$unitId === void 0 ? "" : _ref117$unitId,
-    _ref117$ofNumber = _ref117.ofNumber,
-    ofNumber = _ref117$ofNumber === void 0 ? "" : _ref117$ofNumber,
-    _ref117$sn = _ref117.sn,
-    sn = _ref117$sn === void 0 ? "" : _ref117$sn,
-    _ref117$lot = _ref117.lot,
-    lot = _ref117$lot === void 0 ? "" : _ref117$lot,
-    _ref117$tab = _ref117.tab,
-    tab = _ref117$tab === void 0 ? "rework" : _ref117$tab;
+var buildFolderLink = function buildFolderLink(_ref119) {
+  var ofId = _ref119.ofId,
+    _ref119$unitId = _ref119.unitId,
+    unitId = _ref119$unitId === void 0 ? "" : _ref119$unitId,
+    _ref119$ofNumber = _ref119.ofNumber,
+    ofNumber = _ref119$ofNumber === void 0 ? "" : _ref119$ofNumber,
+    _ref119$sn = _ref119.sn,
+    sn = _ref119$sn === void 0 ? "" : _ref119$sn,
+    _ref119$lot = _ref119.lot,
+    lot = _ref119$lot === void 0 ? "" : _ref119$lot,
+    _ref119$tab = _ref119.tab,
+    tab = _ref119$tab === void 0 ? "rework" : _ref119$tab;
   var baseHref = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : appBaseHref();
   var url = new URL(baseHref);
   url.search = "";
@@ -19069,9 +19590,9 @@ var folderLinksForMail = function folderLinksForMail(groups) {
     }));
   })), [""]);
 };
-var buildClosureRequest = function buildClosureRequest(_ref118) {
-  var rows = _ref118.rows,
-    user = _ref118.user;
+var buildClosureRequest = function buildClosureRequest(_ref120) {
+  var rows = _ref120.rows,
+    user = _ref120.user;
   var groups = groupHomeMailRows(rows);
   var otps = _toConsumableArray(new Set(groups.map(function (group) {
     return group.otp;
@@ -19084,10 +19605,10 @@ var buildClosureRequest = function buildClosureRequest(_ref118) {
     body: ["Bonjour,", "", intro, ""].concat(_toConsumableArray(closureMailTable(groups)), _toConsumableArray(folderLinksForMail(groups)), ["Merci,", [user.prenom, user.nom].filter(Boolean).join(" ") || user.trigram, user.trigram]).join("\n")
   };
 };
-var buildIpInvitation = function buildIpInvitation(_ref119) {
-  var rows = _ref119.rows,
-    user = _ref119.user,
-    ipName = _ref119.ipName;
+var buildIpInvitation = function buildIpInvitation(_ref121) {
+  var rows = _ref121.rows,
+    user = _ref121.user,
+    ipName = _ref121.ipName;
   var groups = groupHomeMailRows(rows);
   var otps = _toConsumableArray(new Set(groups.map(function (group) {
     return group.otp || "Non renseigné";
@@ -19137,23 +19658,23 @@ var formatIcsLocal = function formatIcsLocal(date) {
   };
   return "".concat(date.getFullYear()).concat(pad(date.getMonth() + 1)).concat(pad(date.getDate()), "T").concat(pad(date.getHours())).concat(pad(date.getMinutes()), "00");
 };
-var buildOutlookMeetingIcs = function buildOutlookMeetingIcs(_ref120) {
-  var subject = _ref120.subject,
-    body = _ref120.body,
-    date = _ref120.date,
-    time = _ref120.time,
-    _ref120$duration = _ref120.duration,
-    duration = _ref120$duration === void 0 ? 60 : _ref120$duration,
-    _ref120$location = _ref120.location,
-    location = _ref120$location === void 0 ? "" : _ref120$location,
-    _ref120$recipients = _ref120.recipients,
-    recipients = _ref120$recipients === void 0 ? [] : _ref120$recipients,
-    _ref120$requiredRecip = _ref120.requiredRecipients,
-    requiredRecipients = _ref120$requiredRecip === void 0 ? recipients : _ref120$requiredRecip,
-    _ref120$optionalRecip = _ref120.optionalRecipients,
-    optionalRecipients = _ref120$optionalRecip === void 0 ? [] : _ref120$optionalRecip,
-    _ref120$organizer = _ref120.organizer,
-    organizer = _ref120$organizer === void 0 ? {} : _ref120$organizer;
+var buildOutlookMeetingIcs = function buildOutlookMeetingIcs(_ref122) {
+  var subject = _ref122.subject,
+    body = _ref122.body,
+    date = _ref122.date,
+    time = _ref122.time,
+    _ref122$duration = _ref122.duration,
+    duration = _ref122$duration === void 0 ? 60 : _ref122$duration,
+    _ref122$location = _ref122.location,
+    location = _ref122$location === void 0 ? "" : _ref122$location,
+    _ref122$recipients = _ref122.recipients,
+    recipients = _ref122$recipients === void 0 ? [] : _ref122$recipients,
+    _ref122$requiredRecip = _ref122.requiredRecipients,
+    requiredRecipients = _ref122$requiredRecip === void 0 ? recipients : _ref122$requiredRecip,
+    _ref122$optionalRecip = _ref122.optionalRecipients,
+    optionalRecipients = _ref122$optionalRecip === void 0 ? [] : _ref122$optionalRecip,
+    _ref122$organizer = _ref122.organizer,
+    organizer = _ref122$organizer === void 0 ? {} : _ref122$organizer;
   var matchDate = String(date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   var matchTime = String(time || "").match(/^(\d{2}):(\d{2})$/);
   if (!matchDate || !matchTime) throw new Error("Date ou heure de réunion invalide");
@@ -19173,15 +19694,15 @@ var buildOutlookMeetingIcs = function buildOutlookMeetingIcs(_ref120) {
   lines.push("END:VEVENT", "END:VCALENDAR", "");
   return lines.join("\r\n");
 };
-var downloadOutlookMeeting = function downloadOutlookMeeting(_ref121) {
-  var draft = _ref121.draft,
-    date = _ref121.date,
-    time = _ref121.time,
-    duration = _ref121.duration,
-    location = _ref121.location,
-    requiredRecipients = _ref121.requiredRecipients,
-    optionalRecipients = _ref121.optionalRecipients,
-    user = _ref121.user;
+var downloadOutlookMeeting = function downloadOutlookMeeting(_ref123) {
+  var draft = _ref123.draft,
+    date = _ref123.date,
+    time = _ref123.time,
+    duration = _ref123.duration,
+    location = _ref123.location,
+    requiredRecipients = _ref123.requiredRecipients,
+    optionalRecipients = _ref123.optionalRecipients,
+    user = _ref123.user;
   var content = buildOutlookMeetingIcs({
     subject: draft.subject,
     body: draft.body,
@@ -19207,60 +19728,60 @@ var downloadOutlookMeeting = function downloadOutlookMeeting(_ref121) {
     return URL.revokeObjectURL(url);
   }, 1000);
 };
-var HomeMailModal = function HomeMailModal(_ref122) {
-  var kind = _ref122.kind,
-    rows = _ref122.rows,
-    user = _ref122.user,
-    onClose = _ref122.onClose,
-    onMarkForClosure = _ref122.onMarkForClosure;
+var HomeMailModal = function HomeMailModal(_ref124) {
+  var kind = _ref124.kind,
+    rows = _ref124.rows,
+    user = _ref124.user,
+    onClose = _ref124.onClose,
+    onMarkForClosure = _ref124.onMarkForClosure;
   var isIp = kind === "ip";
-  var _useState195 = useState(""),
-    _useState196 = _slicedToArray(_useState195, 2),
-    ipName = _useState196[0],
-    setIpName = _useState196[1];
-  var _useState197 = useState(isIp ? "" : LOGISTICS_DIRECTORY_RECIPIENT),
-    _useState198 = _slicedToArray(_useState197, 2),
-    recipient = _useState198[0],
-    setRecipient = _useState198[1];
-  var _useState199 = useState(defaultMeetingSlot),
-    _useState200 = _slicedToArray(_useState199, 1),
-    meetingSlot = _useState200[0];
-  var _useState201 = useState(meetingSlot.date),
+  var _useState201 = useState(""),
     _useState202 = _slicedToArray(_useState201, 2),
-    meetingDate = _useState202[0],
-    setMeetingDate = _useState202[1];
-  var _useState203 = useState(meetingSlot.time),
+    ipName = _useState202[0],
+    setIpName = _useState202[1];
+  var _useState203 = useState(isIp ? "" : LOGISTICS_DIRECTORY_RECIPIENT),
     _useState204 = _slicedToArray(_useState203, 2),
-    meetingTime = _useState204[0],
-    setMeetingTime = _useState204[1];
-  var _useState205 = useState("60"),
-    _useState206 = _slicedToArray(_useState205, 2),
-    meetingDuration = _useState206[0],
-    setMeetingDuration = _useState206[1];
-  var _useState207 = useState(""),
+    recipient = _useState204[0],
+    setRecipient = _useState204[1];
+  var _useState205 = useState(defaultMeetingSlot),
+    _useState206 = _slicedToArray(_useState205, 1),
+    meetingSlot = _useState206[0];
+  var _useState207 = useState(meetingSlot.date),
     _useState208 = _slicedToArray(_useState207, 2),
-    meetingRoom = _useState208[0],
-    setMeetingRoom = _useState208[1];
-  var _useState209 = useState(""),
+    meetingDate = _useState208[0],
+    setMeetingDate = _useState208[1];
+  var _useState209 = useState(meetingSlot.time),
     _useState210 = _slicedToArray(_useState209, 2),
-    meetingPlace = _useState210[0],
-    setMeetingPlace = _useState210[1];
-  var _useState211 = useState([]),
+    meetingTime = _useState210[0],
+    setMeetingTime = _useState210[1];
+  var _useState211 = useState("60"),
     _useState212 = _slicedToArray(_useState211, 2),
-    copyTo = _useState212[0],
-    setCopyTo = _useState212[1];
-  var _useState213 = useState([]),
+    meetingDuration = _useState212[0],
+    setMeetingDuration = _useState212[1];
+  var _useState213 = useState(""),
     _useState214 = _slicedToArray(_useState213, 2),
-    inviteProjectTo = _useState214[0],
-    setInviteProjectTo = _useState214[1];
-  var _useState215 = useState([]),
+    meetingRoom = _useState214[0],
+    setMeetingRoom = _useState214[1];
+  var _useState215 = useState(""),
     _useState216 = _slicedToArray(_useState215, 2),
-    inviteAssuranceTo = _useState216[0],
-    setInviteAssuranceTo = _useState216[1];
+    meetingPlace = _useState216[0],
+    setMeetingPlace = _useState216[1];
   var _useState217 = useState([]),
     _useState218 = _slicedToArray(_useState217, 2),
-    inviteCc = _useState218[0],
-    setInviteCc = _useState218[1];
+    copyTo = _useState218[0],
+    setCopyTo = _useState218[1];
+  var _useState219 = useState([]),
+    _useState220 = _slicedToArray(_useState219, 2),
+    inviteProjectTo = _useState220[0],
+    setInviteProjectTo = _useState220[1];
+  var _useState221 = useState([]),
+    _useState222 = _slicedToArray(_useState221, 2),
+    inviteAssuranceTo = _useState222[0],
+    setInviteAssuranceTo = _useState222[1];
+  var _useState223 = useState([]),
+    _useState224 = _slicedToArray(_useState223, 2),
+    inviteCc = _useState224[0],
+    setInviteCc = _useState224[1];
   var _useCcManagers2 = useCcManagers(!isIp),
     managers = _useCcManagers2.managers,
     ccError = _useCcManagers2.error;
@@ -19291,22 +19812,22 @@ var HomeMailModal = function HomeMailModal(_ref122) {
       user: user
     });
   };
-  var _useState219 = useState(makeDraft),
-    _useState220 = _slicedToArray(_useState219, 2),
-    draft = _useState220[0],
-    setDraft = _useState220[1];
-  var _useState221 = useState(""),
-    _useState222 = _slicedToArray(_useState221, 2),
-    message = _useState222[0],
-    setMessage = _useState222[1];
-  var _useState223 = useState(false),
-    _useState224 = _slicedToArray(_useState223, 2),
-    draftOpened = _useState224[0],
-    setDraftOpened = _useState224[1];
-  var _useState225 = useState(false),
+  var _useState225 = useState(makeDraft),
     _useState226 = _slicedToArray(_useState225, 2),
-    sending = _useState226[0],
-    setSending = _useState226[1];
+    draft = _useState226[0],
+    setDraft = _useState226[1];
+  var _useState227 = useState(""),
+    _useState228 = _slicedToArray(_useState227, 2),
+    message = _useState228[0],
+    setMessage = _useState228[1];
+  var _useState229 = useState(false),
+    _useState230 = _slicedToArray(_useState229, 2),
+    draftOpened = _useState230[0],
+    setDraftOpened = _useState230[1];
+  var _useState231 = useState(false),
+    _useState232 = _slicedToArray(_useState231, 2),
+    sending = _useState232[0],
+    setSending = _useState232[1];
   useEffect(function () {
     if (isIp) setDraft(buildIpInvitation({
       rows: rows,
@@ -19790,24 +20311,24 @@ var homeFactSearchText = function homeFactSearchText(facts) {
     return [fact.type, fact.numero, fact.commentaires, fact.date, fact.visa, fact.closedDate, fact.closedVisa].filter(Boolean).join(" ");
   }).join(" ");
 };
-var OFSelector = function OFSelector(_ref123) {
+var OFSelector = function OFSelector(_ref125) {
   var _STATUTS1, _STATUTS10, _STATUTS11;
-  var ofList = _ref123.ofList,
-    consommables = _ref123.consommables,
-    onSelect = _ref123.onSelect,
-    onCreate = _ref123.onCreate,
-    onDelete = _ref123.onDelete,
-    onImportOFs = _ref123.onImportOFs,
-    user = _ref123.user,
-    onLogout = _ref123.onLogout,
-    openHistory = _ref123.openHistory,
-    onUpdateStatus = _ref123.onUpdateStatus,
-    onUnitStatusChange = _ref123.onUnitStatusChange,
-    onBulkUnitStatusChange = _ref123.onBulkUnitStatusChange,
-    onFinishedSnChange = _ref123.onFinishedSnChange,
-    onSaveProfile = _ref123.onSaveProfile,
-    onManageUsers = _ref123.onManageUsers,
-    onManageStatuses = _ref123.onManageStatuses;
+  var ofList = _ref125.ofList,
+    consommables = _ref125.consommables,
+    onSelect = _ref125.onSelect,
+    onCreate = _ref125.onCreate,
+    onDelete = _ref125.onDelete,
+    onImportOFs = _ref125.onImportOFs,
+    user = _ref125.user,
+    onLogout = _ref125.onLogout,
+    openHistory = _ref125.openHistory,
+    onUpdateStatus = _ref125.onUpdateStatus,
+    onUnitStatusChange = _ref125.onUnitStatusChange,
+    onBulkUnitStatusChange = _ref125.onBulkUnitStatusChange,
+    onFinishedSnChange = _ref125.onFinishedSnChange,
+    onSaveProfile = _ref125.onSaveProfile,
+    onManageUsers = _ref125.onManageUsers,
+    onManageStatuses = _ref125.onManageStatuses;
   var blankForm = {
     of: "",
     sn: "",
@@ -19821,99 +20342,99 @@ var OFSelector = function OFSelector(_ref123) {
     typeOF: "production",
     status: "en_cours"
   };
-  var _useState227 = useState(""),
-    _useState228 = _slicedToArray(_useState227, 2),
-    search = _useState228[0],
-    setSearch = _useState228[1];
-  var _useState229 = useState(0),
-    _useState230 = _slicedToArray(_useState229, 2),
-    page = _useState230[0],
-    setPage = _useState230[1];
-  var _useState231 = useState(25),
-    _useState232 = _slicedToArray(_useState231, 2),
-    pageSize = _useState232[0],
-    setPageSize = _useState232[1];
-  var _useState233 = useState({}),
+  var _useState233 = useState(""),
     _useState234 = _slicedToArray(_useState233, 2),
-    columnFilters = _useState234[0],
-    setColumnFilters = _useState234[1];
-  var _useState235 = useState({}),
+    search = _useState234[0],
+    setSearch = _useState234[1];
+  var _useState235 = useState(0),
     _useState236 = _slicedToArray(_useState235, 2),
-    dataById = _useState236[0],
-    setDataById = _useState236[1];
-  var _useState237 = useState("opens"),
+    page = _useState236[0],
+    setPage = _useState236[1];
+  var _useState237 = useState(25),
     _useState238 = _slicedToArray(_useState237, 2),
-    sort = _useState238[0],
-    setSort = _useState238[1];
-  var _useState239 = useState({
+    pageSize = _useState238[0],
+    setPageSize = _useState238[1];
+  var _useState239 = useState({}),
+    _useState240 = _slicedToArray(_useState239, 2),
+    columnFilters = _useState240[0],
+    setColumnFilters = _useState240[1];
+  var _useState241 = useState({}),
+    _useState242 = _slicedToArray(_useState241, 2),
+    dataById = _useState242[0],
+    setDataById = _useState242[1];
+  var _useState243 = useState("opens"),
+    _useState244 = _slicedToArray(_useState243, 2),
+    sort = _useState244[0],
+    setSort = _useState244[1];
+  var _useState245 = useState({
       key: "",
       direction: "asc"
     }),
-    _useState240 = _slicedToArray(_useState239, 2),
-    columnSort = _useState240[0],
-    setColumnSort = _useState240[1];
-  var _useState241 = useState([]),
-    _useState242 = _slicedToArray(_useState241, 2),
-    filterStatus = _useState242[0],
-    setFilterStatus = _useState242[1];
-  var _useState243 = useState(true),
-    _useState244 = _slicedToArray(_useState243, 2),
-    onlyWorked = _useState244[0],
-    setOnlyWorked = _useState244[1];
-  var _useState245 = useState(false),
     _useState246 = _slicedToArray(_useState245, 2),
-    onlyWarnings = _useState246[0],
-    setOnlyWarnings = _useState246[1];
+    columnSort = _useState246[0],
+    setColumnSort = _useState246[1];
   var _useState247 = useState([]),
     _useState248 = _slicedToArray(_useState247, 2),
-    workedIds = _useState248[0],
-    setWorkedIds = _useState248[1];
-  var _useState249 = useState({}),
+    filterStatus = _useState248[0],
+    setFilterStatus = _useState248[1];
+  var _useState249 = useState(true),
     _useState250 = _slicedToArray(_useState249, 2),
-    warningsById = _useState250[0],
-    setWarningsById = _useState250[1];
-  var _useState251 = useState({}),
+    onlyWorked = _useState250[0],
+    setOnlyWorked = _useState250[1];
+  var _useState251 = useState(false),
     _useState252 = _slicedToArray(_useState251, 2),
-    openOWById = _useState252[0],
-    setOpenOWById = _useState252[1];
-  var _useState253 = useState({}),
+    onlyWarnings = _useState252[0],
+    setOnlyWarnings = _useState252[1];
+  var _useState253 = useState([]),
     _useState254 = _slicedToArray(_useState253, 2),
-    etuvagesById = _useState254[0],
-    setEtuvagesById = _useState254[1];
+    workedIds = _useState254[0],
+    setWorkedIds = _useState254[1];
   var _useState255 = useState({}),
     _useState256 = _slicedToArray(_useState255, 2),
-    snLabelsById = _useState256[0],
-    setSnLabelsById = _useState256[1];
-  var _useState257 = useState(true),
+    warningsById = _useState256[0],
+    setWarningsById = _useState256[1];
+  var _useState257 = useState({}),
     _useState258 = _slicedToArray(_useState257, 2),
-    loadingWorked = _useState258[0],
-    setLoadingWorked = _useState258[1];
-  var _useState259 = useState([]),
+    openOWById = _useState258[0],
+    setOpenOWById = _useState258[1];
+  var _useState259 = useState({}),
     _useState260 = _slicedToArray(_useState259, 2),
-    selectedKeys = _useState260[0],
-    setSelectedKeys = _useState260[1];
-  var _useState261 = useState([]),
+    etuvagesById = _useState260[0],
+    setEtuvagesById = _useState260[1];
+  var _useState261 = useState({}),
     _useState262 = _slicedToArray(_useState261, 2),
-    expandedOfIds = _useState262[0],
-    setExpandedOfIds = _useState262[1];
-  var _useState263 = useState(null),
+    snLabelsById = _useState262[0],
+    setSnLabelsById = _useState262[1];
+  var _useState263 = useState(true),
     _useState264 = _slicedToArray(_useState263, 2),
-    homeMailKind = _useState264[0],
-    setHomeMailKind = _useState264[1];
-  var _useState265 = useState(false),
+    loadingWorked = _useState264[0],
+    setLoadingWorked = _useState264[1];
+  var _useState265 = useState([]),
     _useState266 = _slicedToArray(_useState265, 2),
-    showBulkPdf = _useState266[0],
-    setShowBulkPdf = _useState266[1];
-  var _useState267 = useState(""),
+    selectedKeys = _useState266[0],
+    setSelectedKeys = _useState266[1];
+  var _useState267 = useState([]),
     _useState268 = _slicedToArray(_useState267, 2),
-    copiedTeamsKey = _useState268[0],
-    setCopiedTeamsKey = _useState268[1];
-  var _useState269 = useState(function () {
+    expandedOfIds = _useState268[0],
+    setExpandedOfIds = _useState268[1];
+  var _useState269 = useState(null),
+    _useState270 = _slicedToArray(_useState269, 2),
+    homeMailKind = _useState270[0],
+    setHomeMailKind = _useState270[1];
+  var _useState271 = useState(false),
+    _useState272 = _slicedToArray(_useState271, 2),
+    showBulkPdf = _useState272[0],
+    setShowBulkPdf = _useState272[1];
+  var _useState273 = useState(""),
+    _useState274 = _slicedToArray(_useState273, 2),
+    copiedTeamsKey = _useState274[0],
+    setCopiedTeamsKey = _useState274[1];
+  var _useState275 = useState(function () {
       return new Date();
     }),
-    _useState270 = _slicedToArray(_useState269, 2),
-    homeNow = _useState270[0],
-    setHomeNow = _useState270[1];
+    _useState276 = _slicedToArray(_useState275, 2),
+    homeNow = _useState276[0],
+    setHomeNow = _useState276[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setHomeNow(new Date());
@@ -19949,7 +20470,7 @@ var OFSelector = function OFSelector(_ref123) {
           case 5:
             _context28.n = 6;
             return Promise.all(ofList.map(/*#__PURE__*/function () {
-              var _ref125 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee27(o) {
+              var _ref127 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee27(o) {
                 var _data$units6, data, r, _t38;
                 return _regenerator().w(function (_context27) {
                   while (1) switch (_context27.p = _context27.n) {
@@ -19992,7 +20513,7 @@ var OFSelector = function OFSelector(_ref123) {
                 }, _callee27, null, [[0, 3]]);
               }));
               return function (_x10) {
-                return _ref125.apply(this, arguments);
+                return _ref127.apply(this, arguments);
               };
             }()));
           case 6:
@@ -20033,34 +20554,34 @@ var OFSelector = function OFSelector(_ref123) {
       cancelled = true;
     };
   }, [ofList, user.trigram, consommables]);
-  var _useState271 = useState(true),
-    _useState272 = _slicedToArray(_useState271, 2),
-    hideCloture = _useState272[0],
-    setHideCloture = _useState272[1];
-  var _useState273 = useState(false),
-    _useState274 = _slicedToArray(_useState273, 2),
-    showNew = _useState274[0],
-    setShowNew = _useState274[1];
-  var _useState275 = useState(false),
-    _useState276 = _slicedToArray(_useState275, 2),
-    showProfile = _useState276[0],
-    setShowProfile = _useState276[1];
-  var _useState277 = useState([]),
+  var _useState277 = useState(true),
     _useState278 = _slicedToArray(_useState277, 2),
-    favs = _useState278[0],
-    setFavs = _useState278[1];
-  var _useState279 = useState(blankForm),
+    hideCloture = _useState278[0],
+    setHideCloture = _useState278[1];
+  var _useState279 = useState(false),
     _useState280 = _slicedToArray(_useState279, 2),
-    form = _useState280[0],
-    setForm = _useState280[1];
-  var _useState281 = useState(""),
+    showNew = _useState280[0],
+    setShowNew = _useState280[1];
+  var _useState281 = useState(false),
     _useState282 = _slicedToArray(_useState281, 2),
-    importText = _useState282[0],
-    setImportText = _useState282[1];
-  var _useState283 = useState(""),
+    showProfile = _useState282[0],
+    setShowProfile = _useState282[1];
+  var _useState283 = useState([]),
     _useState284 = _slicedToArray(_useState283, 2),
-    importMsg = _useState284[0],
-    setImportMsg = _useState284[1];
+    favs = _useState284[0],
+    setFavs = _useState284[1];
+  var _useState285 = useState(blankForm),
+    _useState286 = _slicedToArray(_useState285, 2),
+    form = _useState286[0],
+    setForm = _useState286[1];
+  var _useState287 = useState(""),
+    _useState288 = _slicedToArray(_useState287, 2),
+    importText = _useState288[0],
+    setImportText = _useState288[1];
+  var _useState289 = useState(""),
+    _useState290 = _slicedToArray(_useState289, 2),
+    importMsg = _useState290[0],
+    setImportMsg = _useState290[1];
 
   // Charger les favs de cet user
   useEffect(function () {
@@ -20200,10 +20721,10 @@ var OFSelector = function OFSelector(_ref123) {
     if (hideCloture && (_STATUTS8 = STATUTS[o.status || "en_cours"]) !== null && _STATUTS8 !== void 0 && _STATUTS8.closed) return false;
     if (onlyWarnings && !((_warningsById$o$id3 = warningsById[o.id]) !== null && _warningsById$o$id3 !== void 0 && _warningsById$o$id3.length)) return false;
     if (filterStatus.length && !filterStatus.includes(o.status || "en_cours") && !filterStatus.includes(o.unitStatus || "en_cours")) return false;
-    if (Object.entries(columnFilters).some(function (_ref127) {
-      var _ref128 = _slicedToArray(_ref127, 2),
-        key = _ref128[0],
-        value = _ref128[1];
+    if (Object.entries(columnFilters).some(function (_ref129) {
+      var _ref130 = _slicedToArray(_ref129, 2),
+        key = _ref130[0],
+        value = _ref130[1];
       return value && !columnValue(o, key).toLowerCase().includes(value.toLowerCase().trim());
     })) return false;
     return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS9 = STATUTS[o.status || "en_cours"]) === null || _STATUTS9 === void 0 ? void 0 : _STATUTS9.label, (_STATUTS0 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, o._homeFactSearch].some(function (v) {
@@ -20498,10 +21019,10 @@ var OFSelector = function OFSelector(_ref123) {
       },
       label: "Tous",
       title: "Filtrer les statuts OF et SN/LOT",
-      options: Object.entries(STATUTS).map(function (_ref129) {
-        var _ref130 = _slicedToArray(_ref129, 2),
-          value = _ref130[0],
-          s = _ref130[1];
+      options: Object.entries(STATUTS).map(function (_ref131) {
+        var _ref132 = _slicedToArray(_ref131, 2),
+          value = _ref132[0],
+          s = _ref132[1];
         return {
           value: value,
           label: s.label
@@ -20911,10 +21432,10 @@ var OFSelector = function OFSelector(_ref123) {
     },
     label: "Tous statuts OF/SN",
     title: "Filtrer les statuts OF et SN/LOT",
-    options: Object.entries(STATUTS).map(function (_ref131) {
-      var _ref132 = _slicedToArray(_ref131, 2),
-        value = _ref132[0],
-        s = _ref132[1];
+    options: Object.entries(STATUTS).map(function (_ref133) {
+      var _ref134 = _slicedToArray(_ref133, 2),
+        value = _ref134[0],
+        s = _ref134[1];
       return {
         value: value,
         label: s.label
@@ -21078,12 +21599,12 @@ var OFSelector = function OFSelector(_ref123) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref133) {
-    var _ref134 = _slicedToArray(_ref133, 4),
-      label = _ref134[0],
-      key = _ref134[1],
-      ph = _ref134[2],
-      title = _ref134[3];
+  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref135) {
+    var _ref136 = _slicedToArray(_ref135, 4),
+      label = _ref136[0],
+      key = _ref136[1],
+      ph = _ref136[2],
+      title = _ref136[3];
     return /*#__PURE__*/React.createElement("div", {
       key: key
     }, /*#__PURE__*/React.createElement("div", {
@@ -21190,10 +21711,10 @@ var OFSelector = function OFSelector(_ref123) {
       fontWeight: 700,
       outline: "none"
     }
-  }, Object.entries(STATUTS).map(function (_ref135) {
-    var _ref136 = _slicedToArray(_ref135, 2),
-      k = _ref136[0],
-      v = _ref136[1];
+  }, Object.entries(STATUTS).map(function (_ref137) {
+    var _ref138 = _slicedToArray(_ref137, 2),
+      k = _ref138[0],
+      v = _ref138[1];
     return /*#__PURE__*/React.createElement("option", {
       key: k,
       value: k
@@ -21334,10 +21855,10 @@ var OFSelector = function OFSelector(_ref123) {
       color: C.muted,
       cursor: "pointer"
     }
-  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref137) {
-    var _ref138 = _slicedToArray(_ref137, 2),
-      key = _ref138[0],
-      label = _ref138[1];
+  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref139) {
+    var _ref140 = _slicedToArray(_ref139, 2),
+      key = _ref140[0],
+      label = _ref140[1];
     return /*#__PURE__*/React.createElement("td", {
       key: key,
       style: {
@@ -21546,10 +22067,10 @@ var OFSelector = function OFSelector(_ref123) {
         outline: "none",
         cursor: "pointer"
       }
-    }, Object.entries(STATUTS).map(function (_ref139) {
-      var _ref140 = _slicedToArray(_ref139, 2),
-        k = _ref140[0],
-        v = _ref140[1];
+    }, Object.entries(STATUTS).map(function (_ref141) {
+      var _ref142 = _slicedToArray(_ref141, 2),
+        k = _ref142[0],
+        v = _ref142[1];
       return /*#__PURE__*/React.createElement("option", {
         key: k,
         value: k
@@ -21579,10 +22100,10 @@ var OFSelector = function OFSelector(_ref123) {
         padding: "3px 5px",
         fontSize: 12
       }
-    }, Object.entries(UNIT_STATUTS).map(function (_ref141) {
-      var _ref142 = _slicedToArray(_ref141, 2),
-        value = _ref142[0],
-        s = _ref142[1];
+    }, Object.entries(UNIT_STATUTS).map(function (_ref143) {
+      var _ref144 = _slicedToArray(_ref143, 2),
+        value = _ref144[0],
+        s = _ref144[1];
       return /*#__PURE__*/React.createElement("option", {
         key: value,
         value: value
@@ -21844,9 +22365,9 @@ var TABS = [{
 }];
 function App() {
   var _ofData$units9, _ofData$etuvage2, _ofData$testequip3;
-  var _useState285 = useState(0),
-    _useState286 = _slicedToArray(_useState285, 2),
-    setThemeRevision = _useState286[1];
+  var _useState291 = useState(0),
+    _useState292 = _slicedToArray(_useState291, 2),
+    setThemeRevision = _useState292[1];
   useEffect(function () {
     var refresh = function refresh() {
       return setThemeRevision(function (n) {
@@ -21858,27 +22379,27 @@ function App() {
       return window.removeEventListener("sp-f001-theme-change", refresh);
     };
   }, []);
-  var _useState287 = useState(null),
-    _useState288 = _slicedToArray(_useState287, 2),
-    user = _useState288[0],
-    setUser = _useState288[1];
-  var homeSaveQueue = React.useRef(Promise.resolve());
-  var _useState289 = useState([]),
-    _useState290 = _slicedToArray(_useState289, 2),
-    ofList = _useState290[0],
-    setOfList = _useState290[1];
-  var _useState291 = useState(null),
-    _useState292 = _slicedToArray(_useState291, 2),
-    currentId = _useState292[0],
-    setCurrentId = _useState292[1];
-  var _useState293 = useState(DEFAULT_CONSOMMABLES),
+  var _useState293 = useState(null),
     _useState294 = _slicedToArray(_useState293, 2),
-    consommables = _useState294[0],
-    setConsommables = _useState294[1];
-  var _useState295 = useState(false),
+    user = _useState294[0],
+    setUser = _useState294[1];
+  var homeSaveQueue = React.useRef(Promise.resolve());
+  var _useState295 = useState([]),
     _useState296 = _slicedToArray(_useState295, 2),
-    showConsoEditor = _useState296[0],
-    setShowConsoEditor = _useState296[1];
+    ofList = _useState296[0],
+    setOfList = _useState296[1];
+  var _useState297 = useState(null),
+    _useState298 = _slicedToArray(_useState297, 2),
+    currentId = _useState298[0],
+    setCurrentId = _useState298[1];
+  var _useState299 = useState(DEFAULT_CONSOMMABLES),
+    _useState300 = _slicedToArray(_useState299, 2),
+    consommables = _useState300[0],
+    setConsommables = _useState300[1];
+  var _useState301 = useState(false),
+    _useState302 = _slicedToArray(_useState301, 2),
+    showConsoEditor = _useState302[0],
+    setShowConsoEditor = _useState302[1];
   var catalogRead = React.useRef(null);
   var catalogEditBase = React.useRef(null);
   var readConsommables = useCallback(function () {
@@ -21927,106 +22448,106 @@ function App() {
     }
     return catalogRead.current;
   }, []);
-  var _useState297 = useState(function () {
+  var _useState303 = useState(function () {
       return ensureOpenWorkFactType(DEFAULT_FAIT_TYPES);
     }),
-    _useState298 = _slicedToArray(_useState297, 2),
-    faitTypes = _useState298[0],
-    setFaitTypes = _useState298[1];
-  var _useState299 = useState(false),
-    _useState300 = _slicedToArray(_useState299, 2),
-    showFaitTypes = _useState300[0],
-    setShowFaitTypes = _useState300[1];
-  var _useState301 = useState(function () {
+    _useState304 = _slicedToArray(_useState303, 2),
+    faitTypes = _useState304[0],
+    setFaitTypes = _useState304[1];
+  var _useState305 = useState(false),
+    _useState306 = _slicedToArray(_useState305, 2),
+    showFaitTypes = _useState306[0],
+    setShowFaitTypes = _useState306[1];
+  var _useState307 = useState(function () {
       return normalizeStatusTypes(DEFAULT_STATUS_TYPES);
     }),
-    _useState302 = _slicedToArray(_useState301, 2),
-    statusTypes = _useState302[0],
-    setStatusTypes = _useState302[1];
-  var _useState303 = useState(false),
-    _useState304 = _slicedToArray(_useState303, 2),
-    showStatusTypes = _useState304[0],
-    setShowStatusTypes = _useState304[1];
-  var _useState305 = useState(null),
-    _useState306 = _slicedToArray(_useState305, 2),
-    ofData = _useState306[0],
-    setOfData = _useState306[1];
-  var _useState307 = useState("rework"),
     _useState308 = _slicedToArray(_useState307, 2),
-    activeTab = _useState308[0],
-    setActiveTab = _useState308[1];
+    statusTypes = _useState308[0],
+    setStatusTypes = _useState308[1];
   var _useState309 = useState(false),
     _useState310 = _slicedToArray(_useState309, 2),
-    saving = _useState310[0],
-    setSaving = _useState310[1];
-  var _useState311 = useState(false),
+    showStatusTypes = _useState310[0],
+    setShowStatusTypes = _useState310[1];
+  var _useState311 = useState(null),
     _useState312 = _slicedToArray(_useState311, 2),
-    godMode = _useState312[0],
-    setGodMode = _useState312[1];
-  var _useState313 = useState(null),
+    ofData = _useState312[0],
+    setOfData = _useState312[1];
+  var _useState313 = useState("rework"),
     _useState314 = _slicedToArray(_useState313, 2),
-    lastSaved = _useState314[0],
-    setLastSaved = _useState314[1];
-  var _useState315 = useState(""),
+    activeTab = _useState314[0],
+    setActiveTab = _useState314[1];
+  var _useState315 = useState(false),
     _useState316 = _slicedToArray(_useState315, 2),
-    saveError = _useState316[0],
-    setSaveError = _useState316[1];
-  var _useState317 = useState(null),
+    saving = _useState316[0],
+    setSaving = _useState316[1];
+  var _useState317 = useState(false),
     _useState318 = _slicedToArray(_useState317, 2),
-    pendingSave = _useState318[0],
-    setPendingSave = _useState318[1];
-  var _useState319 = useState(false),
+    godMode = _useState318[0],
+    setGodMode = _useState318[1];
+  var _useState319 = useState(null),
     _useState320 = _slicedToArray(_useState319, 2),
-    loaded = _useState320[0],
-    setLoaded = _useState320[1];
-  var _useState321 = useState(false),
+    lastSaved = _useState320[0],
+    setLastSaved = _useState320[1];
+  var _useState321 = useState(""),
     _useState322 = _slicedToArray(_useState321, 2),
-    ofListReady = _useState322[0],
-    setOfListReady = _useState322[1];
-  var _useState323 = useState([]),
+    saveError = _useState322[0],
+    setSaveError = _useState322[1];
+  var _useState323 = useState(null),
     _useState324 = _slicedToArray(_useState323, 2),
-    openHistory = _useState324[0],
-    setOpenHistory = _useState324[1]; // IDs des OF récemment ouverts
+    pendingSave = _useState324[0],
+    setPendingSave = _useState324[1];
   var _useState325 = useState(false),
     _useState326 = _slicedToArray(_useState325, 2),
-    showAdminUsers = _useState326[0],
-    setShowAdminUsers = _useState326[1];
-  var _useState327 = useState(null),
+    loaded = _useState326[0],
+    setLoaded = _useState326[1];
+  var _useState327 = useState(false),
     _useState328 = _slicedToArray(_useState327, 2),
-    copyAcrossRow = _useState328[0],
-    setCopyAcrossRow = _useState328[1];
-  var _useState329 = useState(false),
+    ofListReady = _useState328[0],
+    setOfListReady = _useState328[1];
+  var _useState329 = useState([]),
     _useState330 = _slicedToArray(_useState329, 2),
-    copiedOfInfo = _useState330[0],
-    setCopiedOfInfo = _useState330[1];
+    openHistory = _useState330[0],
+    setOpenHistory = _useState330[1]; // IDs des OF récemment ouverts
   var _useState331 = useState(false),
     _useState332 = _slicedToArray(_useState331, 2),
-    copiedFolderLink = _useState332[0],
-    setCopiedFolderLink = _useState332[1];
-  var _useState333 = useState(false),
+    showAdminUsers = _useState332[0],
+    setShowAdminUsers = _useState332[1];
+  var _useState333 = useState(null),
     _useState334 = _slicedToArray(_useState333, 2),
-    printAll = _useState334[0],
-    setPrintAll = _useState334[1];
+    copyAcrossRow = _useState334[0],
+    setCopyAcrossRow = _useState334[1];
   var _useState335 = useState(false),
     _useState336 = _slicedToArray(_useState335, 2),
-    pdfIncludeHistory = _useState336[0],
-    setPdfIncludeHistory = _useState336[1];
+    copiedOfInfo = _useState336[0],
+    setCopiedOfInfo = _useState336[1];
   var _useState337 = useState(false),
     _useState338 = _slicedToArray(_useState337, 2),
-    showPdfOptions = _useState338[0],
-    setShowPdfOptions = _useState338[1];
-  var _useState339 = useState("all"),
+    copiedFolderLink = _useState338[0],
+    setCopiedFolderLink = _useState338[1];
+  var _useState339 = useState(false),
     _useState340 = _slicedToArray(_useState339, 2),
-    activeUnitId = _useState340[0],
-    setActiveUnitId = _useState340[1];
-  var _useState341 = useState(""),
+    printAll = _useState340[0],
+    setPrintAll = _useState340[1];
+  var _useState341 = useState(false),
     _useState342 = _slicedToArray(_useState341, 2),
-    entryUnitId = _useState342[0],
-    setEntryUnitId = _useState342[1];
-  var _useState343 = useState("dossier"),
+    pdfIncludeHistory = _useState342[0],
+    setPdfIncludeHistory = _useState342[1];
+  var _useState343 = useState(false),
     _useState344 = _slicedToArray(_useState343, 2),
-    headerPanel = _useState344[0],
-    setHeaderPanel = _useState344[1];
+    showPdfOptions = _useState344[0],
+    setShowPdfOptions = _useState344[1];
+  var _useState345 = useState("all"),
+    _useState346 = _slicedToArray(_useState345, 2),
+    activeUnitId = _useState346[0],
+    setActiveUnitId = _useState346[1];
+  var _useState347 = useState(""),
+    _useState348 = _slicedToArray(_useState347, 2),
+    entryUnitId = _useState348[0],
+    setEntryUnitId = _useState348[1];
+  var _useState349 = useState("dossier"),
+    _useState350 = _slicedToArray(_useState349, 2),
+    headerPanel = _useState350[0],
+    setHeaderPanel = _useState350[1];
   var pendingFolderLink = React.useRef(parseFolderLink());
   var folderLinkHandled = React.useRef(false);
   var perms = {
@@ -22342,10 +22863,10 @@ function App() {
     }
     return handleSaveProfile;
   }();
-  var _useState345 = useState(false),
-    _useState346 = _slicedToArray(_useState345, 2),
-    showProfile = _useState346[0],
-    setShowProfile = _useState346[1];
+  var _useState351 = useState(false),
+    _useState352 = _slicedToArray(_useState351, 2),
+    showProfile = _useState352[0],
+    setShowProfile = _useState352[1];
   var handleLogout = /*#__PURE__*/function () {
     var _handleLogout = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee40() {
       var _t63, _t64;
@@ -22815,12 +23336,12 @@ function App() {
             }
             _context48.n = 3;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref148 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee46(_ref147) {
-                var _ref149, id, unitIds, _t68, _t69;
+              var _ref150 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee46(_ref149) {
+                var _ref151, id, unitIds, _t68, _t69;
                 return _regenerator().w(function (_context46) {
                   while (1) switch (_context46.n) {
                     case 0:
-                      _ref149 = _slicedToArray(_ref147, 2), id = _ref149[0], unitIds = _ref149[1];
+                      _ref151 = _slicedToArray(_ref149, 2), id = _ref151[0], unitIds = _ref151[1];
                       _t68 = id;
                       _context46.n = 1;
                       return window.storage.updateWorkOrderSummary("of:".concat(id), {
@@ -22841,7 +23362,7 @@ function App() {
                 }, _callee46);
               }));
               return function (_x22) {
-                return _ref148.apply(this, arguments);
+                return _ref150.apply(this, arguments);
               };
             }()));
           case 3:
@@ -22853,12 +23374,12 @@ function App() {
           case 4:
             _context48.n = 5;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref151 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee47(_ref150) {
-                var _ref152, id, unitIds, record, data;
+              var _ref153 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee47(_ref152) {
+                var _ref154, id, unitIds, record, data;
                 return _regenerator().w(function (_context47) {
                   while (1) switch (_context47.n) {
                     case 0:
-                      _ref152 = _slicedToArray(_ref150, 2), id = _ref152[0], unitIds = _ref152[1];
+                      _ref154 = _slicedToArray(_ref152, 2), id = _ref154[0], unitIds = _ref154[1];
                       _context47.n = 1;
                       return window.storage.get("of:".concat(id), true);
                     case 1:
@@ -22883,7 +23404,7 @@ function App() {
                 }, _callee47);
               }));
               return function (_x23) {
-                return _ref151.apply(this, arguments);
+                return _ref153.apply(this, arguments);
               };
             }()));
           case 5:
@@ -23216,7 +23737,7 @@ function App() {
     return importOFs;
   }();
   var save = useCallback(/*#__PURE__*/function () {
-    var _ref154 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee51(data) {
+    var _ref156 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee51(data) {
       var etvRows, lastEtv, _t73;
       return _regenerator().w(function (_context52) {
         while (1) switch (_context52.p = _context52.n) {
@@ -23274,11 +23795,11 @@ function App() {
       }, _callee51, null, [[2, 4]]);
     }));
     return function (_x25) {
-      return _ref154.apply(this, arguments);
+      return _ref156.apply(this, arguments);
     };
   }(), [currentId]);
   var closeWorkItem = useCallback(/*#__PURE__*/function () {
-    var _ref155 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee52(tab, rowId, closed) {
+    var _ref157 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee52(tab, rowId, closed) {
       var stored, _t74;
       return _regenerator().w(function (_context53) {
         while (1) switch (_context53.p = _context53.n) {
@@ -23319,7 +23840,7 @@ function App() {
       }, _callee52, null, [[2, 5]]);
     }));
     return function (_x26, _x27, _x28) {
-      return _ref155.apply(this, arguments);
+      return _ref157.apply(this, arguments);
     };
   }(), [currentId, user]);
   useEffect(function () {
@@ -24395,8 +24916,8 @@ function App() {
       }
     }, "\xC9dit\xE9"), /*#__PURE__*/React.createElement("strong", null, nowDT(), " - ", user.trigram)))) : null;
   };
-  var ReportHead = function ReportHead(_ref156) {
-    var tab = _ref156.tab;
+  var ReportHead = function ReportHead(_ref158) {
+    var tab = _ref158.tab;
     return printAll ? /*#__PURE__*/React.createElement("div", {
       style: {
         border: "1px solid ".concat(C.border),
@@ -24766,10 +25287,10 @@ function App() {
       gap: 4,
       alignItems: "center"
     }
-  }, [["dossier", "Dossier"], ["sn", "Pièces de l'OF"]].map(function (_ref157) {
-    var _ref158 = _slicedToArray(_ref157, 2),
-      id = _ref158[0],
-      label = _ref158[1];
+  }, [["dossier", "Dossier"], ["sn", "Pièces de l'OF"]].map(function (_ref159) {
+    var _ref160 = _slicedToArray(_ref159, 2),
+      id = _ref160[0],
+      label = _ref160[1];
     return /*#__PURE__*/React.createElement("button", {
       key: id,
       onClick: function onClick() {
@@ -24907,7 +25428,7 @@ function App() {
       save(u);
     },
     onUpdateStatus: (/*#__PURE__*/function () {
-      var _ref160 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee64(status) {
+      var _ref162 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee64(status) {
         var stored, _updated, _updated2, _t84;
         return _regenerator().w(function (_context67) {
           while (1) switch (_context67.p = _context67.n) {
@@ -24955,7 +25476,7 @@ function App() {
         }, _callee64, null, [[1, 4]]);
       }));
       return function (_x38) {
-        return _ref160.apply(this, arguments);
+        return _ref162.apply(this, arguments);
       };
     }())
   }) : /*#__PURE__*/React.createElement(TrackedSNs, {
