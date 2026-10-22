@@ -95,10 +95,10 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await copyWholeOf.click();
     await page.waitForFunction(()=>window.copiedHomeHtml?.includes('<table'));
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
-      'N° OF\tArticle - Description\tSN ou LOT\tQté si lot\tOTP',
-      '100TEST\t250001163 - Article de test\tSN1\t\t7400-TEST',
-      '100TEST\t250001163 - Article de test\tSN2\t\t7400-TEST',
-      '100TEST\t250001163 - Article de test\tLOT LOT-A\t10\t7400-TEST'
+      'N° OF\tArticle - Description\tSN\tLOT\tQté\tOTP',
+      '100TEST\t250001163 - Article de test\tSN1\t\t\t7400-TEST',
+      '100TEST\t250001163 - Article de test\tSN2\t\t\t7400-TEST',
+      '100TEST\t250001163 - Article de test\t\tLOT-A\t10\t7400-TEST'
     ].join('\n'));
     assert.ok((await page.evaluate(()=>window.copiedHomeHtml)).includes('<th style="border:1px solid #000'));
     assert.ok((await page.evaluate(()=>window.copiedHomeHtml)).includes('<td style="border:1px solid #000'));
@@ -109,10 +109,28 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button',{name:'📋 Copier la sélection',exact:true}).click();
     await page.waitForFunction(()=>window.copiedHomeText?.split('\n').length===3);
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
-      'N° OF\tArticle - Description\tSN ou LOT\tQté si lot\tOTP',
-      '100TEST\t250001163 - Article de test\tSN1\t\t7400-TEST',
-      '100TEST\t250001163 - Article de test\tSN2\t\t7400-TEST'
+      'N° OF\tArticle - Description\tSN\tOTP',
+      '100TEST\t250001163 - Article de test\tSN1\t7400-TEST',
+      '100TEST\t250001163 - Article de test\tSN2\t7400-TEST'
     ].join('\n'));
+    await page.getByRole('checkbox',{name:'Sélectionner SN1 - OF 100TEST',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'Sélectionner SN2 - OF 100TEST',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'Sélectionner LOT-A - OF 100TEST',exact:true}).check();
+    await page.getByRole('button',{name:'📋 Copier la sélection',exact:true}).click();
+    await page.waitForFunction(()=>window.copiedHomeText?.includes('\tLOT-A\t10\t'));
+    assert.equal(await page.evaluate(()=>window.copiedHomeText),[
+      'N° OF\tArticle - Description\tLOT\tQté\tOTP',
+      '100TEST\t250001163 - Article de test\tLOT-A\t10\t7400-TEST'
+    ].join('\n'));
+    assert.equal(await page.evaluate(()=>window.buildTrackedUnitsClipboardData([{
+      of:'100BOTH',articleDescription:'250000001 - Article mixte',sn:'SN42',lot:'LOT42',unitKind:'sn',quantity:'1',otp:'7400-BOTH'
+    }]).plain),[
+      'N° OF\tArticle - Description\tSN\tLOT\tQté\tOTP',
+      '100BOTH\t250000001 - Article mixte\tSN42\tLOT42\t1\t7400-BOTH'
+    ].join('\n'));
+    await page.getByRole('checkbox',{name:'Sélectionner LOT-A - OF 100TEST',exact:true}).uncheck();
+    await page.getByRole('checkbox',{name:'Sélectionner SN1 - OF 100TEST',exact:true}).check();
+    await page.getByRole('checkbox',{name:'Sélectionner SN2 - OF 100TEST',exact:true}).check();
     const sheetsDownloadPromise=page.waitForEvent('download');
     await page.getByRole('button',{name:'Feuilles composants',exact:true}).click();
     const sheetsDownload=await sheetsDownloadPromise;
@@ -197,8 +215,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button',{name:'Copier les informations du dossier dans le presse-papier',exact:true}).click();
     await page.waitForFunction(()=>window.copiedHomeText?.split('\n').length===2&&window.copiedHomeText.includes('\tSN2\t'));
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
-      'N° OF\tArticle - Description\tSN ou LOT\tQté si lot\tOTP',
-      '100TEST\t250001163 - Article de test\tSN2\t\t7400-TEST'
+      'N° OF\tArticle - Description\tSN\tOTP',
+      '100TEST\t250001163 - Article de test\tSN2\t7400-TEST'
     ].join('\n'));
     assert.ok((await page.evaluate(()=>window.copiedHomeHtml)).includes('<table'));
     const folderLinkCopy=page.getByRole('button',{name:'Copier le lien vers ce dossier',exact:true});

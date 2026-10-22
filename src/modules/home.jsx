@@ -162,14 +162,15 @@ const homeClipboardData = rows => {
     seen.add(key);
     return true;
   }).map(row=>{
-    const isLot=row._homeUnitKind==="lot"||(!cleanSn(row.sn)&&!!cleanSn(row.lot));
-    const identity=cleanSn(isLot?(row.lot||row.sn):(row.sn||row.lot))||"N/A";
     const article=compactArticleCode(row.codeArticle||row.articleNo)||"N/A";
     const description=String(row.description||"N/A").trim()||"N/A";
-    const quantity=isLot?(String(row._homeQty||"").trim()||"N/A"):"";
-    return [row.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,row.otp||row.projet||"N/A"];
+    return {
+      of:row.of||"N/A",articleDescription:`${article} - ${description}`,
+      sn:row.sn,lot:row.lot,unitKind:row._homeUnitKind,
+      quantity:row._homeQty,otp:row.otp||row.projet||"N/A",
+    };
   });
-  return buildClipboardTableData(["N° OF","Article - Description","SN ou LOT","Qté si lot","OTP"],values);
+  return buildTrackedUnitsClipboardData(values);
 };
 const homeOtpName = row => String(row.otp||row.projet||"Non renseigné").trim()||"Non renseigné";
 const hasSingleMeetingOtp = rows => new Set(rows.map(homeOtpName)).size===1;

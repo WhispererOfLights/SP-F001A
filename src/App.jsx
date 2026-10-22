@@ -332,6 +332,33 @@ const buildClipboardTableData = (headers,rows) => {
     +`<tbody>${rows.map((cells,index)=>`<tr style="background:${index%2?"#f3f4f6":"#ffffff"};">${cells.map(value=>`<td style="${cellStyle}">${escapeClipboardHtml(value)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
   return {plain:[headers,...rows].map(cells=>cells.join("\t")).join("\n"),html};
 };
+const buildTrackedUnitsClipboardData = rows => {
+  const values=(rows||[]).map(row=>{
+    const rawSn=cleanSn(row?.sn);
+    const rawLot=cleanSn(row?.lot);
+    const lotOnly=row?.unitKind==="lot";
+    return {
+      of:row?.of||"N/A",
+      articleDescription:row?.articleDescription||"N/A",
+      sn:lotOnly?"":rawSn,
+      lot:rawLot||(lotOnly?rawSn:""),
+      quantity:row?.quantity,
+      otp:row?.otp||"N/A",
+    };
+  });
+  const hasSn=values.some(row=>!!row.sn);
+  const hasLot=values.some(row=>!!row.lot);
+  const showSn=hasSn||!hasLot;
+  const headers=["N° OF","Article - Description",...(showSn?["SN"]:[]),...(hasLot?["LOT","Qté"]:[]),"OTP"];
+  const tableRows=values.map(row=>[
+    row.of,
+    row.articleDescription,
+    ...(showSn?[row.sn||(hasLot?"":"N/A")]:[]),
+    ...(hasLot?[row.lot||"",row.lot?(String(row.quantity??"").trim()||"N/A"):""]:[]),
+    row.otp,
+  ]);
+  return buildClipboardTableData(headers,tableRows);
+};
 const buildTeamsOfText = (header,units=[]) => {
   const article=String(header?.codeArticle||header?.articleNo||"N/A").trim()||"N/A";
   const description=String(header?.description||"N/A").trim()||"N/A";
@@ -345,14 +372,15 @@ const buildTeamsOfText = (header,units=[]) => {
 const buildOfClipboardData = (header,units=[]) => {
   const sourceUnits=(units||[]).filter(unit=>unit&&!unit.deleted&&(cleanSn(unit.sn)||cleanSn(unit.lot)));
   const rows=(sourceUnits.length?sourceUnits:[{sn:header?.sn||"",lot:header?.lot||"",unitKind:header?.lot?"lot":"sn",qteInitiale:header?.qte||header?.qty||""}]).map(unit=>{
-    const isLot=unit.unitKind==="lot"||(!cleanSn(unit.sn)&&!!cleanSn(unit.lot));
-    const identity=cleanSn(isLot?(unit.lot||unit.sn):(unit.sn||unit.lot))||"N/A";
-    const quantity=isLot?(String(trackedLotQty(unit)||"").trim()||"N/A"):"";
     const article=compactArticleCode(header?.codeArticle||header?.articleNo)||"N/A";
     const description=String(header?.description||"N/A").trim()||"N/A";
-    return [header?.of||"N/A",`${article} - ${description}`,isLot?`LOT ${identity}`:identity,quantity,header?.otp||header?.projet||"N/A"];
+    return {
+      of:header?.of||"N/A",articleDescription:`${article} - ${description}`,
+      sn:unit.sn,lot:unit.lot,unitKind:unit.unitKind,
+      quantity:trackedLotQty(unit),otp:header?.otp||header?.projet||"N/A",
+    };
   });
-  return buildClipboardTableData(["N° OF","Article - Description","SN ou LOT","Qté si lot","OTP"],rows);
+  return buildTrackedUnitsClipboardData(rows);
 };
 const normLot = v => {
   const s=String(v??"").trim().toUpperCase();

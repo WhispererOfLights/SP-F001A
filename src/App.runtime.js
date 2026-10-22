@@ -979,6 +979,34 @@ var buildClipboardTableData = function buildClipboardTableData(headers, rows) {
     html: html
   };
 };
+var buildTrackedUnitsClipboardData = function buildTrackedUnitsClipboardData(rows) {
+  var values = (rows || []).map(function (row) {
+    var rawSn = cleanSn(row === null || row === void 0 ? void 0 : row.sn);
+    var rawLot = cleanSn(row === null || row === void 0 ? void 0 : row.lot);
+    var lotOnly = (row === null || row === void 0 ? void 0 : row.unitKind) === "lot";
+    return {
+      of: (row === null || row === void 0 ? void 0 : row.of) || "N/A",
+      articleDescription: (row === null || row === void 0 ? void 0 : row.articleDescription) || "N/A",
+      sn: lotOnly ? "" : rawSn,
+      lot: rawLot || (lotOnly ? rawSn : ""),
+      quantity: row === null || row === void 0 ? void 0 : row.quantity,
+      otp: (row === null || row === void 0 ? void 0 : row.otp) || "N/A"
+    };
+  });
+  var hasSn = values.some(function (row) {
+    return !!row.sn;
+  });
+  var hasLot = values.some(function (row) {
+    return !!row.lot;
+  });
+  var showSn = hasSn || !hasLot;
+  var headers = ["N° OF", "Article - Description"].concat(_toConsumableArray(showSn ? ["SN"] : []), _toConsumableArray(hasLot ? ["LOT", "Qté"] : []), ["OTP"]);
+  var tableRows = values.map(function (row) {
+    var _row$quantity;
+    return [row.of, row.articleDescription].concat(_toConsumableArray(showSn ? [row.sn || (hasLot ? "" : "N/A")] : []), _toConsumableArray(hasLot ? [row.lot || "", row.lot ? String((_row$quantity = row.quantity) !== null && _row$quantity !== void 0 ? _row$quantity : "").trim() || "N/A" : ""] : []), [row.otp]);
+  });
+  return buildClipboardTableData(headers, tableRows);
+};
 var buildTeamsOfText = function buildTeamsOfText(header) {
   var units = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
   var article = String((header === null || header === void 0 ? void 0 : header.codeArticle) || (header === null || header === void 0 ? void 0 : header.articleNo) || "N/A").trim() || "N/A";
@@ -1005,14 +1033,19 @@ var buildOfClipboardData = function buildOfClipboardData(header) {
     unitKind: header !== null && header !== void 0 && header.lot ? "lot" : "sn",
     qteInitiale: (header === null || header === void 0 ? void 0 : header.qte) || (header === null || header === void 0 ? void 0 : header.qty) || ""
   }]).map(function (unit) {
-    var isLot = unit.unitKind === "lot" || !cleanSn(unit.sn) && !!cleanSn(unit.lot);
-    var identity = cleanSn(isLot ? unit.lot || unit.sn : unit.sn || unit.lot) || "N/A";
-    var quantity = isLot ? String(trackedLotQty(unit) || "").trim() || "N/A" : "";
     var article = compactArticleCode((header === null || header === void 0 ? void 0 : header.codeArticle) || (header === null || header === void 0 ? void 0 : header.articleNo)) || "N/A";
     var description = String((header === null || header === void 0 ? void 0 : header.description) || "N/A").trim() || "N/A";
-    return [(header === null || header === void 0 ? void 0 : header.of) || "N/A", "".concat(article, " - ").concat(description), isLot ? "LOT ".concat(identity) : identity, quantity, (header === null || header === void 0 ? void 0 : header.otp) || (header === null || header === void 0 ? void 0 : header.projet) || "N/A"];
+    return {
+      of: (header === null || header === void 0 ? void 0 : header.of) || "N/A",
+      articleDescription: "".concat(article, " - ").concat(description),
+      sn: unit.sn,
+      lot: unit.lot,
+      unitKind: unit.unitKind,
+      quantity: trackedLotQty(unit),
+      otp: (header === null || header === void 0 ? void 0 : header.otp) || (header === null || header === void 0 ? void 0 : header.projet) || "N/A"
+    };
   });
-  return buildClipboardTableData(["N° OF", "Article - Description", "SN ou LOT", "Qté si lot", "OTP"], rows);
+  return buildTrackedUnitsClipboardData(rows);
 };
 var normLot = function normLot(v) {
   var s = String(v !== null && v !== void 0 ? v : "").trim().toUpperCase();
@@ -18861,14 +18894,19 @@ var homeClipboardData = function homeClipboardData(rows) {
     seen.add(key);
     return true;
   }).map(function (row) {
-    var isLot = row._homeUnitKind === "lot" || !cleanSn(row.sn) && !!cleanSn(row.lot);
-    var identity = cleanSn(isLot ? row.lot || row.sn : row.sn || row.lot) || "N/A";
     var article = compactArticleCode(row.codeArticle || row.articleNo) || "N/A";
     var description = String(row.description || "N/A").trim() || "N/A";
-    var quantity = isLot ? String(row._homeQty || "").trim() || "N/A" : "";
-    return [row.of || "N/A", "".concat(article, " - ").concat(description), isLot ? "LOT ".concat(identity) : identity, quantity, row.otp || row.projet || "N/A"];
+    return {
+      of: row.of || "N/A",
+      articleDescription: "".concat(article, " - ").concat(description),
+      sn: row.sn,
+      lot: row.lot,
+      unitKind: row._homeUnitKind,
+      quantity: row._homeQty,
+      otp: row.otp || row.projet || "N/A"
+    };
   });
-  return buildClipboardTableData(["N° OF", "Article - Description", "SN ou LOT", "Qté si lot", "OTP"], values);
+  return buildTrackedUnitsClipboardData(values);
 };
 var homeOtpName = function homeOtpName(row) {
   return String(row.otp || row.projet || "Non renseigné").trim() || "Non renseigné";
