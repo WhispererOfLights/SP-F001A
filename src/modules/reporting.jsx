@@ -339,6 +339,11 @@ const operationalLabelUnits = (ofData,selectedUnitIds=null) => {
 };
 
 const operationalLabelIdentity = unit => snTitle(unit)||"N/A";
+const operationalLabelIdentityWithQuantity = unit => {
+  const identity=operationalLabelIdentity(unit);
+  const quantity=unit?.lot?String(trackedLotQty(unit)||"").trim():"";
+  return quantity?`${identity} - Qté ${quantity}`:identity;
+};
 const operationalLabelProduct = consumable => {
   const code=compactArticleCode(consumable?.sap||consumable?.code||"");
   const label=String(consumable?.label||consumable?.designation||"").trim();
@@ -374,13 +379,14 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
     const size=fit(text,max,min,maxWidth);
     return txt(text,(width-pdfHelveticaTextWidth(text,size))/2,y,size,bold,color);
   };
-  const page=({title,footer,lines=[]})=>{
-    const ops=[
-      `q 0.02 0.02 0.02 rg 0 ${(height-25).toFixed(2)} ${width.toFixed(2)} 25 re f Q`,
-      centered(title,height-17,11,6.4,true,"1 1 1"),
-      `q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`,
-      centered(footer,5,7.4,5.1,true,"1 1 1"),
-    ];
+  const page=({title="",footer,lines=[]})=>{
+    const ops=[];
+    if(title){
+      ops.push(`q 0.02 0.02 0.02 rg 0 ${(height-22).toFixed(2)} ${width.toFixed(2)} 22 re f Q`);
+      ops.push(centered(title,height-15,10,6.4,true,"1 1 1"));
+    }
+    ops.push(`q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`);
+    ops.push(centered(footer,5,7.2,5,true,"1 1 1"));
     lines.forEach(line=>ops.push(centered(line.text,line.y,line.max||9,line.min||5.3,!!line.bold,line.color||"0.08 0.10 0.14",line.maxWidth||width-10)));
     return ops;
   };
@@ -402,47 +408,50 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
         : lots.length===1&&serials.length===0?`LOT ${lots[0]}`
         : units.map(operationalLabelIdentity).join(" / ");
       const quantity=units.reduce((total,unit)=>total+(unit.lot?Number(trackedLotQty(unit)||0):1),0);
-      pages.push(page({title:`KITTING - OF ${of}`,footer:otp,lines:[
-        {text:article,y:103,max:11,bold:true},{text:description,y:86,max:9},{text:identity,y:61,max:12,bold:true},{text:`Qté : ${quantity||"N/A"}`,y:36,max:11,bold:true},
+      pages.push(page({footer:"KITTING",lines:[
+        {text:article,y:123,max:13,bold:true},{text:description,y:103,max:9.5},{text:`${identity} - Qté ${quantity||"N/A"}`,y:74,max:14,min:7.5,bold:true},
+        {text:`OF ${of}`,y:47,max:9,bold:true},{text:`OTP ${otp}`,y:29,max:8},
       ]}));
       return;
     }
     units.forEach(unit=>{
       const identity=operationalLabelIdentity(unit);
       if(type==="binder"){
-        pages.push(page({title:"CLASSEUR",footer:otp,lines:[
-          {text:identity,y:96,max:20,min:9,bold:true},{text:article,y:72,max:10,bold:true},{text:description,y:54,max:8},{text:`OF ${of}`,y:31,max:8},
+        pages.push(page({footer:"CLASSEUR",lines:[
+          {text:article,y:124,max:11,bold:true},{text:description,y:106,max:8.5},
+          {text:operationalLabelIdentityWithQuantity(unit),y:69,max:24,min:10,bold:true},
+          {text:`OF ${of}`,y:43,max:8.5,bold:true},{text:`OTP ${otp}`,y:27,max:7.5},
         ]}));
       }else if(type==="stock"){
-        pages.push(page({title:"MISE EN STOCK",footer:otp,lines:[
-          {text:article,y:101,max:11,bold:true},{text:description,y:82,max:8.5},{text:identity,y:55,max:15,min:8,bold:true},{text:`OF ${of}`,y:31,max:8},
+        pages.push(page({footer:"MISE EN STOCK",lines:[
+          {text:article,y:123,max:13,bold:true},{text:description,y:103,max:9.5},
+          {text:operationalLabelIdentityWithQuantity(unit),y:74,max:16,min:8,bold:true},
+          {text:`OF ${of}`,y:47,max:9,bold:true},{text:`OTP ${otp}`,y:29,max:8},
         ]}));
       }else if(type==="bonding"){
         const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
         if(!polymerization) throw new Error(`Aucune durée de collage ou coating trouvée pour ${identity}.`);
         const category=String(polymerization.consumable?.cat||"").toUpperCase();
         const title=category.includes("COAT")||category.includes("VERNIS")?"COATING":"COLLAGE";
-        pages.push(page({title,footer:otp,lines:[
-          {text:`${article} - ${identity}`,y:106,max:8.6,bold:true},
-          {text:description,y:93,max:7.2},
-          {text:`OF ${of}`,y:80,max:6.8},
-          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:63,max:7.2,bold:true},
-          {text:`Début : ${formatAvailabilityDT(polymerization.start)}`,y:48,max:7},
-          {text:`Durée : ${polymerization.hours} h`,y:34,max:7},
-          {text:`Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:20,max:7,bold:true},
+        pages.push(page({title,footer:`OTP ${otp}`,lines:[
+          {text:article,y:111,max:9.5,bold:true},{text:description,y:97,max:7.5},
+          {text:operationalLabelIdentityWithQuantity(unit),y:81,max:10,bold:true},
+          {text:`OF ${of}`,y:67,max:7},
+          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:50,max:7.2,bold:true},
+          {text:`Début : ${formatAvailabilityDT(polymerization.start)}  |  Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:29,max:6.4,min:4.8,bold:true},
         ]}));
       }else if(type==="facts"){
         const facts=operationalLabelFacts({ofData,unit});
         if(!facts.length) throw new Error(`Aucun suivi technique trouvé pour ${identity}.`);
         for(let index=0;index<facts.length;index+=3){
           const chunk=facts.slice(index,index+3);
-          pages.push(page({title:"SUIVI TECHNIQUE",footer:otp,lines:[
-            {text:`${article} - ${identity}`,y:106,max:8.5,bold:true},
-            {text:description,y:92,max:7.2},
-            {text:`OF ${of}`,y:79,max:6.8},
+          pages.push(page({footer:"SUIVI TECHNIQUE",lines:[
+            {text:article,y:127,max:9.5,bold:true},{text:description,y:114,max:7.5},
+            {text:operationalLabelIdentityWithQuantity(unit),y:99,max:9,bold:true},
+            {text:`OF ${of} - OTP ${otp}`,y:84,max:6.8},
             ...chunk.map((fact,factIndex)=>({
               text:`${technicalFollowUpLabel(fact)} : ${fact.commentaires||fact.description||"N/A"}`,
-              y:61-factIndex*16,max:7.2,min:4.8,bold:true,
+              y:64-factIndex*17,max:7.2,min:4.8,bold:true,
             })),
           ]}));
         }

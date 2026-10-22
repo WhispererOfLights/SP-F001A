@@ -39,25 +39,35 @@ const vm = require('node:vm');
     {id:'coating',sap:'2920000200',label:'Vernis B',cat:'Coating',polymerizationHours:'72'},
   ];
 
-  const kitting=await context.labels({type:'kitting',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables}).text();
+  fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
+  const kittingBlob=context.labels({type:'kitting',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
+  const kitting=await kittingBlob.text();
   assert.ok(kitting.includes('/MediaBox [0 0 215.43 144.00]'));
-  assert.ok(kitting.includes('(KITTING - OF 16000001)'));
+  assert.ok(kitting.includes('(KITTING)'));
+  assert.ok(kitting.includes('(OF 16000001)'));
   assert.ok(kitting.includes('(SN de SN001'));
-  assert.ok(kitting.includes('(Qt'));
+  assert.ok(kitting.includes('Qt\\351 2'));
+  fs.writeFileSync(path.join(__dirname,'artifacts/kitting-labels.pdf'),Buffer.from(await kittingBlob.arrayBuffer()));
+
+  for(const type of ['binder','stock']){
+    const blob=context.labels({type,entries:[{ofData,selectedUnitIds:['u1']}],consommables});
+    fs.writeFileSync(path.join(__dirname,`artifacts/${type}-label.pdf`),Buffer.from(await blob.arrayBuffer()));
+  }
 
   const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
   const bonding=await bondingBlob.text();
   assert.ok(bonding.includes('(COATING)'));
   assert.ok(bonding.includes('Vernis B'));
   assert.ok(bonding.includes('(D\\351but : 21/10/2026'));
-  assert.ok(bonding.includes('(Fin : 24/10/2026'));
-  fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
+  assert.ok(bonding.includes('Fin : 24/10/2026'));
+  assert.ok(!bonding.includes('Dur\\351e'));
   fs.writeFileSync(path.join(__dirname,'artifacts/bonding-label.pdf'),Buffer.from(await bondingBlob.arrayBuffer()));
 
   const factsBlob=context.labels({type:'facts',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
   const facts=await factsBlob.text();
   assert.ok(facts.includes('/Count 2'));
-  assert.equal((facts.match(/\(250001153 - SN001\)/g)||[]).length,2);
+  assert.equal((facts.match(/\(250001153\)/g)||[]).length,2);
+  assert.equal((facts.match(/\(SN001\)/g)||[]).length,2);
   assert.ok(facts.includes('OW004'));
   fs.writeFileSync(path.join(__dirname,'artifacts/facts-labels.pdf'),Buffer.from(await factsBlob.arrayBuffer()));
   console.log('Operational labels: all tests passed.');
