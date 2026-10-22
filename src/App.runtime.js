@@ -2294,7 +2294,7 @@ var OPERATIONAL_LABEL_TYPES = [{
   label: "Kitting"
 }, {
   id: "binder",
-  label: "Classeur"
+  label: "Log fab"
 }, {
   id: "stock",
   label: "Mise en stock"
@@ -2416,8 +2416,10 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
       ops.push("q 0.02 0.02 0.02 rg 0 ".concat((height - 22).toFixed(2), " ").concat(width.toFixed(2), " 22 re f Q"));
       ops.push(centered(title, height - 15, 10, 6.4, true, "1 1 1"));
     }
-    ops.push("q 0.02 0.02 0.02 rg 0 0 ".concat(width.toFixed(2), " 15 re f Q"));
-    ops.push(centered(footer, 5, 7.2, 5, true, "1 1 1"));
+    if (footer) {
+      ops.push("q 0.02 0.02 0.02 rg 0 0 ".concat(width.toFixed(2), " 15 re f Q"));
+      ops.push(centered(footer, 5, 7.2, 5, true, "1 1 1"));
+    }
     lines.forEach(function (line) {
       return ops.push(centered(line.text, line.y, line.max || 9, line.min || 5.3, !!line.bold, line.color || "0.08 0.10 0.14", line.maxWidth || width - 10));
     });
@@ -2481,7 +2483,6 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
       var identity = operationalLabelIdentity(unit);
       if (type === "binder") {
         pages.push(page({
-          footer: "CLASSEUR",
           lines: [{
             text: article,
             y: 124,
@@ -3683,10 +3684,10 @@ var LabelOptionsModal = function LabelOptionsModal(_ref39) {
     defaultSelectedIds = _ref39$defaultSelecte === void 0 ? null : _ref39$defaultSelecte,
     onCancel = _ref39.onCancel,
     onConfirm = _ref39.onConfirm;
-  var _useState15 = useState("binder"),
+  var _useState15 = useState(["binder"]),
     _useState16 = _slicedToArray(_useState15, 2),
-    type = _useState16[0],
-    setType = _useState16[1];
+    types = _useState16[0],
+    setTypes = _useState16[1];
   var _useState17 = useState(function () {
       return defaultSelectedIds !== null && defaultSelectedIds !== void 0 && defaultSelectedIds.length ? defaultSelectedIds : snRows.map(function (unit) {
         return unit.id;
@@ -3702,7 +3703,14 @@ var LabelOptionsModal = function LabelOptionsModal(_ref39) {
       }) : [].concat(_toConsumableArray(current), [id]);
     });
   };
-  var canGenerate = !snRows.length || selected.length > 0;
+  var toggleType = function toggleType(id) {
+    return setTypes(function (current) {
+      return current.includes(id) ? current.filter(function (value) {
+        return value !== id;
+      }) : [].concat(_toConsumableArray(current), [id]);
+    });
+  };
+  var canGenerate = types.length > 0 && (!snRows.length || selected.length > 0);
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -3763,20 +3771,18 @@ var LabelOptionsModal = function LabelOptionsModal(_ref39) {
         alignItems: "center",
         gap: 7,
         padding: "8px 9px",
-        border: "1px solid ".concat(type === item.id ? C.blue : C.border),
+        border: "1px solid ".concat(types.includes(item.id) ? C.blue : C.border),
         borderRadius: 4,
         color: C.text,
         fontSize: 12,
         cursor: "pointer",
-        background: type === item.id ? C.blue + "12" : "transparent"
+        background: types.includes(item.id) ? C.blue + "12" : "transparent"
       }
     }, /*#__PURE__*/React.createElement("input", {
-      type: "radio",
-      name: "operational-label-type",
-      value: item.id,
-      checked: type === item.id,
+      type: "checkbox",
+      checked: types.includes(item.id),
       onChange: function onChange() {
-        return setType(item.id);
+        return toggleType(item.id);
       },
       style: {
         accentColor: C.blue
@@ -3849,7 +3855,7 @@ var LabelOptionsModal = function LabelOptionsModal(_ref39) {
     disabled: !canGenerate,
     onClick: function onClick() {
       return canGenerate && onConfirm({
-        type: type,
+        types: types,
         selectedSnIds: selected
       });
     },
@@ -25362,26 +25368,50 @@ function App() {
     }
     return exportReportPack;
   }();
-  var downloadOperationalLabels = function downloadOperationalLabels(options) {
-    try {
-      var _OPERATIONAL_LABEL_TY, _ofData$header8;
-      var blob = buildOperationalLabelsPdf({
-        type: options.type,
-        entries: [{
-          ofData: ofData,
-          selectedUnitIds: options.selectedSnIds || null
-        }],
-        consommables: consommables
-      });
-      var label = ((_OPERATIONAL_LABEL_TY = OPERATIONAL_LABEL_TYPES.find(function (item) {
-        return item.id === options.type;
-      })) === null || _OPERATIONAL_LABEL_TY === void 0 ? void 0 : _OPERATIONAL_LABEL_TY.label) || "Etiquettes";
-      downloadBlob(blob, fileSafeName("".concat(label, " - OF ").concat((ofData === null || ofData === void 0 || (_ofData$header8 = ofData.header) === null || _ofData$header8 === void 0 ? void 0 : _ofData$header8.of) || "OF")) + ".pdf");
-      setShowLabelOptions(false);
-    } catch (error) {
-      window.alert("Impression impossible : ".concat((error === null || error === void 0 ? void 0 : error.message) || error));
+  var downloadOperationalLabels = /*#__PURE__*/function () {
+    var _downloadOperationalLabels = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee64(options) {
+      var _options$types, _OPERATIONAL_LABEL_TY, _ofData$header8, types, entries, blobs, blob, label, _t86;
+      return _regenerator().w(function (_context67) {
+        while (1) switch (_context67.p = _context67.n) {
+          case 0:
+            _context67.p = 0;
+            types = (_options$types = options.types) !== null && _options$types !== void 0 && _options$types.length ? options.types : ["binder"];
+            entries = [{
+              ofData: ofData,
+              selectedUnitIds: options.selectedSnIds || null
+            }];
+            blobs = types.map(function (type) {
+              return buildOperationalLabelsPdf({
+                type: type,
+                entries: entries,
+                consommables: consommables
+              });
+            });
+            _context67.n = 1;
+            return mergeGeneratedPdfBlobs(blobs);
+          case 1:
+            blob = _context67.v;
+            label = types.length === 1 ? ((_OPERATIONAL_LABEL_TY = OPERATIONAL_LABEL_TYPES.find(function (item) {
+              return item.id === types[0];
+            })) === null || _OPERATIONAL_LABEL_TY === void 0 ? void 0 : _OPERATIONAL_LABEL_TY.label) || "Etiquettes" : "Lot d'étiquettes";
+            downloadBlob(blob, fileSafeName("".concat(label, " - OF ").concat((ofData === null || ofData === void 0 || (_ofData$header8 = ofData.header) === null || _ofData$header8 === void 0 ? void 0 : _ofData$header8.of) || "OF")) + ".pdf");
+            setShowLabelOptions(false);
+            _context67.n = 3;
+            break;
+          case 2:
+            _context67.p = 2;
+            _t86 = _context67.v;
+            window.alert("Impression impossible : ".concat((_t86 === null || _t86 === void 0 ? void 0 : _t86.message) || _t86));
+          case 3:
+            return _context67.a(2);
+        }
+      }, _callee64, null, [[0, 2]]);
+    }));
+    function downloadOperationalLabels(_x38) {
+      return _downloadOperationalLabels.apply(this, arguments);
     }
-  };
+    return downloadOperationalLabels;
+  }();
   if (!loaded) return /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.bg,
@@ -25959,11 +25989,11 @@ function App() {
     className: "no-print",
     title: "Copier les informations sous forme de tableau",
     "aria-label": "Copier les informations du dossier dans le presse-papier",
-    onClick: /*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee64() {
-      return _regenerator().w(function (_context67) {
-        while (1) switch (_context67.n) {
+    onClick: /*#__PURE__*/_asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee65() {
+      return _regenerator().w(function (_context68) {
+        while (1) switch (_context68.n) {
           case 0:
-            _context67.n = 1;
+            _context68.n = 1;
             return copyRichToClipboard(buildOfClipboardData(h, activeUnit ? [activeUnit] : snRows));
           case 1:
             setCopiedOfInfo(true);
@@ -25971,9 +26001,9 @@ function App() {
               return setCopiedOfInfo(false);
             }, 1800);
           case 2:
-            return _context67.a(2);
+            return _context68.a(2);
         }
-      }, _callee64);
+      }, _callee65);
     })),
     style: {
       width: 28,
@@ -26073,34 +26103,34 @@ function App() {
       save(u);
     },
     onUpdateStatus: (/*#__PURE__*/function () {
-      var _ref167 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee65(status) {
-        var stored, _updated, _updated2, _t86;
-        return _regenerator().w(function (_context68) {
-          while (1) switch (_context68.p = _context68.n) {
+      var _ref167 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee66(status) {
+        var stored, _updated, _updated2, _t87;
+        return _regenerator().w(function (_context69) {
+          while (1) switch (_context69.p = _context69.n) {
             case 0:
               if (isAdminManager(user)) {
-                _context68.n = 1;
+                _context69.n = 1;
                 break;
               }
-              return _context68.a(2);
+              return _context69.a(2);
             case 1:
-              _context68.p = 1;
+              _context69.p = 1;
               if (!window.storage.updateWorkOrderSummary) {
-                _context68.n = 3;
+                _context69.n = 3;
                 break;
               }
-              _context68.n = 2;
+              _context69.n = 2;
               return window.storage.updateWorkOrderSummary("of:".concat(currentId), {
                 header: {
                   status: status
                 }
               });
             case 2:
-              stored = _context68.v;
+              stored = _context69.v;
               _updated = applyHomeDocument(currentId, stored);
               setOfData(_updated);
               setLastSaved(new Date().toLocaleTimeString("fr-FR"));
-              return _context68.a(2);
+              return _context69.a(2);
             case 3:
               _updated2 = _objectSpread(_objectSpread({}, ofData), {}, {
                 header: _objectSpread(_objectSpread({}, ofData.header), {}, {
@@ -26109,18 +26139,18 @@ function App() {
               });
               setOfData(_updated2);
               save(_updated2);
-              _context68.n = 5;
+              _context69.n = 5;
               break;
             case 4:
-              _context68.p = 4;
-              _t86 = _context68.v;
-              setSaveError((_t86 === null || _t86 === void 0 ? void 0 : _t86.message) || "Le statut n'a pas été enregistré.");
+              _context69.p = 4;
+              _t87 = _context69.v;
+              setSaveError((_t87 === null || _t87 === void 0 ? void 0 : _t87.message) || "Le statut n'a pas été enregistré.");
             case 5:
-              return _context68.a(2);
+              return _context69.a(2);
           }
-        }, _callee65, null, [[1, 4]]);
+        }, _callee66, null, [[1, 4]]);
       }));
-      return function (_x38) {
+      return function (_x39) {
         return _ref167.apply(this, arguments);
       };
     }())

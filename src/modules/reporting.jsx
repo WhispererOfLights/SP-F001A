@@ -325,7 +325,7 @@ const buildComponentLabelPdf = ({ofData,row,selectedUnitIds=null}) => {
 
 const OPERATIONAL_LABEL_TYPES = [
   {id:"kitting",label:"Kitting"},
-  {id:"binder",label:"Classeur"},
+  {id:"binder",label:"Log fab"},
   {id:"stock",label:"Mise en stock"},
   {id:"bonding",label:"Collage / coating"},
   {id:"facts",label:"Info suivi technique"},
@@ -385,8 +385,10 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
       ops.push(`q 0.02 0.02 0.02 rg 0 ${(height-22).toFixed(2)} ${width.toFixed(2)} 22 re f Q`);
       ops.push(centered(title,height-15,10,6.4,true,"1 1 1"));
     }
-    ops.push(`q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`);
-    ops.push(centered(footer,5,7.2,5,true,"1 1 1"));
+    if(footer){
+      ops.push(`q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`);
+      ops.push(centered(footer,5,7.2,5,true,"1 1 1"));
+    }
     lines.forEach(line=>ops.push(centered(line.text,line.y,line.max||9,line.min||5.3,!!line.bold,line.color||"0.08 0.10 0.14",line.maxWidth||width-10)));
     return ops;
   };
@@ -417,7 +419,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
     units.forEach(unit=>{
       const identity=operationalLabelIdentity(unit);
       if(type==="binder"){
-        pages.push(page({footer:"CLASSEUR",lines:[
+        pages.push(page({lines:[
           {text:article,y:124,max:11,bold:true},{text:description,y:106,max:8.5},
           {text:operationalLabelIdentityWithQuantity(unit),y:69,max:24,min:10,bold:true},
           {text:`OF ${of}`,y:43,max:8.5,bold:true},{text:`OTP ${otp}`,y:27,max:7.5},
@@ -1059,18 +1061,19 @@ const DeleteModal = ({onConfirm, onCancel, godMode=false}) => {
 };
 
 const LabelOptionsModal = ({snRows,defaultSelectedIds=null,onCancel,onConfirm}) => {
-  const [type,setType]=useState("binder");
+  const [types,setTypes]=useState(["binder"]);
   const [selected,setSelected]=useState(()=>defaultSelectedIds?.length?defaultSelectedIds:snRows.map(unit=>unit.id));
   const toggle=id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
-  const canGenerate=!snRows.length||selected.length>0;
+  const toggleType=id=>setTypes(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  const canGenerate=types.length>0&&(!snRows.length||selected.length>0);
   return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
     <div role="dialog" aria-modal="true" aria-labelledby="label-options-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:560,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
       <h2 id="label-options-title" style={{margin:"0 0 14px",fontSize:16,color:C.blue}}>Imprimer des étiquettes</h2>
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
         <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
-          {OPERATIONAL_LABEL_TYPES.map(item=><label key={item.id} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${type===item.id?C.blue:C.border}`,borderRadius:4,color:C.text,fontSize:12,cursor:"pointer",background:type===item.id?C.blue+"12":"transparent"}}>
-            <input type="radio" name="operational-label-type" value={item.id} checked={type===item.id} onChange={()=>setType(item.id)} style={{accentColor:C.blue}}/>
+          {OPERATIONAL_LABEL_TYPES.map(item=><label key={item.id} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:C.text,fontSize:12,cursor:"pointer",background:types.includes(item.id)?C.blue+"12":"transparent"}}>
+            <input type="checkbox" checked={types.includes(item.id)} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
             {item.label}
           </label>)}
         </div>
@@ -1089,7 +1092,7 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,onCancel,onConfirm}) 
       </>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onCancel} color={C.border} small>Annuler</Btn>
-        <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({type,selectedSnIds:selected})} color={canGenerate?C.green:C.border} small>Générer</Btn>
+        <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({types,selectedSnIds:selected})} color={canGenerate?C.green:C.border} small>Générer</Btn>
       </div>
     </div>
   </div>;

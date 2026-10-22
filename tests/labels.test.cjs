@@ -51,6 +51,7 @@ const vm = require('node:vm');
 
   for(const type of ['binder','stock']){
     const blob=context.labels({type,entries:[{ofData,selectedUnitIds:['u1']}],consommables});
+    if(type==='binder') assert.ok(!(await blob.text()).includes('CLASSEUR'));
     fs.writeFileSync(path.join(__dirname,`artifacts/${type}-label.pdf`),Buffer.from(await blob.arrayBuffer()));
   }
 

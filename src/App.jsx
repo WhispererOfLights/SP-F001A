@@ -2533,14 +2533,15 @@ export default function App(){
     if(options.includeExcel) exportSapExcel(options);
     setShowPdfOptions(false);
   };
-  const downloadOperationalLabels=options=>{
+  const downloadOperationalLabels=async options=>{
     try{
-      const blob=buildOperationalLabelsPdf({
-        type:options.type,
-        entries:[{ofData,selectedUnitIds:options.selectedSnIds||null}],
-        consommables,
-      });
-      const label=OPERATIONAL_LABEL_TYPES.find(item=>item.id===options.type)?.label||"Etiquettes";
+      const types=options.types?.length?options.types:["binder"];
+      const entries=[{ofData,selectedUnitIds:options.selectedSnIds||null}];
+      const blobs=types.map(type=>buildOperationalLabelsPdf({type,entries,consommables}));
+      const blob=await mergeGeneratedPdfBlobs(blobs);
+      const label=types.length===1
+        ? OPERATIONAL_LABEL_TYPES.find(item=>item.id===types[0])?.label||"Etiquettes"
+        : "Lot d'étiquettes";
       downloadBlob(blob,fileSafeName(`${label} - OF ${ofData?.header?.of||"OF"}`)+".pdf");
       setShowLabelOptions(false);
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
