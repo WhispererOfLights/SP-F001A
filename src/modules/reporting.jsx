@@ -379,7 +379,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
     const size=fit(text,max,min,maxWidth);
     return txt(text,(width-pdfHelveticaTextWidth(text,size))/2,y,size,bold,color);
   };
-  const page=({title="",footer,lines=[]})=>{
+  const page=({title="",footer,dividerY=0,lines=[]})=>{
     const ops=[];
     if(title){
       ops.push(`q 0.02 0.02 0.02 rg 0 ${(height-22).toFixed(2)} ${width.toFixed(2)} 22 re f Q`);
@@ -389,6 +389,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
       ops.push(`q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`);
       ops.push(centered(footer,5,7.2,5,true,"1 1 1"));
     }
+    if(dividerY) ops.push(`q 0.70 0.73 0.77 RG .45 w 8 ${dividerY.toFixed(2)} m ${(width-8).toFixed(2)} ${dividerY.toFixed(2)} l S Q`);
     lines.forEach(line=>ops.push(centered(line.text,line.y,line.max||9,line.min||5.3,!!line.bold,line.color||"0.08 0.10 0.14",line.maxWidth||width-10)));
     return ops;
   };
@@ -401,6 +402,12 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
     const of=header.of||"N/A";
     const otp=header.otp||header.projet||"N/A";
     const units=operationalLabelUnits(ofData,entry.selectedUnitIds||null);
+    const commonHeader=(identity,identityMax=10)=>[
+      {text:article,y:128,max:10.5,bold:true},
+      {text:description,y:114,max:7.6},
+      {text:identity,y:87,max:identityMax,min:7.5,bold:true},
+      {text:`OF ${of} - OTP ${otp}`,y:67,max:7,bold:true},
+    ];
     if(type==="kitting"){
       const serials=units.filter(unit=>unit.sn).map(unit=>unit.sn);
       const lots=units.filter(unit=>unit.lot).map(unit=>unit.lot);
@@ -410,50 +417,36 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
         : lots.length===1&&serials.length===0?`LOT ${lots[0]}`
         : units.map(operationalLabelIdentity).join(" / ");
       const quantity=units.reduce((total,unit)=>total+(unit.lot?Number(trackedLotQty(unit)||0):1),0);
-      pages.push(page({footer:"KITTING",lines:[
-        {text:article,y:123,max:13,bold:true},{text:description,y:103,max:9.5},{text:`${identity} - Qté ${quantity||"N/A"}`,y:74,max:14,min:7.5,bold:true},
-        {text:`OF ${of}`,y:47,max:9,bold:true},{text:`OTP ${otp}`,y:29,max:8},
-      ]}));
+      pages.push(page({footer:"KITTING",dividerY:59,lines:commonHeader(`${identity} - Qté ${quantity||"N/A"}`,13)}));
       return;
     }
     units.forEach(unit=>{
       const identity=operationalLabelIdentity(unit);
       if(type==="binder"){
-        pages.push(page({lines:[
-          {text:article,y:124,max:11,bold:true},{text:description,y:106,max:8.5},
-          {text:operationalLabelIdentityWithQuantity(unit),y:69,max:24,min:10,bold:true},
-          {text:`OF ${of}`,y:43,max:8.5,bold:true},{text:`OTP ${otp}`,y:27,max:7.5},
-        ]}));
+        pages.push(page({dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),22)}));
       }else if(type==="stock"){
-        pages.push(page({footer:"MISE EN STOCK",lines:[
-          {text:article,y:123,max:13,bold:true},{text:description,y:103,max:9.5},
-          {text:operationalLabelIdentityWithQuantity(unit),y:74,max:16,min:8,bold:true},
-          {text:`OF ${of}`,y:47,max:9,bold:true},{text:`OTP ${otp}`,y:29,max:8},
-        ]}));
+        pages.push(page({footer:"MISE EN STOCK",dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),13)}));
       }else if(type==="bonding"){
         const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
         if(!polymerization) throw new Error(`Aucune durée de collage ou coating trouvée pour ${identity}.`);
         const category=String(polymerization.consumable?.cat||"").toUpperCase();
         const title=category.includes("COAT")||category.includes("VERNIS")?"COATING":"COLLAGE";
-        pages.push(page({title,footer:`OTP ${otp}`,lines:[
-          {text:article,y:111,max:9.5,bold:true},{text:description,y:97,max:7.5},
-          {text:operationalLabelIdentityWithQuantity(unit),y:81,max:10,bold:true},
-          {text:`OF ${of}`,y:67,max:7},
-          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:50,max:7.2,bold:true},
-          {text:`Début : ${formatAvailabilityDT(polymerization.start)}  |  Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:29,max:6.4,min:4.8,bold:true},
+        pages.push(page({dividerY:59,lines:[
+          ...commonHeader(operationalLabelIdentityWithQuantity(unit),10),
+          {text:title,y:48,max:9,bold:true},
+          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:34,max:6.8,bold:true},
+          {text:`Début : ${formatAvailabilityDT(polymerization.start)}  |  Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:18,max:6,min:4.6,bold:true},
         ]}));
       }else if(type==="facts"){
         const facts=operationalLabelFacts({ofData,unit});
         if(!facts.length) throw new Error(`Aucun suivi technique trouvé pour ${identity}.`);
-        for(let index=0;index<facts.length;index+=3){
-          const chunk=facts.slice(index,index+3);
-          pages.push(page({footer:"SUIVI TECHNIQUE",lines:[
-            {text:article,y:127,max:9.5,bold:true},{text:description,y:114,max:7.5},
-            {text:operationalLabelIdentityWithQuantity(unit),y:99,max:9,bold:true},
-            {text:`OF ${of} - OTP ${otp}`,y:84,max:6.8},
+        for(let index=0;index<facts.length;index+=2){
+          const chunk=facts.slice(index,index+2);
+          pages.push(page({footer:"SUIVI TECHNIQUE",dividerY:59,lines:[
+            ...commonHeader(operationalLabelIdentityWithQuantity(unit),10),
             ...chunk.map((fact,factIndex)=>({
               text:`${technicalFollowUpLabel(fact)} : ${fact.commentaires||fact.description||"N/A"}`,
-              y:64-factIndex*17,max:7.2,min:4.8,bold:true,
+              y:43-factIndex*19,max:7.2,min:4.8,bold:true,
             })),
           ]}));
         }

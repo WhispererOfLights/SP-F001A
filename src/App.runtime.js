@@ -2409,6 +2409,8 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
     var _ref34$title = _ref34.title,
       title = _ref34$title === void 0 ? "" : _ref34$title,
       footer = _ref34.footer,
+      _ref34$dividerY = _ref34.dividerY,
+      dividerY = _ref34$dividerY === void 0 ? 0 : _ref34$dividerY,
       _ref34$lines = _ref34.lines,
       lines = _ref34$lines === void 0 ? [] : _ref34$lines;
     var ops = [];
@@ -2420,6 +2422,7 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
       ops.push("q 0.02 0.02 0.02 rg 0 0 ".concat(width.toFixed(2), " 15 re f Q"));
       ops.push(centered(footer, 5, 7.2, 5, true, "1 1 1"));
     }
+    if (dividerY) ops.push("q 0.70 0.73 0.77 RG .45 w 8 ".concat(dividerY.toFixed(2), " m ").concat((width - 8).toFixed(2), " ").concat(dividerY.toFixed(2), " l S Q"));
     lines.forEach(function (line) {
       return ops.push(centered(line.text, line.y, line.max || 9, line.min || 5.3, !!line.bold, line.color || "0.08 0.10 0.14", line.maxWidth || width - 10));
     });
@@ -2434,6 +2437,30 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
     var of = header.of || "N/A";
     var otp = header.otp || header.projet || "N/A";
     var units = operationalLabelUnits(ofData, entry.selectedUnitIds || null);
+    var commonHeader = function commonHeader(identity) {
+      var identityMax = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 10;
+      return [{
+        text: article,
+        y: 128,
+        max: 10.5,
+        bold: true
+      }, {
+        text: description,
+        y: 114,
+        max: 7.6
+      }, {
+        text: identity,
+        y: 87,
+        max: identityMax,
+        min: 7.5,
+        bold: true
+      }, {
+        text: "OF ".concat(of, " - OTP ").concat(otp),
+        y: 67,
+        max: 7,
+        bold: true
+      }];
+    };
     if (type === "kitting") {
       var serials = units.filter(function (unit) {
         return unit.sn;
@@ -2451,31 +2478,8 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
       }, 0);
       pages.push(page({
         footer: "KITTING",
-        lines: [{
-          text: article,
-          y: 123,
-          max: 13,
-          bold: true
-        }, {
-          text: description,
-          y: 103,
-          max: 9.5
-        }, {
-          text: "".concat(identity, " - Qt\xE9 ").concat(quantity || "N/A"),
-          y: 74,
-          max: 14,
-          min: 7.5,
-          bold: true
-        }, {
-          text: "OF ".concat(of),
-          y: 47,
-          max: 9,
-          bold: true
-        }, {
-          text: "OTP ".concat(otp),
-          y: 29,
-          max: 8
-        }]
+        dividerY: 59,
+        lines: commonHeader("".concat(identity, " - Qt\xE9 ").concat(quantity || "N/A"), 13)
       }));
       return;
     }
@@ -2483,60 +2487,14 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
       var identity = operationalLabelIdentity(unit);
       if (type === "binder") {
         pages.push(page({
-          lines: [{
-            text: article,
-            y: 124,
-            max: 11,
-            bold: true
-          }, {
-            text: description,
-            y: 106,
-            max: 8.5
-          }, {
-            text: operationalLabelIdentityWithQuantity(unit),
-            y: 69,
-            max: 24,
-            min: 10,
-            bold: true
-          }, {
-            text: "OF ".concat(of),
-            y: 43,
-            max: 8.5,
-            bold: true
-          }, {
-            text: "OTP ".concat(otp),
-            y: 27,
-            max: 7.5
-          }]
+          dividerY: 59,
+          lines: commonHeader(operationalLabelIdentityWithQuantity(unit), 22)
         }));
       } else if (type === "stock") {
         pages.push(page({
           footer: "MISE EN STOCK",
-          lines: [{
-            text: article,
-            y: 123,
-            max: 13,
-            bold: true
-          }, {
-            text: description,
-            y: 103,
-            max: 9.5
-          }, {
-            text: operationalLabelIdentityWithQuantity(unit),
-            y: 74,
-            max: 16,
-            min: 8,
-            bold: true
-          }, {
-            text: "OF ".concat(of),
-            y: 47,
-            max: 9,
-            bold: true
-          }, {
-            text: "OTP ".concat(otp),
-            y: 29,
-            max: 8
-          }]
+          dividerY: 59,
+          lines: commonHeader(operationalLabelIdentityWithQuantity(unit), 13)
         }));
       } else if (type === "bonding") {
         var _polymerization$consu;
@@ -2549,38 +2507,24 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
         var category = String(((_polymerization$consu = polymerization.consumable) === null || _polymerization$consu === void 0 ? void 0 : _polymerization$consu.cat) || "").toUpperCase();
         var title = category.includes("COAT") || category.includes("VERNIS") ? "COATING" : "COLLAGE";
         pages.push(page({
-          title: title,
-          footer: "OTP ".concat(otp),
-          lines: [{
-            text: article,
-            y: 111,
-            max: 9.5,
+          dividerY: 59,
+          lines: [].concat(_toConsumableArray(commonHeader(operationalLabelIdentityWithQuantity(unit), 10)), [{
+            text: title,
+            y: 48,
+            max: 9,
             bold: true
-          }, {
-            text: description,
-            y: 97,
-            max: 7.5
-          }, {
-            text: operationalLabelIdentityWithQuantity(unit),
-            y: 81,
-            max: 10,
-            bold: true
-          }, {
-            text: "OF ".concat(of),
-            y: 67,
-            max: 7
           }, {
             text: "Produit : ".concat(operationalLabelProduct(polymerization.consumable)),
-            y: 50,
-            max: 7.2,
+            y: 34,
+            max: 6.8,
             bold: true
           }, {
             text: "D\xE9but : ".concat(formatAvailabilityDT(polymerization.start), "  |  Fin : ").concat(formatAvailabilityDT(polymerization.readyAt)),
-            y: 29,
-            max: 6.4,
-            min: 4.8,
+            y: 18,
+            max: 6,
+            min: 4.6,
             bold: true
-          }]
+          }])
         }));
       } else if (type === "facts") {
         var facts = operationalLabelFacts({
@@ -2588,32 +2532,15 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref33) {
           unit: unit
         });
         if (!facts.length) throw new Error("Aucun suivi technique trouv\xE9 pour ".concat(identity, "."));
-        for (var index = 0; index < facts.length; index += 3) {
-          var chunk = facts.slice(index, index + 3);
+        for (var index = 0; index < facts.length; index += 2) {
+          var chunk = facts.slice(index, index + 2);
           pages.push(page({
             footer: "SUIVI TECHNIQUE",
-            lines: [{
-              text: article,
-              y: 127,
-              max: 9.5,
-              bold: true
-            }, {
-              text: description,
-              y: 114,
-              max: 7.5
-            }, {
-              text: operationalLabelIdentityWithQuantity(unit),
-              y: 99,
-              max: 9,
-              bold: true
-            }, {
-              text: "OF ".concat(of, " - OTP ").concat(otp),
-              y: 84,
-              max: 6.8
-            }].concat(_toConsumableArray(chunk.map(function (fact, factIndex) {
+            dividerY: 59,
+            lines: [].concat(_toConsumableArray(commonHeader(operationalLabelIdentityWithQuantity(unit), 10)), _toConsumableArray(chunk.map(function (fact, factIndex) {
               return {
                 text: "".concat(technicalFollowUpLabel(fact), " : ").concat(fact.commentaires || fact.description || "N/A"),
-                y: 64 - factIndex * 17,
+                y: 43 - factIndex * 19,
                 max: 7.2,
                 min: 4.8,
                 bold: true

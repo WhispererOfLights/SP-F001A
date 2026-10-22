@@ -44,20 +44,23 @@ const vm = require('node:vm');
   const kitting=await kittingBlob.text();
   assert.ok(kitting.includes('/MediaBox [0 0 215.43 144.00]'));
   assert.ok(kitting.includes('(KITTING)'));
-  assert.ok(kitting.includes('(OF 16000001)'));
+  assert.ok(kitting.includes('(OF 16000001 - OTP 7400-TEST)'));
   assert.ok(kitting.includes('(SN de SN001'));
   assert.ok(kitting.includes('Qt\\351 2'));
   fs.writeFileSync(path.join(__dirname,'artifacts/kitting-labels.pdf'),Buffer.from(await kittingBlob.arrayBuffer()));
 
   for(const type of ['binder','stock']){
     const blob=context.labels({type,entries:[{ofData,selectedUnitIds:['u1']}],consommables});
-    if(type==='binder') assert.ok(!(await blob.text()).includes('CLASSEUR'));
+    const content=await blob.text();
+    for(const expected of ['250001153','Module test','SN001','OF 16000001 - OTP 7400-TEST']) assert.ok(content.includes(expected),`${type}: ${expected}`);
+    if(type==='binder') assert.ok(!content.includes('CLASSEUR'));
     fs.writeFileSync(path.join(__dirname,`artifacts/${type}-label.pdf`),Buffer.from(await blob.arrayBuffer()));
   }
 
   const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
   const bonding=await bondingBlob.text();
   assert.ok(bonding.includes('(COATING)'));
+  for(const expected of ['250001153','Module test','SN001','OF 16000001 - OTP 7400-TEST']) assert.ok(bonding.includes(expected),`bonding: ${expected}`);
   assert.ok(bonding.includes('Vernis B'));
   assert.ok(bonding.includes('(D\\351but : 21/10/2026'));
   assert.ok(bonding.includes('Fin : 24/10/2026'));
@@ -67,6 +70,7 @@ const vm = require('node:vm');
   const factsBlob=context.labels({type:'facts',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
   const facts=await factsBlob.text();
   assert.ok(facts.includes('/Count 2'));
+  assert.ok(facts.includes('OF 16000001 - OTP 7400-TEST'));
   assert.equal((facts.match(/\(250001153\)/g)||[]).length,2);
   assert.equal((facts.match(/\(SN001\)/g)||[]).length,2);
   assert.ok(facts.includes('OW004'));
