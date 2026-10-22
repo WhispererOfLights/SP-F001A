@@ -367,6 +367,14 @@ const operationalLabelFacts = ({ofData,unit}) => {
     .filter(fact=>rowMatchesSn(fact,unit,units))
     .sort((a,b)=>String(a.date||a.createdDT||"").localeCompare(String(b.date||b.createdDT||"")));
 };
+const operationalLabelTypeAvailable = ({type,ofData,selectedUnitIds=null,consommables=[]}) => {
+  if(!["bonding","facts"].includes(type)) return true;
+  const units=operationalLabelUnits(ofData,selectedUnitIds);
+  if(!units.length) return false;
+  return units.every(unit=>type==="bonding"
+    ? !!operationalLabelPolymerization({ofData,unit,consommables})
+    : operationalLabelFacts({ofData,unit}).length>0);
+};
 
 const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
   if(!OPERATIONAL_LABEL_TYPES.some(item=>item.id===type)) throw new Error("Type d'étiquette inconnu.");
@@ -1053,11 +1061,13 @@ const DeleteModal = ({onConfirm, onCancel, godMode=false}) => {
   );
 };
 
-const LabelOptionsModal = ({snRows,defaultSelectedIds=null,onCancel,onConfirm}) => {
+const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,onCancel,onConfirm}) => {
   const [types,setTypes]=useState(["binder"]);
   const [selected,setSelected]=useState(()=>defaultSelectedIds?.length?defaultSelectedIds:snRows.map(unit=>unit.id));
   const toggle=id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
-  const toggleType=id=>setTypes(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  const available=id=>operationalLabelTypeAvailable({type:id,ofData,selectedUnitIds:selected,consommables});
+  const toggleType=id=>available(id)&&setTypes(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  useEffect(()=>setTypes(current=>current.filter(available)),[selected.join("|"),ofData,consommables]);
   const canGenerate=types.length>0&&(!snRows.length||selected.length>0);
   return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
     <div role="dialog" aria-modal="true" aria-labelledby="label-options-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:560,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
@@ -1065,10 +1075,10 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,onCancel,onConfirm}) 
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
         <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
-          {OPERATIONAL_LABEL_TYPES.map(item=><label key={item.id} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:C.text,fontSize:12,cursor:"pointer",background:types.includes(item.id)?C.blue+"12":"transparent"}}>
-            <input type="checkbox" checked={types.includes(item.id)} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
+          {OPERATIONAL_LABEL_TYPES.map(item=>{const enabled=available(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
+            <input type="checkbox" checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
             {item.label}
-          </label>)}
+          </label>})}
         </div>
       </fieldset>
       {snRows.length>0&&<>

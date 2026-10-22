@@ -11,7 +11,7 @@ const vm = require('node:vm');
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/App.runtime.js'),'utf8')+
-    ';globalThis.labels=buildOperationalLabelsPdf;',context);
+    ';globalThis.labels=buildOperationalLabelsPdf;globalThis.labelAvailable=operationalLabelTypeAvailable;',context);
 
   const units=[
     {id:'u1',sn:'SN001',unitKind:'sn'},
@@ -38,6 +38,10 @@ const vm = require('node:vm');
     {id:'glue',sap:'2920000100',label:'Colle A',cat:'Colle',polymerizationHours:'24'},
     {id:'coating',sap:'2920000200',label:'Vernis B',cat:'Coating',polymerizationHours:'72'},
   ];
+  assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u1'],consommables}),true);
+  assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u2'],consommables}),false);
+  assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u1'],consommables}),true);
+  assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u2'],consommables}),false);
 
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
   const kittingBlob=context.labels({type:'kitting',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});

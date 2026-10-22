@@ -2771,6 +2771,8 @@ export default function App(){
       {showLabelOptions&&<LabelOptionsModal
         snRows={snRows}
         defaultSelectedIds={activeUnit?[activeUnit.id]:null}
+        ofData={ofData}
+        consommables={consommables}
         onCancel={()=>setShowLabelOptions(false)}
         onConfirm={downloadOperationalLabels}
       />}

@@ -265,6 +265,13 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(await labelOptions.getByRole('checkbox',{name:'Log fab',exact:true}).isChecked());
     await labelOptions.getByRole('checkbox',{name:'Mise en stock',exact:true}).check();
     assert.ok(await labelOptions.getByRole('checkbox',{name:/SN2/}).isChecked());
+    assert.ok(await labelOptions.getByRole('checkbox',{name:'Info suivi technique',exact:true}).isDisabled());
+    assert.ok(await labelOptions.getByRole('checkbox',{name:'Collage / coating',exact:true}).isEnabled());
+    await page.screenshot({path:path.join(__dirname,'artifacts/label-options-unavailable.png')});
+    await labelOptions.getByRole('checkbox',{name:/SN1/}).check();
+    await labelOptions.getByRole('checkbox',{name:/SN2/}).uncheck();
+    assert.ok(await labelOptions.getByRole('checkbox',{name:'Info suivi technique',exact:true}).isEnabled());
+    await labelOptions.getByRole('checkbox',{name:'Info suivi technique',exact:true}).check();
     await page.screenshot({path:path.join(__dirname,'artifacts/label-options.png')});
     const binderDownloadPromise=page.waitForEvent('download');
     await labelOptions.getByRole('button',{name:'Générer',exact:true}).click();
