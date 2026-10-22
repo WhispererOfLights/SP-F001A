@@ -16,7 +16,7 @@ const REWORK_EDIT_FIELDS = [
   {key:"sn",label:"SN"},
   {key:"fiche",label:"Fiche suiveuse"},
   {key:"etape",label:"OP"},
-  {key:"remarques",label:"Observation"},
+  {key:"remarques",label:"Remarque / observation"},
 ];
 const reworkRequiredFields = action => action==="O"
   ? [{key:"repere",label:"Repère TOPO"},{key:"action1",label:"Action"},{key:"remarques",label:"Observation"}]
@@ -30,7 +30,7 @@ const reworkRequiredFields = action => action==="O"
       ...(["S","P","M"].includes(action)?[{key:"codeERP",label:"Code article"}]:[]),
     ];
 const REWORK_IMPORT_TEMPLATE = [
-  "Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Observation"
+  "Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Remarque"
 ].join("\t");
 const normalizeReworkImportHeader = value => String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
   .toLowerCase().replace(/[°№]/g,"n").replace(/[^a-z0-9]+/g," ").trim();
@@ -45,7 +45,8 @@ const REWORK_IMPORT_HEADER_ALIASES = new Map([
   ["sn","sn"],["sn composant","sn"],["n serie","sn"],["numero serie","sn"],
   ["fiche","fiche"],["fiche suiveuse","fiche"],["fiche suiveuse fait","fiche"],["document","fiche"],
   ["op","etape"],["n op","etape"],["operation","etape"],["etape","etape"],
-  ["observation","remarques"],["observations","remarques"],["remarque","remarques"],["commentaire","remarques"],
+  ["observation","remarques"],["observations","remarques"],["remarque","remarques"],["remarques","remarques"],
+  ["remarque observation","remarques"],["commentaire","remarques"],
 ]);
 const normalizeImportedReworkAction = value => {
   const raw=String(value||"").trim().toUpperCase();
@@ -566,7 +567,7 @@ const ReworkImportModal = ({header,existingRows=[],onImport,onClose}) => {
       {!!parsed.rows.length&&<div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:4,marginTop:10}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
           <thead><tr style={{background:C.raised}}>
-            {["État","Ligne","Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Observation"].map(label=><TH key={label}>{label}</TH>)}
+            {["État","Ligne","Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Remarque"].map(label=><TH key={label}>{label}</TH>)}
           </tr></thead>
           <tbody>{parsed.rows.slice(0,40).map((row,index)=><tr key={`${row.lineNumber}-${index}`} style={{background:index%2?C.stripe:"transparent"}}>
             <TD><span style={{color:isDuplicate(row)?C.yellow:C.green,fontWeight:800}}>{isDuplicate(row)?"Doublon possible":"Prêt"}</span></TD>
@@ -1064,14 +1065,14 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                   )}
                 </TD>
               </tr>,
-              isObservation&&(
+              (isObservation||String(r.remarques||"").trim())&&(
                 <tr key={r.id+"_observation"} style={{background:r.deleted?"#da363318":i%2===0?C.blue+"08":C.stripe,borderLeft:r.validated?`3px solid ${C.green}`:`3px solid ${C.border}`}}>
                   <td colSpan={99} style={{padding:"4px 8px 7px",textDecoration:r.deleted?"line-through":undefined,color:r.deleted?C.red:undefined}}>
                     <div style={{display:"grid",gridTemplateColumns:"110px minmax(240px,1fr)",alignItems:"center",gap:8}}>
-                      <strong style={{fontSize:10,color:C.blue,textTransform:"uppercase",letterSpacing:.5}}>Observation</strong>
-                      <Input entryField="remarques" value={r.remarques||""} onChange={v=>upd(r.id,"remarques",v)} small required readOnly={locked}
-                        placeholder="Ex. C100 : constat vérifié, laissé en l’état"
-                        title="Observation liée au repère TOPO"
+                      <strong style={{fontSize:10,color:C.blue,textTransform:"uppercase",letterSpacing:.5}}>{isObservation?"Observation":"Remarque"}</strong>
+                      <Input entryField="remarques" value={r.remarques||""} onChange={v=>upd(r.id,"remarques",v)} small required={isObservation} readOnly={locked}
+                        placeholder={isObservation?"Ex. C100 : constat vérifié, laissé en l’état":"Remarque associée à cette opération"}
+                        title={isObservation?"Observation liée au repère TOPO":"Remarque associée à cette opération"}
                         style={{width:"100%",...(!r.remarques&&!locked?missingStyle:{}),...(locked?LOCKED_INPUT_STYLE:{})}}/>
                     </div>
                   </td>

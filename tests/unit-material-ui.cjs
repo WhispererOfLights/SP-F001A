@@ -298,8 +298,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.deepEqual(await page.evaluate(()=>window.parseReworkClipboard('R200\nC201').rows.map(row=>row.repere)),['R200','C201']);
     assert.equal(await importDialog.getByLabel('Destination des brouillons importés',{exact:true}).inputValue(),'u2');
     await importDialog.getByLabel('Tableau ADJ/Rework à importer',{exact:true}).fill([
-      'Repère topo\tQté\tADJ\tAct.\tCode article\tValeur - description\tLOT\tDC\tSN composant\tFiche suiveuse\tOP',
-      'R-IMP1\t1\tOui\tS\t250009999\t10K\t0000012345\t2642\tSN-IMP-01\tDOC-IMPORT_1\t30',
+      'Repère topo\tQté\tADJ\tAct.\tCode article\tValeur - description\tLOT\tDC\tSN composant\tFiche suiveuse\tOP\tRemarque',
+      'R-IMP1\t1\tOui\tS\t250009999\t10K\t0000012345\t2642\tSN-IMP-01\tDOC-IMPORT_1\t30\tMontage demandé par le BE',
       'C-IMP2\t\tNon\tObservation\t\tConstat préparé\t\t\t\tDOC-IMPORT_1\t30'
     ].join('\n'));
     await importDialog.getByText('2 brouillons prêts à importer',{exact:true}).waitFor();
@@ -310,8 +310,12 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(importedRows.every(row=>!row.validated&&!row.createdVisa&&!row.createdDT&&row.snIds?.join(',')==='u2'));
     assert.ok(importedRows.every(row=>row.importOrigin.importedBy==='JGR'&&row.importOrigin.importedAt));
     assert.equal(importedRows.find(row=>row.repere==='C-IMP2').remarques,'Constat préparé');
+    assert.equal(importedRows.find(row=>row.repere==='R-IMP1').remarques,'Montage demandé par le BE');
     const importedMain=page.locator('[data-rework-row]').filter({has:page.locator('[data-entry-field="repere"][value="R-IMP1"]')});
     await importedMain.getByLabel('Importé',{exact:true}).waitFor();
+    const importedRemark=importedMain.locator('xpath=following-sibling::tr[1]');
+    await importedRemark.getByText('Remarque',{exact:true}).waitFor();
+    assert.equal(await importedRemark.locator('[data-entry-field="remarques"]').inputValue(),'Montage demandé par le BE');
     await importedMain.locator('[data-entry-field="valeur"]').fill('12K');
     await importedMain.getByLabel('Importé, modifié',{exact:true}).waitFor();
     await importedMain.getByTitle('Valider',{exact:true}).click();

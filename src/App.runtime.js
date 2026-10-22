@@ -2931,8 +2931,8 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref32) {
       var controlRequired = ["S", "R"].includes(r.action1);
       var controlVisa = r.visaCtrl || (controlRequired ? "Contrôle à faire" : "N/A");
       var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), r.action1 === "O" ? "N/A" : pdfValue(r.lot), r.action1 === "O" ? "N/A" : pdfValue(r.dc), r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r);
-      var observation = r.action1 === "O" && String(r.remarques || "").trim() ? [{
-        text: "Observation : ".concat(r.remarques),
+      var remark = String(r.remarques || "").trim() ? [{
+        text: "".concat(r.action1 === "O" ? "Observation" : "Remarque", " : ").concat(r.remarques),
         maxLines: 18,
         bold: true,
         fill: "0.94 0.96 0.99",
@@ -2940,7 +2940,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref32) {
         stroke: color.blue
       }] : [];
       return _objectSpread(_objectSpread({}, base), {}, {
-        comments: [].concat(observation, _toConsumableArray(base.comments)),
+        comments: [].concat(remark, _toConsumableArray(base.comments)),
         cellStyles: _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, hdArticles.some(function (hd) {
           return hd.id === r.id;
         }) ? {
@@ -6714,7 +6714,7 @@ var REWORK_EDIT_FIELDS = [{
   label: "OP"
 }, {
   key: "remarques",
-  label: "Observation"
+  label: "Remarque / observation"
 }];
 var reworkRequiredFields = function reworkRequiredFields(action) {
   return action === "O" ? [{
@@ -6749,11 +6749,11 @@ var reworkRequiredFields = function reworkRequiredFields(action) {
     label: "Code article"
   }] : []));
 };
-var REWORK_IMPORT_TEMPLATE = ["Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Observation"].join("\t");
+var REWORK_IMPORT_TEMPLATE = ["Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Remarque"].join("\t");
 var normalizeReworkImportHeader = function normalizeReworkImportHeader(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[°№]/g, "n").replace(/[^a-z0-9]+/g, " ").trim();
 };
-var REWORK_IMPORT_HEADER_ALIASES = new Map([["repere", "repere"], ["repere topo", "repere"], ["topo", "repere"], ["qte", "qty"], ["quantite", "qty"], ["quantity", "qty"], ["adj", "isAdjust"], ["adjust", "isAdjust"], ["ajustement", "isAdjust"], ["act", "action1"], ["action", "action1"], ["code article", "codeERP"], ["article", "codeERP"], ["code erp", "codeERP"], ["sap", "codeERP"], ["n article", "codeERP"], ["valeur", "valeur"], ["valeur description", "valeur"], ["description", "valeur"], ["lot", "lot"], ["dc", "dc"], ["date code", "dc"], ["datecode", "dc"], ["sn", "sn"], ["sn composant", "sn"], ["n serie", "sn"], ["numero serie", "sn"], ["fiche", "fiche"], ["fiche suiveuse", "fiche"], ["fiche suiveuse fait", "fiche"], ["document", "fiche"], ["op", "etape"], ["n op", "etape"], ["operation", "etape"], ["etape", "etape"], ["observation", "remarques"], ["observations", "remarques"], ["remarque", "remarques"], ["commentaire", "remarques"]]);
+var REWORK_IMPORT_HEADER_ALIASES = new Map([["repere", "repere"], ["repere topo", "repere"], ["topo", "repere"], ["qte", "qty"], ["quantite", "qty"], ["quantity", "qty"], ["adj", "isAdjust"], ["adjust", "isAdjust"], ["ajustement", "isAdjust"], ["act", "action1"], ["action", "action1"], ["code article", "codeERP"], ["article", "codeERP"], ["code erp", "codeERP"], ["sap", "codeERP"], ["n article", "codeERP"], ["valeur", "valeur"], ["valeur description", "valeur"], ["description", "valeur"], ["lot", "lot"], ["dc", "dc"], ["date code", "dc"], ["datecode", "dc"], ["sn", "sn"], ["sn composant", "sn"], ["n serie", "sn"], ["numero serie", "sn"], ["fiche", "fiche"], ["fiche suiveuse", "fiche"], ["fiche suiveuse fait", "fiche"], ["document", "fiche"], ["op", "etape"], ["n op", "etape"], ["operation", "etape"], ["etape", "etape"], ["observation", "remarques"], ["observations", "remarques"], ["remarque", "remarques"], ["remarques", "remarques"], ["remarque observation", "remarques"], ["commentaire", "remarques"]]);
 var normalizeImportedReworkAction = function normalizeImportedReworkAction(value) {
   var raw = String(value || "").trim().toUpperCase();
   if (ACTIONS.includes(raw)) return raw;
@@ -8457,7 +8457,7 @@ var ReworkImportModal = function ReworkImportModal(_ref72) {
     style: {
       background: C.raised
     }
-  }, ["État", "Ligne", "Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Observation"].map(function (label) {
+  }, ["État", "Ligne", "Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Remarque"].map(function (label) {
     return /*#__PURE__*/React.createElement(TH, {
       key: label
     }, label);
@@ -9995,7 +9995,7 @@ var TabRework = function TabRework(_ref73) {
       title: "Dupliquer"
     }, "\u29C9"), /*#__PURE__*/React.createElement(HistoryBtn, {
       row: r
-    })))), isObservation && /*#__PURE__*/React.createElement("tr", {
+    })))), (isObservation || String(r.remarques || "").trim()) && /*#__PURE__*/React.createElement("tr", {
       key: r.id + "_observation",
       style: {
         background: r.deleted ? "#da363318" : i % 2 === 0 ? C.blue + "08" : C.stripe,
@@ -10022,17 +10022,17 @@ var TabRework = function TabRework(_ref73) {
         textTransform: "uppercase",
         letterSpacing: .5
       }
-    }, "Observation"), /*#__PURE__*/React.createElement(Input, {
+    }, isObservation ? "Observation" : "Remarque"), /*#__PURE__*/React.createElement(Input, {
       entryField: "remarques",
       value: r.remarques || "",
       onChange: function onChange(v) {
         return upd(r.id, "remarques", v);
       },
       small: true,
-      required: true,
+      required: isObservation,
       readOnly: locked,
-      placeholder: "Ex. C100 : constat v\xE9rifi\xE9, laiss\xE9 en l\u2019\xE9tat",
-      title: "Observation li\xE9e au rep\xE8re TOPO",
+      placeholder: isObservation ? "Ex. C100 : constat vérifié, laissé en l’état" : "Remarque associée à cette opération",
+      title: isObservation ? "Observation liée au repère TOPO" : "Remarque associée à cette opération",
       style: _objectSpread(_objectSpread({
         width: "100%"
       }, !r.remarques && !locked ? missingStyle : {}), locked ? LOCKED_INPUT_STYLE : {})

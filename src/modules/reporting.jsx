@@ -674,10 +674,10 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const controlRequired=["S","R"].includes(r.action1);
         const controlVisa=r.visaCtrl|| (controlRequired?"Contrôle à faire":"N/A");
         const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),r.action1==="O"?"N/A":pdfValue(r.lot),r.action1==="O"?"N/A":pdfValue(r.dc),r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
-        const observation=r.action1==="O"&&String(r.remarques||"").trim()
-          ? [{text:`Observation : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
+        const remark=String(r.remarques||"").trim()
+          ? [{text:`${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
           : [];
-        return {...base,comments:[...observation,...base.comments],
+        return {...base,comments:[...remark,...base.comments],
         cellStyles:{
           ...(hdArticles.some(hd=>hd.id===r.id)?{6:{color:color.red,bold:true}}:{}),
           ...(!r.deleted&&missingReworkTrace(r,true).includes("LOT")?{5:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),
