@@ -323,6 +323,136 @@ const buildComponentLabelPdf = ({ofData,row,selectedUnitIds=null}) => {
   return buildSimplePdf({width,height,pages});
 };
 
+const OPERATIONAL_LABEL_TYPES = [
+  {id:"kitting",label:"Kitting"},
+  {id:"binder",label:"Classeur"},
+  {id:"stock",label:"Mise en stock"},
+  {id:"bonding",label:"Collage / coating"},
+  {id:"facts",label:"Info suivi technique"},
+];
+
+const operationalLabelUnits = (ofData,selectedUnitIds=null) => {
+  const header=ofData?.header||{};
+  const units=(ofData?.units?.rows||snRowsFromHeader(header)).filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
+  const selected=selectedUnitIds?.length?units.filter(unit=>selectedUnitIds.includes(unit.id)):units;
+  return selected.length?selected:[{id:"of-global",sn:header.sn||"",lot:header.lot||"",unitKind:header.lot?"lot":"sn",qte:header.qte||""}];
+};
+
+const operationalLabelIdentity = unit => snTitle(unit)||"N/A";
+const operationalLabelProduct = consumable => {
+  const code=compactArticleCode(consumable?.sap||consumable?.code||"");
+  const label=String(consumable?.label||consumable?.designation||"").trim();
+  return [code,label].filter(Boolean).join(" - ")||"N/A";
+};
+const operationalLabelPolymerization = ({ofData,unit,consommables}) => {
+  const units=operationalLabelUnits(ofData);
+  const byId=Object.fromEntries((consommables||[]).map(item=>[item.id,item]));
+  const candidates=(ofData?.consommables?.ops||[])
+    .filter(op=>!op.deleted&&op.validated&&rowMatchesSn(op,unit,units))
+    .flatMap(op=>(op.items||[]).filter(item=>!item.deleted&&item.validated).map(item=>{
+      const consumable=byId[item.consoId]||{};
+      const status=polymerizationStatus(consumable,item.createdDT||op.createdDT);
+      return status?{...status,consumable,item,op}:null;
+    }).filter(Boolean));
+  return candidates.reduce((latest,candidate)=>!latest||candidate.readyAt>latest.readyAt?candidate:latest,null);
+};
+const operationalLabelFacts = ({ofData,unit}) => {
+  const units=operationalLabelUnits(ofData);
+  return effectiveScopedRows(ofData,"faits")
+    .filter(fact=>rowMatchesSn(fact,unit,units))
+    .sort((a,b)=>String(a.date||a.createdDT||"").localeCompare(String(b.date||b.createdDT||"")));
+};
+
+const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
+  if(!OPERATIONAL_LABEL_TYPES.some(item=>item.id===type)) throw new Error("Type d'étiquette inconnu.");
+  const MM=72/25.4;
+  const width=76*MM,height=50.8*MM;
+  const fit=(value,max,min,maxWidth)=>Math.max(min,Math.min(max,maxWidth/Math.max(1,pdfHelveticaTextWidth(value,1))));
+  const txt=(value,x,y,size=7,bold=false,color="0.08 0.10 0.14")=>`BT /${bold?"F2":"F1"} ${size.toFixed(2)} Tf ${color} rg 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfEsc(value)}) Tj ET`;
+  const centered=(value,y,max=9,min=5.3,bold=false,color="0.08 0.10 0.14",maxWidth=width-10)=>{
+    const text=pdfText(value||"N/A");
+    const size=fit(text,max,min,maxWidth);
+    return txt(text,(width-pdfHelveticaTextWidth(text,size))/2,y,size,bold,color);
+  };
+  const page=({title,footer,lines=[]})=>{
+    const ops=[
+      `q 0.02 0.02 0.02 rg 0 ${(height-25).toFixed(2)} ${width.toFixed(2)} 25 re f Q`,
+      centered(title,height-17,11,6.4,true,"1 1 1"),
+      `q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`,
+      centered(footer,5,7.4,5.1,true,"1 1 1"),
+    ];
+    lines.forEach(line=>ops.push(centered(line.text,line.y,line.max||9,line.min||5.3,!!line.bold,line.color||"0.08 0.10 0.14",line.maxWidth||width-10)));
+    return ops;
+  };
+  const pages=[];
+  entries.forEach(entry=>{
+    const ofData=entry?.ofData||{};
+    const header=ofData.header||{};
+    const article=compactArticleCode(header.codeArticle||header.articleNo)||"N/A";
+    const description=header.description||"N/A";
+    const of=header.of||"N/A";
+    const otp=header.otp||header.projet||"N/A";
+    const units=operationalLabelUnits(ofData,entry.selectedUnitIds||null);
+    if(type==="kitting"){
+      const serials=units.filter(unit=>unit.sn).map(unit=>unit.sn);
+      const lots=units.filter(unit=>unit.lot).map(unit=>unit.lot);
+      const identity=serials.length>1&&lots.length===0
+        ? `SN de ${serials[0]} à ${serials[serials.length-1]}`
+        : serials.length===1&&lots.length===0?`SN ${serials[0]}`
+        : lots.length===1&&serials.length===0?`LOT ${lots[0]}`
+        : units.map(operationalLabelIdentity).join(" / ");
+      const quantity=units.reduce((total,unit)=>total+(unit.lot?Number(trackedLotQty(unit)||0):1),0);
+      pages.push(page({title:`KITTING - OF ${of}`,footer:otp,lines:[
+        {text:article,y:103,max:11,bold:true},{text:description,y:86,max:9},{text:identity,y:61,max:12,bold:true},{text:`Qté : ${quantity||"N/A"}`,y:36,max:11,bold:true},
+      ]}));
+      return;
+    }
+    units.forEach(unit=>{
+      const identity=operationalLabelIdentity(unit);
+      if(type==="binder"){
+        pages.push(page({title:"CLASSEUR",footer:otp,lines:[
+          {text:identity,y:96,max:20,min:9,bold:true},{text:article,y:72,max:10,bold:true},{text:description,y:54,max:8},{text:`OF ${of}`,y:31,max:8},
+        ]}));
+      }else if(type==="stock"){
+        pages.push(page({title:"MISE EN STOCK",footer:otp,lines:[
+          {text:article,y:101,max:11,bold:true},{text:description,y:82,max:8.5},{text:identity,y:55,max:15,min:8,bold:true},{text:`OF ${of}`,y:31,max:8},
+        ]}));
+      }else if(type==="bonding"){
+        const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
+        if(!polymerization) throw new Error(`Aucune durée de collage ou coating trouvée pour ${identity}.`);
+        const category=String(polymerization.consumable?.cat||"").toUpperCase();
+        const title=category.includes("COAT")||category.includes("VERNIS")?"COATING":"COLLAGE";
+        pages.push(page({title,footer:otp,lines:[
+          {text:`${article} - ${identity}`,y:106,max:8.6,bold:true},
+          {text:description,y:93,max:7.2},
+          {text:`OF ${of}`,y:80,max:6.8},
+          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:63,max:7.2,bold:true},
+          {text:`Début : ${formatAvailabilityDT(polymerization.start)}`,y:48,max:7},
+          {text:`Durée : ${polymerization.hours} h`,y:34,max:7},
+          {text:`Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:20,max:7,bold:true},
+        ]}));
+      }else if(type==="facts"){
+        const facts=operationalLabelFacts({ofData,unit});
+        if(!facts.length) throw new Error(`Aucun suivi technique trouvé pour ${identity}.`);
+        for(let index=0;index<facts.length;index+=3){
+          const chunk=facts.slice(index,index+3);
+          pages.push(page({title:"SUIVI TECHNIQUE",footer:otp,lines:[
+            {text:`${article} - ${identity}`,y:106,max:8.5,bold:true},
+            {text:description,y:92,max:7.2},
+            {text:`OF ${of}`,y:79,max:6.8},
+            ...chunk.map((fact,factIndex)=>({
+              text:`${technicalFollowUpLabel(fact)} : ${fact.commentaires||fact.description||"N/A"}`,
+              y:61-factIndex*16,max:7.2,min:4.8,bold:true,
+            })),
+          ]}));
+        }
+      }
+    });
+  });
+  if(!pages.length) throw new Error("Aucune étiquette à générer.");
+  return buildSimplePdf({width,height,pages});
+};
+
 const buildComponentRetentionSheetsPdf = ({ofData,selectedUnitIds=null,logoImage=null,exportedAt="",exportedBy=""}) => {
   const MM=72/25.4;
   const width=297*MM, height=210*MM;
@@ -917,6 +1047,43 @@ const DeleteModal = ({onConfirm, onCancel, godMode=false}) => {
       </div>
     </div>
   );
+};
+
+const LabelOptionsModal = ({snRows,defaultSelectedIds=null,onCancel,onConfirm}) => {
+  const [type,setType]=useState("binder");
+  const [selected,setSelected]=useState(()=>defaultSelectedIds?.length?defaultSelectedIds:snRows.map(unit=>unit.id));
+  const toggle=id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  const canGenerate=!snRows.length||selected.length>0;
+  return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+    <div role="dialog" aria-modal="true" aria-labelledby="label-options-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:560,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
+      <h2 id="label-options-title" style={{margin:"0 0 14px",fontSize:16,color:C.blue}}>Imprimer des étiquettes</h2>
+      <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
+        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
+          {OPERATIONAL_LABEL_TYPES.map(item=><label key={item.id} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${type===item.id?C.blue:C.border}`,borderRadius:4,color:C.text,fontSize:12,cursor:"pointer",background:type===item.id?C.blue+"12":"transparent"}}>
+            <input type="radio" name="operational-label-type" value={item.id} checked={type===item.id} onChange={()=>setType(item.id)} style={{accentColor:C.blue}}/>
+            {item.label}
+          </label>)}
+        </div>
+      </fieldset>
+      {snRows.length>0&&<>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <Btn small color={C.border} onClick={()=>setSelected(snRows.map(unit=>unit.id))}>Tout cocher</Btn>
+          <Btn small color={C.border} onClick={()=>setSelected([])}>Tout décocher</Btn>
+        </div>
+        <div style={{maxHeight:210,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:4,padding:6,marginBottom:14}}>
+          {snRows.map(unit=><label key={unit.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",borderBottom:`1px solid ${C.border}55`,fontFamily:"monospace",fontSize:12,color:C.text,cursor:"pointer"}}>
+            <input type="checkbox" checked={selected.includes(unit.id)} onChange={()=>toggle(unit.id)} style={{accentColor:C.blue}}/>
+            {snTitle(unit)}
+          </label>)}
+        </div>
+      </>}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <Btn onClick={onCancel} color={C.border} small>Annuler</Btn>
+        <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({type,selectedSnIds:selected})} color={canGenerate?C.green:C.border} small>Générer</Btn>
+      </div>
+    </div>
+  </div>;
 };
 
 const PdfOptionsModal = ({snRows, defaultSelectedIds=null, includeHistoryDefault=false, onCancel, onConfirm}) => {

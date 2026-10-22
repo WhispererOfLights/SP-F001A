@@ -1779,6 +1779,7 @@ export default function App(){
   const [printAll,setPrintAll]       = useState(false);
   const [pdfIncludeHistory,setPdfIncludeHistory] = useState(false);
   const [showPdfOptions,setShowPdfOptions] = useState(false);
+  const [showLabelOptions,setShowLabelOptions] = useState(false);
   const [activeUnitId,setActiveUnitId] = useState("all");
   const [entryUnitId,setEntryUnitId] = useState("");
   const [headerPanel,setHeaderPanel] = useState("dossier");
@@ -1866,7 +1867,7 @@ export default function App(){
   const handleLogout=async()=>{
     if(window.authApi){try{await window.authApi.logout();}catch{}}
     setGodMode(false);
-    setShowProfile(false);setShowAdminUsers(false);setShowConsoEditor(false);setShowFaitTypes(false);setShowStatusTypes(false);setShowPdfOptions(false);
+    setShowProfile(false);setShowAdminUsers(false);setShowConsoEditor(false);setShowFaitTypes(false);setShowStatusTypes(false);setShowPdfOptions(false);setShowLabelOptions(false);
     setUser(null);setCurrentId(null);setOfData(null);setActiveUnitId("all");
     setCopyAcrossRow(null);
     localStorage.removeItem("sp-f001-last-activity");
@@ -2444,7 +2445,7 @@ export default function App(){
     let switching=false;
     const onKey=async event=>{
       if(!["PageUp","PageDown"].includes(event.key)||event.defaultPrevented||event.repeat||event.ctrlKey||event.shiftKey||event.altKey||event.metaKey) return;
-      if(!user||user.mustChangePassword||!currentId||!ofData||saving||switching||showProfile||showPdfOptions||copyAcrossRow||printAll) return;
+      if(!user||user.mustChangePassword||!currentId||!ofData||saving||switching||showProfile||showPdfOptions||showLabelOptions||copyAcrossRow||printAll) return;
       const target=event.target;
       if(target?.isContentEditable||["input","textarea","select"].includes(String(target?.tagName||"").toLowerCase())||document.querySelector('[role="dialog"], [aria-modal="true"]')) return;
       const entries=ofList.filter(entry=>!entry.deleted);
@@ -2458,7 +2459,7 @@ export default function App(){
     };
     window.addEventListener("keydown",onKey);
     return ()=>window.removeEventListener("keydown",onKey);
-  },[user,currentId,ofData,ofList,saving,showProfile,showPdfOptions,copyAcrossRow,printAll,activeTab]);
+  },[user,currentId,ofData,ofList,saving,showProfile,showPdfOptions,showLabelOptions,copyAcrossRow,printAll,activeTab]);
 
   const printReport=()=>{
     setPrintAll(true);
@@ -2531,6 +2532,18 @@ export default function App(){
     if(options.includePdf) await downloadReportPdf({...options,keepModal:true});
     if(options.includeExcel) exportSapExcel(options);
     setShowPdfOptions(false);
+  };
+  const downloadOperationalLabels=options=>{
+    try{
+      const blob=buildOperationalLabelsPdf({
+        type:options.type,
+        entries:[{ofData,selectedUnitIds:options.selectedSnIds||null}],
+        consommables,
+      });
+      const label=OPERATIONAL_LABEL_TYPES.find(item=>item.id===options.type)?.label||"Etiquettes";
+      downloadBlob(blob,fileSafeName(`${label} - OF ${ofData?.header?.of||"OF"}`)+".pdf");
+      setShowLabelOptions(false);
+    }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };
 
   if(!loaded) return <div style={{background:C.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:C.muted}}>Chargement…</div>;
@@ -2714,6 +2727,7 @@ export default function App(){
           <span title={lastSaved?`Dernier enregistrement : ${lastSaved}`:""} style={{fontSize:11,color:C.muted}}>{saving?"⟳ …":lastSaved?"✓":""}</span>
           <ThemeButton/>
           <Btn onClick={()=>setShowPdfOptions(true)} color={C.green} small>Rapport</Btn>
+          <Btn onClick={()=>setShowLabelOptions(true)} color={C.blue} small>Étiquettes</Btn>
           {isAdminManager(user)&&<>
             <label title="Suppression définitive des prochaines lignes annulées" style={{display:"flex",alignItems:"center",gap:4,color:godMode?C.red:C.muted,fontSize:11}}>
               <input type="checkbox" checked={godMode} onChange={e=>setGodMode(e.target.checked)}/>God mode
@@ -2752,6 +2766,12 @@ export default function App(){
         includeHistoryDefault={pdfIncludeHistory}
         onCancel={()=>setShowPdfOptions(false)}
         onConfirm={exportReportPack}
+      />}
+      {showLabelOptions&&<LabelOptionsModal
+        snRows={snRows}
+        defaultSelectedIds={activeUnit?[activeUnit.id]:null}
+        onCancel={()=>setShowLabelOptions(false)}
+        onConfirm={downloadOperationalLabels}
       />}
       {/* Tabs */}
       <div className="sticky-tabs" style={{background:C.surface,borderBottom:`1px solid ${C.border}`,

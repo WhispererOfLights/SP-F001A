@@ -720,6 +720,29 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       downloadBrowserBlob(merged,fileSafeName(`Feuilles composants dessoudés - ${suffix}`)+".pdf");
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };
+  const exportBulkKittingLabels=async()=>{
+    const grouped=new Map();
+    selectedRows.forEach(row=>{
+      const group=grouped.get(row.id)||{row,unitIds:[]};
+      if(row._homeUnitId&&!group.unitIds.includes(row._homeUnitId)) group.unitIds.push(row._homeUnitId);
+      grouped.set(row.id,group);
+    });
+    try{
+      const entries=[];
+      for(const [id,group] of grouped){
+        let data=dataById[id];
+        if(!data){
+          const stored=await window.storage.get(`of:${id}`,true);
+          data=JSON.parse(stored.value);
+        }
+        entries.push({ofData:data,selectedUnitIds:group.unitIds.length?group.unitIds:null});
+      }
+      const blob=buildOperationalLabelsPdf({type:"kitting",entries,consommables});
+      const ofNumbers=[...grouped.values()].map(group=>group.row.of).filter(Boolean);
+      const suffix=ofNumbers.length===1?`OF ${ofNumbers[0]}`:`${ofNumbers.length} OF`;
+      downloadBrowserBlob(blob,fileSafeName(`Étiquettes kitting - ${suffix}`)+".pdf");
+    }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
+  };
   const columnFilter=(key,label)=>["status","unitStatus"].includes(key)?<MultiFilter value={filterStatus} onChange={v=>{setFilterStatus(v);setPage(0);}} label="Tous" title="Filtrer les statuts OF et SN/LOT" options={Object.entries(STATUTS).map(([value,s])=>({value,label:s.label}))}/>:key==="reprise"?<select aria-label="Filtrer Reprise" value={columnFilters.reprise||""} onChange={e=>{setColumnFilters(prev=>({...prev,reprise:e.target.value}));setPage(0);}} style={{width:"100%",background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:"5px 6px",fontSize:12}}><option value="">Tous</option><option>Oui</option><option>Non</option></select>:<input aria-label={`Filtrer ${label}`} placeholder="Filtrer…" value={columnFilters[key]||""}
     onChange={e=>{setColumnFilters(prev=>({...prev,[key]:e.target.value}));setPage(0);}}
     style={{width:"100%",minWidth:0,boxSizing:"border-box",padding:"5px 6px",fontSize:12,color:C.text,background:C.input,border:`1px solid ${C.border}`,borderRadius:4}}/>;
@@ -829,6 +852,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         <strong style={{color:C.blue,fontSize:12,minWidth:105}}>{selectedRows.length} sélectionnée{selectedRows.length>1?"s":""}</strong>
         <Btn onClick={()=>copyHomeRows(selectedRows,"selection")} color={copiedTeamsKey==="selection"?C.green:C.blue} small>{copiedTeamsKey==="selection"?"✓ Copié":"📋 Copier la sélection"}</Btn>
         <Btn onClick={()=>setShowBulkPdf(true)} color={C.blue} small>Imprimer les dossiers</Btn>
+        <Btn onClick={exportBulkKittingLabels} color={C.blue} small>Étiquettes kitting</Btn>
         <Btn onClick={exportBulkComponentSheets} color={C.blue} small>Feuilles composants</Btn>
         {isAdminManager(user)&&<>
           <Btn onClick={()=>setHomeMailKind("closure")} color={C.green} small>Clôture logistique</Btn>
