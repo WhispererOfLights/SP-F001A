@@ -367,14 +367,15 @@ const operationalLabelFacts = ({ofData,unit}) => {
     .filter(fact=>rowMatchesSn(fact,unit,units))
     .sort((a,b)=>String(a.date||a.createdDT||"").localeCompare(String(b.date||b.createdDT||"")));
 };
-const operationalLabelTypeAvailable = ({type,ofData,selectedUnitIds=null,consommables=[]}) => {
-  if(!["bonding","facts"].includes(type)) return true;
+const operationalLabelAvailability = ({type,ofData,selectedUnitIds=null,consommables=[]}) => {
   const units=operationalLabelUnits(ofData,selectedUnitIds);
-  if(!units.length) return false;
-  return units.every(unit=>type==="bonding"
+  if(!["bonding","facts"].includes(type)) return {available:true,count:units.length,total:units.length};
+  const count=units.filter(unit=>type==="bonding"
     ? !!operationalLabelPolymerization({ofData,unit,consommables})
-    : operationalLabelFacts({ofData,unit}).length>0);
+    : operationalLabelFacts({ofData,unit}).length>0).length;
+  return {available:count>0,count,total:units.length};
 };
+const operationalLabelTypeAvailable = args => operationalLabelAvailability(args).available;
 
 const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
   if(!OPERATIONAL_LABEL_TYPES.some(item=>item.id===type)) throw new Error("Type d'étiquette inconnu.");
@@ -436,7 +437,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
         pages.push(page({footer:"MISE EN STOCK",dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),13)}));
       }else if(type==="bonding"){
         const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
-        if(!polymerization) throw new Error(`Aucune durée de collage ou coating trouvée pour ${identity}.`);
+        if(!polymerization) return;
         const category=String(polymerization.consumable?.cat||"").toUpperCase();
         const title=category.includes("COAT")||category.includes("VERNIS")?"COATING":"COLLAGE";
         pages.push(page({dividerY:59,lines:[
@@ -447,7 +448,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
         ]}));
       }else if(type==="facts"){
         const facts=operationalLabelFacts({ofData,unit});
-        if(!facts.length) throw new Error(`Aucun suivi technique trouvé pour ${identity}.`);
+        if(!facts.length) return;
         for(let index=0;index<facts.length;index+=2){
           const chunk=facts.slice(index,index+2);
           pages.push(page({footer:"SUIVI TECHNIQUE",dividerY:59,lines:[
@@ -1065,7 +1066,8 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
   const [types,setTypes]=useState(["binder"]);
   const [selected,setSelected]=useState(()=>defaultSelectedIds?.length?defaultSelectedIds:snRows.map(unit=>unit.id));
   const toggle=id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
-  const available=id=>operationalLabelTypeAvailable({type:id,ofData,selectedUnitIds:selected,consommables});
+  const availability=id=>operationalLabelAvailability({type:id,ofData,selectedUnitIds:selected,consommables});
+  const available=id=>availability(id).available;
   const toggleType=id=>available(id)&&setTypes(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
   useEffect(()=>setTypes(current=>current.filter(available)),[selected.join("|"),ofData,consommables]);
   const canGenerate=types.length>0&&(!snRows.length||selected.length>0);
@@ -1075,9 +1077,10 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
         <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
-          {OPERATIONAL_LABEL_TYPES.map(item=>{const enabled=available(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
-            <input type="checkbox" checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
-            {item.label}
+          {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.available;const isConditional=["bonding","facts"].includes(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
+            <input type="checkbox" aria-label={item.label} checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
+            <span>{item.label}</span>
+            {isConditional&&status.total>0&&<span style={{marginLeft:"auto",fontSize:10,color:status.count===status.total?C.green:C.orange,fontWeight:700,whiteSpace:"nowrap"}}>{status.count} sur {status.total} disponible{status.count>1?"s":""}</span>}
           </label>})}
         </div>
       </fieldset>

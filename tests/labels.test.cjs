@@ -11,7 +11,7 @@ const vm = require('node:vm');
   };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../src/App.runtime.js'),'utf8')+
-    ';globalThis.labels=buildOperationalLabelsPdf;globalThis.labelAvailable=operationalLabelTypeAvailable;',context);
+    ';globalThis.labels=buildOperationalLabelsPdf;globalThis.labelAvailable=operationalLabelTypeAvailable;globalThis.labelAvailability=operationalLabelAvailability;',context);
 
   const units=[
     {id:'u1',sn:'SN001',unitKind:'sn'},
@@ -42,6 +42,9 @@ const vm = require('node:vm');
   assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u2'],consommables}),false);
   assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u1'],consommables}),true);
   assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u2'],consommables}),false);
+  assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u1','u2'],consommables}),true);
+  assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u1','u2'],consommables}),true);
+  assert.deepEqual({...context.labelAvailability({type:'facts',ofData,selectedUnitIds:['u1','u2'],consommables})},{available:true,count:1,total:2});
 
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
   const kittingBlob=context.labels({type:'kitting',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
@@ -61,7 +64,7 @@ const vm = require('node:vm');
     fs.writeFileSync(path.join(__dirname,`artifacts/${type}-label.pdf`),Buffer.from(await blob.arrayBuffer()));
   }
 
-  const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
+  const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
   const bonding=await bondingBlob.text();
   assert.ok(bonding.includes('(COATING)'));
   for(const expected of ['250001153','Module test','SN001','OF 16000001 - OTP 7400-TEST']) assert.ok(bonding.includes(expected),`bonding: ${expected}`);
@@ -71,7 +74,7 @@ const vm = require('node:vm');
   assert.ok(!bonding.includes('Dur\\351e'));
   fs.writeFileSync(path.join(__dirname,'artifacts/bonding-label.pdf'),Buffer.from(await bondingBlob.arrayBuffer()));
 
-  const factsBlob=context.labels({type:'facts',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
+  const factsBlob=context.labels({type:'facts',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
   const facts=await factsBlob.text();
   assert.ok(facts.includes('/Count 2'));
   assert.ok(facts.includes('OF 16000001 - OTP 7400-TEST'));

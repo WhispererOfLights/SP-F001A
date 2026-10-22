@@ -2374,17 +2374,20 @@ var operationalLabelFacts = function operationalLabelFacts(_ref32) {
     return String(a.date || a.createdDT || "").localeCompare(String(b.date || b.createdDT || ""));
   });
 };
-var operationalLabelTypeAvailable = function operationalLabelTypeAvailable(_ref33) {
+var operationalLabelAvailability = function operationalLabelAvailability(_ref33) {
   var type = _ref33.type,
     ofData = _ref33.ofData,
     _ref33$selectedUnitId = _ref33.selectedUnitIds,
     selectedUnitIds = _ref33$selectedUnitId === void 0 ? null : _ref33$selectedUnitId,
     _ref33$consommables = _ref33.consommables,
     consommables = _ref33$consommables === void 0 ? [] : _ref33$consommables;
-  if (!["bonding", "facts"].includes(type)) return true;
   var units = operationalLabelUnits(ofData, selectedUnitIds);
-  if (!units.length) return false;
-  return units.every(function (unit) {
+  if (!["bonding", "facts"].includes(type)) return {
+    available: true,
+    count: units.length,
+    total: units.length
+  };
+  var count = units.filter(function (unit) {
     return type === "bonding" ? !!operationalLabelPolymerization({
       ofData: ofData,
       unit: unit,
@@ -2393,7 +2396,15 @@ var operationalLabelTypeAvailable = function operationalLabelTypeAvailable(_ref3
       ofData: ofData,
       unit: unit
     }).length > 0;
-  });
+  }).length;
+  return {
+    available: count > 0,
+    count: count,
+    total: units.length
+  };
+};
+var operationalLabelTypeAvailable = function operationalLabelTypeAvailable(args) {
+  return operationalLabelAvailability(args).available;
 };
 var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref34) {
   var type = _ref34.type,
@@ -2524,7 +2535,7 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref34) {
           unit: unit,
           consommables: consommables
         });
-        if (!polymerization) throw new Error("Aucune dur\xE9e de collage ou coating trouv\xE9e pour ".concat(identity, "."));
+        if (!polymerization) return;
         var category = String(((_polymerization$consu = polymerization.consumable) === null || _polymerization$consu === void 0 ? void 0 : _polymerization$consu.cat) || "").toUpperCase();
         var title = category.includes("COAT") || category.includes("VERNIS") ? "COATING" : "COLLAGE";
         pages.push(page({
@@ -2552,7 +2563,7 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref34) {
           ofData: ofData,
           unit: unit
         });
-        if (!facts.length) throw new Error("Aucun suivi technique trouv\xE9 pour ".concat(identity, "."));
+        if (!facts.length) return;
         for (var index = 0; index < facts.length; index += 2) {
           var chunk = facts.slice(index, index + 2);
           pages.push(page({
@@ -3653,13 +3664,16 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       }) : [].concat(_toConsumableArray(current), [id]);
     });
   };
-  var available = function available(id) {
-    return operationalLabelTypeAvailable({
+  var availability = function availability(id) {
+    return operationalLabelAvailability({
       type: id,
       ofData: ofData,
       selectedUnitIds: selected,
       consommables: consommables
     });
+  };
+  var available = function available(id) {
+    return availability(id).available;
   };
   var toggleType = function toggleType(id) {
     return available(id) && setTypes(function (current) {
@@ -3727,7 +3741,9 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       gap: 8
     }
   }, OPERATIONAL_LABEL_TYPES.map(function (item) {
-    var enabled = available(item.id);
+    var status = availability(item.id);
+    var enabled = status.available;
+    var isConditional = ["bonding", "facts"].includes(item.id);
     return /*#__PURE__*/React.createElement("label", {
       key: item.id,
       title: enabled ? "" : item.id === "bonding" ? "Aucun collage ou coating disponible pour la sélection" : "Aucun suivi technique disponible pour la sélection",
@@ -3746,6 +3762,7 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       }
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
+      "aria-label": item.label,
       checked: types.includes(item.id),
       disabled: !enabled,
       onChange: function onChange() {
@@ -3754,7 +3771,15 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       style: {
         accentColor: C.blue
       }
-    }), item.label);
+    }), /*#__PURE__*/React.createElement("span", null, item.label), isConditional && status.total > 0 && /*#__PURE__*/React.createElement("span", {
+      style: {
+        marginLeft: "auto",
+        fontSize: 10,
+        color: status.count === status.total ? C.green : C.orange,
+        fontWeight: 700,
+        whiteSpace: "nowrap"
+      }
+    }, status.count, " sur ", status.total, " disponible", status.count > 1 ? "s" : ""));
   }))), snRows.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
