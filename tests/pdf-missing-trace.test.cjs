@@ -21,11 +21,16 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   for(const label of ['(OTP)','(Article)','(SN ou LOT)']) assert.ok(raw.includes(label),`PDF header includes ${label}`);
   assert.ok(raw.includes('(N\\260 OF)'),'PDF header includes N° OF');
   assert.ok(raw.includes('(Qt\\351)'),'PDF header includes Qté');
+  assert.ok(/\/F2 7 Tf [^\n]+\(OTP\)/.test(raw),'PDF metadata labels use a readable font size');
+  assert.ok(raw.includes('(Synth\\350se des points ouverts)'),'A dedicated summary cover is generated');
+  assert.ok(raw.indexOf('(Synth\\350se des points ouverts)')<raw.indexOf('(Adjust / Rework)'),'The summary cover comes before report sections');
   assert.ok(!raw.includes('Tracabilite a completer - LOT / DC manquants'),'Missing LOT/DC is shown by red cells without a duplicate warning block');
   for(const id of ['BOTH','DC_ONLY','LOT_ONLY','POINTED']) assert.ok(raw.includes(id));
   assert.ok(!raw.includes('OTHER_SN'));
   const fills=raw.split("0.99 0.91 0.91 rg").length-1;
   assert.ok(fills>=6,'Missing LOT/DC cells on applicable live rows get red fills');
+  assert.ok(raw.includes('(MANQUANT)'),'Required empty LOT/DC cells are explicitly labelled as missing');
+  assert.ok(/\/F2 6\.1 Tf 0\.95 0\.56 0\.00 rg[^\n]+\(N\/A\)/.test(raw),'N/A LOT/DC cells are highlighted in yellow');
   assert.ok(/\/F2 6\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(0101\)/.test(raw),'Expired DC remains red and bold');
   const complete=await build([row('COMPLETE','S','0000020516','N/A')]).text();
   assert.ok(!complete.includes('LOT / DC manquants'));
@@ -65,5 +70,5 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
     assert.ok(Number(match[2])>=0,'Warnings and cells must stay within the page');
   const folder=path.join(__dirname,'artifacts');fs.mkdirSync(folder,{recursive:true});
   fs.writeFileSync(path.join(folder,'rework-missing-trace.pdf'),Buffer.from(await blob.arrayBuffer()));
-  console.log('PDF: missing LOT/DC warnings, red cells, scope/cancellation, expired DC and pagination OK');
+  console.log('PDF: summary cover, readable header, yellow N/A, warnings, scope and pagination OK');
 })().catch(error=>{console.error(error);process.exitCode=1;});

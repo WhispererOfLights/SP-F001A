@@ -2938,14 +2938,14 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       var cw = usable * m.weight / totalWeight;
       var contentWidth = cw - 8;
       if (m.align === "right") {
-        wrappedRight(m.label, metaX, lineY - 10, contentWidth, 5.4, 1, color.muted, true);
-        wrappedRight(m.value, metaX, lineY - 23, contentWidth, 9.2, 2, color.ink, true);
+        wrappedRight(m.label, metaX, lineY - 10, contentWidth, 7, 1, color.muted, true);
+        wrappedRight(m.value, metaX, lineY - 24, contentWidth, 10.5, 2, color.ink, true);
       } else if (m.align === "center") {
-        wrappedCenter(m.label, metaX, lineY - 10, contentWidth, 5.4, 1, color.muted, true);
-        wrappedCenter(m.value, metaX, lineY - 23, contentWidth, 9.2, 2, color.ink, true);
+        wrappedCenter(m.label, metaX, lineY - 10, contentWidth, 7, 1, color.muted, true);
+        wrappedCenter(m.value, metaX, lineY - 24, contentWidth, 10.5, 2, color.ink, true);
       } else {
-        wrapped(m.label, metaX, lineY - 10, contentWidth, 5.4, 1, color.muted, true);
-        wrapped(m.value, metaX, lineY - 23, contentWidth, 9.2, 2, color.ink, true);
+        wrapped(m.label, metaX, lineY - 10, contentWidth, 7, 1, color.muted, true);
+        wrapped(m.value, metaX, lineY - 24, contentWidth, 10.5, 2, color.ink, true);
       }
       metaX += cw;
     });
@@ -3073,14 +3073,12 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       }
     });
   };
-  var drawUnitSummary = function drawUnitSummary() {};
   var section = function section(title, headers, rows, widths, unit) {
     if (!includeSection(title)) return;
     if (skipEmptyReports && !rows.length) return;
     page = newPage();
     var displayTitle = unit && unit.id !== "of-global" ? "".concat(unitLabel(unit), " - ").concat(title) : title;
     headerBlock(displayTitle, unit, displayTitle);
-    drawUnitSummary(unit, displayTitle);
     var body = rows.length ? rows : [headers.map(function (_, i) {
       return i === 0 ? "Aucune ligne" : "";
     })];
@@ -3122,7 +3120,6 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
   var consoById = Object.fromEntries(((lists === null || lists === void 0 ? void 0 : lists.consommables) || []).map(function (c) {
     return [c.id, c];
   }));
-  var summarizedUnits = new Set();
   var unitRows = function unitRows(rows, unit) {
     return (rows || []).filter(function (row) {
       return !(row !== null && row !== void 0 && row.deleted) && unitMatches(row, unit) && rowInSelectedSn(row);
@@ -3220,13 +3217,33 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       open: open
     };
   };
-  drawUnitSummary = function drawUnitSummary(unit, sectionTitle) {
-    var key = (unit === null || unit === void 0 ? void 0 : unit.id) || "of-global";
-    if (summarizedUnits.has(key)) return;
-    summarizedUnits.add(key);
-    var summary = unitSummary(unit);
-    warningBlock("ALERTES", summary.alerts, "red", sectionTitle, unit);
-    warningBlock("POINTS OUVERTS", summary.open, "yellow", sectionTitle, unit);
+  var drawSummaryCover = function drawSummaryCover() {
+    var summary = selectedUnits.reduce(function (result, unit) {
+      var current = unitSummary(unit);
+      var prefix = unit !== null && unit !== void 0 && unit.id && unit.id !== "of-global" ? "".concat(unitLabel(unit), " - ") : "";
+      current.alerts.forEach(function (item) {
+        return result.alerts.push("".concat(prefix).concat(item));
+      });
+      current.open.forEach(function (item) {
+        return result.open.push("".concat(prefix).concat(item));
+      });
+      return result;
+    }, {
+      alerts: [],
+      open: []
+    });
+    var sectionTitle = "Synthèse";
+    page = newPage();
+    headerBlock("Synthèse des points ouverts", null, sectionTitle);
+    if (!summary.alerts.length && !summary.open.length) {
+      var _h2 = 27;
+      rect(M, page.y - _h2, usable, _h2, "0.91 0.97 0.92", color.green);
+      text("Aucun point ouvert ni alerte détecté.", M + 8, page.y - 17, 7.2, true, color.green);
+      page.y -= _h2 + 8;
+      return;
+    }
+    warningBlock("ALERTES", summary.alerts, "red", sectionTitle, null);
+    warningBlock("POINTS OUVERTS", summary.open, "yellow", sectionTitle, null);
   };
   var rowPdf = function rowPdf(cells, row) {
     var extraTrace = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "";
@@ -3245,6 +3262,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       comments: [].concat(_toConsumableArray(commentsForPdf(row)), _toConsumableArray(extraComments.filter(Boolean)))
     });
   };
+  drawSummaryCover();
   selectedUnits.forEach(function (unit) {
     var _ofData5, _ofData6, _ofData7, _ofData8, _ofData9, _ofData0, _ofData1;
     var inUnit = function inUnit(row) {
@@ -3339,7 +3357,13 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       var repere = quantity && Number(quantity) !== 1 ? "".concat(quantity, "x ").concat(pdfValue(r.repere)) : pdfValue(r.repere);
       var controlRequired = ["S", "R"].includes(r.action1);
       var controlVisa = r.visaCtrl || (controlRequired ? "Contrôle à faire" : "N/A");
-      var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), r.action1 === "O" ? "N/A" : pdfValue(r.lot), r.action1 === "O" ? "N/A" : pdfValue(r.dc), r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r);
+      var missingTrace = !r.deleted ? missingReworkTrace(r, true) : [];
+      var tracePdfValue = function tracePdfValue(value, field) {
+        return String(value || "").trim() ? value : missingTrace.includes(field) ? "MANQUANT" : "N/A";
+      };
+      var lotPdf = r.action1 === "O" ? "N/A" : tracePdfValue(r.lot, "LOT");
+      var dcPdf = r.action1 === "O" ? "N/A" : tracePdfValue(r.dc, "DC");
+      var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), lotPdf, dcPdf, r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(r.fiche), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r);
       var remark = String(r.remarques || "").trim() ? [{
         text: "".concat(r.action1 === "O" ? "Observation" : "Remarque", " : ").concat(r.remarques),
         maxLines: 18,
@@ -3357,13 +3381,25 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
             color: color.red,
             bold: true
           }
-        } : {}), !r.deleted && missingReworkTrace(r, true).includes("LOT") ? {
+        } : {}), !r.deleted && r.action1 !== "O" && !missingTrace.includes("LOT") && lotPdf === "N/A" ? {
+          5: {
+            fill: "1.00 0.96 0.84",
+            color: color.warn,
+            bold: true
+          }
+        } : !r.deleted && missingTrace.includes("LOT") ? {
           5: {
             fill: "0.99 0.91 0.91",
             color: color.red,
             bold: true
           }
-        } : {}), !r.deleted && missingReworkTrace(r, true).includes("DC") ? {
+        } : {}), !r.deleted && r.action1 !== "O" && !missingTrace.includes("DC") && dcPdf === "N/A" ? {
+          6: {
+            fill: "1.00 0.96 0.84",
+            color: color.warn,
+            bold: true
+          }
+        } : !r.deleted && missingTrace.includes("DC") ? {
           6: {
             fill: "0.99 0.91 0.91",
             color: color.red,
@@ -3383,7 +3419,6 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       var displayTitle = unit && unit.id !== "of-global" ? "".concat(unitLabel(unit), " - ").concat(title) : title;
       page = newPage();
       headerBlock(displayTitle, unit, displayTitle);
-      drawUnitSummary(unit, displayTitle);
       if (warningRows.length) {
         text("Points à vérifier", M, page.y - 1, 7.2, true, color.red);
         page.y -= 10;

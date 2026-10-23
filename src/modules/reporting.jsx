@@ -646,14 +646,14 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const cw=usable*m.weight/totalWeight;
       const contentWidth=cw-8;
       if(m.align==="right"){
-        wrappedRight(m.label,metaX,lineY-10,contentWidth,5.4,1,color.muted,true);
-        wrappedRight(m.value,metaX,lineY-23,contentWidth,9.2,2,color.ink,true);
+        wrappedRight(m.label,metaX,lineY-10,contentWidth,7,1,color.muted,true);
+        wrappedRight(m.value,metaX,lineY-24,contentWidth,10.5,2,color.ink,true);
       }else if(m.align==="center"){
-        wrappedCenter(m.label,metaX,lineY-10,contentWidth,5.4,1,color.muted,true);
-        wrappedCenter(m.value,metaX,lineY-23,contentWidth,9.2,2,color.ink,true);
+        wrappedCenter(m.label,metaX,lineY-10,contentWidth,7,1,color.muted,true);
+        wrappedCenter(m.value,metaX,lineY-24,contentWidth,10.5,2,color.ink,true);
       }else{
-        wrapped(m.label,metaX,lineY-10,contentWidth,5.4,1,color.muted,true);
-        wrapped(m.value,metaX,lineY-23,contentWidth,9.2,2,color.ink,true);
+        wrapped(m.label,metaX,lineY-10,contentWidth,7,1,color.muted,true);
+        wrapped(m.value,metaX,lineY-24,contentWidth,10.5,2,color.ink,true);
       }
       metaX+=cw;
     });
@@ -731,14 +731,12 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       }
     });
   };
-  let drawUnitSummary=()=>{};
   const section=(title,headers,rows,widths,unit)=> {
     if(!includeSection(title)) return;
     if(skipEmptyReports&&!rows.length) return;
     page=newPage();
     const displayTitle=unit&&unit.id!=="of-global" ? `${unitLabel(unit)} - ${title}` : title;
     headerBlock(displayTitle,unit,displayTitle);
-    drawUnitSummary(unit,displayTitle);
     const body=rows.length?rows:[headers.map((_,i)=>i===0?"Aucune ligne":"")];
     table(headers,body,widths,displayTitle,unit);
   };
@@ -769,7 +767,6 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
   };
 
   const consoById=Object.fromEntries((lists?.consommables||[]).map(c=>[c.id,c]));
-  const summarizedUnits=new Set();
   const unitRows=(rows,unit)=>(rows||[]).filter(row=>!row?.deleted&&unitMatches(row,unit)&&rowInSelectedSn(row));
   const compactItems=(label,items,max=5)=>{
     const values=[...new Set(items.map(value=>String(value||"").trim()).filter(Boolean))];
@@ -837,13 +834,26 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     ].filter(Boolean).forEach(item=>open.push(item));
     return {alerts,open};
   };
-  drawUnitSummary=(unit,sectionTitle)=>{
-    const key=unit?.id||"of-global";
-    if(summarizedUnits.has(key)) return;
-    summarizedUnits.add(key);
-    const summary=unitSummary(unit);
-    warningBlock("ALERTES",summary.alerts,"red",sectionTitle,unit);
-    warningBlock("POINTS OUVERTS",summary.open,"yellow",sectionTitle,unit);
+  const drawSummaryCover=()=>{
+    const summary=selectedUnits.reduce((result,unit)=>{
+      const current=unitSummary(unit);
+      const prefix=unit?.id&&unit.id!=="of-global"?`${unitLabel(unit)} - `:"";
+      current.alerts.forEach(item=>result.alerts.push(`${prefix}${item}`));
+      current.open.forEach(item=>result.open.push(`${prefix}${item}`));
+      return result;
+    },{alerts:[],open:[]});
+    const sectionTitle="Synthèse";
+    page=newPage();
+    headerBlock("Synthèse des points ouverts",null,sectionTitle);
+    if(!summary.alerts.length&&!summary.open.length){
+      const h=27;
+      rect(M,page.y-h,usable,h,"0.91 0.97 0.92",color.green);
+      text("Aucun point ouvert ni alerte détecté.",M+8,page.y-17,7.2,true,color.green);
+      page.y-=h+8;
+      return;
+    }
+    warningBlock("ALERTES",summary.alerts,"red",sectionTitle,null);
+    warningBlock("POINTS OUVERTS",summary.open,"yellow",sectionTitle,null);
   };
   const rowPdf=(cells,row,extraTrace="")=>({
     cells,
@@ -858,6 +868,8 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     ...rowPdf(cells,row,extraTrace),
     comments:[...commentsForPdf(row),...extraComments.filter(Boolean)]
   });
+
+  drawSummaryCover();
 
   selectedUnits.forEach(unit=>{
     const inUnit = row => unitMatches(row,unit) && rowInSelectedSn(row) && (includeDeleted || !row?.deleted);
@@ -894,15 +906,27 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const repere=quantity&&Number(quantity)!==1?`${quantity}x ${pdfValue(r.repere)}`:pdfValue(r.repere);
         const controlRequired=["S","R"].includes(r.action1);
         const controlVisa=r.visaCtrl|| (controlRequired?"Contrôle à faire":"N/A");
-        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),r.action1==="O"?"N/A":pdfValue(r.lot),r.action1==="O"?"N/A":pdfValue(r.dc),r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
+        const missingTrace=!r.deleted?missingReworkTrace(r,true):[];
+        const tracePdfValue=(value,field)=>String(value||"").trim()?value:missingTrace.includes(field)?"MANQUANT":"N/A";
+        const lotPdf=r.action1==="O"?"N/A":tracePdfValue(r.lot,"LOT");
+        const dcPdf=r.action1==="O"?"N/A":tracePdfValue(r.dc,"DC");
+        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
         const remark=String(r.remarques||"").trim()
           ? [{text:`${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
           : [];
         return {...base,comments:[...remark,...base.comments],
         cellStyles:{
           ...(hdArticles.some(hd=>hd.id===r.id)?{6:{color:color.red,bold:true}}:{}),
-          ...(!r.deleted&&missingReworkTrace(r,true).includes("LOT")?{5:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),
-          ...(!r.deleted&&missingReworkTrace(r,true).includes("DC")?{6:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),
+          ...(!r.deleted&&r.action1!=="O"&&!missingTrace.includes("LOT")&&lotPdf==="N/A"
+            ? {5:{fill:"1.00 0.96 0.84",color:color.warn,bold:true}}
+            : !r.deleted&&missingTrace.includes("LOT")
+              ? {5:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}
+              : {}),
+          ...(!r.deleted&&r.action1!=="O"&&!missingTrace.includes("DC")&&dcPdf==="N/A"
+            ? {6:{fill:"1.00 0.96 0.84",color:color.warn,bold:true}}
+            : !r.deleted&&missingTrace.includes("DC")
+              ? {6:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}
+              : {}),
           ...(controlRequired&&!r.visaCtrl?{12:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{})
         }};
       });
@@ -911,7 +935,6 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const displayTitle=unit&&unit.id!=="of-global" ? `${unitLabel(unit)} - ${title}` : title;
       page=newPage();
       headerBlock(displayTitle,unit,displayTitle);
-      drawUnitSummary(unit,displayTitle);
       if(warningRows.length){
         text("Points à vérifier",M,page.y-1,7.2,true,color.red);
         page.y-=10;
