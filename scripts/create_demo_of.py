@@ -1,4 +1,4 @@
-"""Create a complete, clearly isolated demonstration work order.
+r"""Create a complete, clearly isolated demonstration work order.
 
 The database connection is read from the standard PG* environment variables.
 Run this script only after loading C:\ProgramData\SP-F001A\server.env.

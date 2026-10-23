@@ -731,12 +731,14 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       }
     });
   };
+  let drawUnitSummary=()=>{};
   const section=(title,headers,rows,widths,unit)=> {
     if(!includeSection(title)) return;
     if(skipEmptyReports&&!rows.length) return;
     page=newPage();
     const displayTitle=unit&&unit.id!=="of-global" ? `${unitLabel(unit)} - ${title}` : title;
     headerBlock(displayTitle,unit,displayTitle);
+    drawUnitSummary(unit,displayTitle);
     const body=rows.length?rows:[headers.map((_,i)=>i===0?"Aucune ligne":"")];
     table(headers,body,widths,displayTitle,unit);
   };
@@ -767,6 +769,82 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
   };
 
   const consoById=Object.fromEntries((lists?.consommables||[]).map(c=>[c.id,c]));
+  const summarizedUnits=new Set();
+  const unitRows=(rows,unit)=>(rows||[]).filter(row=>!row?.deleted&&unitMatches(row,unit)&&rowInSelectedSn(row));
+  const compactItems=(label,items,max=5)=>{
+    const values=[...new Set(items.map(value=>String(value||"").trim()).filter(Boolean))];
+    if(!values.length) return "";
+    const shown=values.slice(0,max);
+    return `${label} : ${shown.join(", ")}${values.length>shown.length?` (+${values.length-shown.length})`:""}`;
+  };
+  const unitSummary=unit=>{
+    const alerts=[];
+    const open=[];
+    const reworkRows=unitRows(ofData?.rework?.rows,unit);
+    const reworkWarnings=computeReworkWarnings(reworkRows);
+    const openDesoldered=computeOpenDesoudes(reworkRows);
+    const missingControls=reworkRows.filter(row=>row.validated&&["S","R"].includes(row.action1)&&!row.visaCtrl);
+    const missingTrace=reworkRows.filter(row=>row.validated&&missingReworkTrace(row,true).length);
+    const expiredCodes=reworkRows.filter(row=>{
+      const dc=dcCheck(row.dc,row.createdDT);
+      return row.validated&&["S","P","M"].includes(row.action1)&&dc?.max!==undefined&&!dc.ok;
+    });
+    [
+      compactItems("Contrôles manquants",missingControls.map(row=>row.repere||"repère ?")),
+      compactItems("Traçabilité LOT/DC incomplète",missingTrace.map(row=>row.repere||"repère ?")),
+      compactItems("Dates code hors validité",expiredCodes.map(row=>row.repere||"repère ?")),
+    ].filter(Boolean).forEach(item=>alerts.push(item));
+    [
+      compactItems("Composants dessoudés sans remontage",openDesoldered.map(row=>row.repere||"repère ?")),
+      compactItems("Composants pointés à souder",reworkWarnings.pointed.map(item=>item.repere||item.row?.repere||"repère ?")),
+    ].filter(Boolean).forEach(item=>open.push(item));
+
+    const consumableIssues=[];
+    const consumableSoon=[];
+    unitRows(ofData?.consommables?.ops,unit).forEach(op=>(op.items||[]).filter(item=>!item.deleted).forEach(item=>{
+      const consumable=consoById[item.consoId]||{};
+      const name=compactArticleCode(consumable.sap||consumable.code||item.consoId)||"consommable ?";
+      const status=dpStatus(item.dp,item.createdDT||op.createdDT);
+      if(item.dp&&!isValidDMY(item.dp)) consumableIssues.push(`${name} date invalide`);
+      else if(status?.label==="PÉRIMÉ") consumableIssues.push(`${name} périmé`);
+      else if(status?.label==="BIENTÔT") consumableSoon.push(`${name} bientôt périmé`);
+    }));
+    const expiredEquipment=[];
+    const equipmentSoon=[];
+    unitRows(effectiveScopedRows(ofData,"testequip"),unit).forEach(row=>{
+      const status=calibStatus(row.dateExpiration);
+      const name=row.nInv||row.designation||"appareil ?";
+      if(status?.label==="HORS CALIBRATION") expiredEquipment.push(name);
+      else if(status?.label==="EXPIRE BIENTÔT") equipmentSoon.push(name);
+    });
+    [
+      compactItems("Consommables périmés ou invalides",consumableIssues),
+      compactItems("Appareils hors calibration",expiredEquipment),
+    ].filter(Boolean).forEach(item=>alerts.push(item));
+    [
+      compactItems("Consommables bientôt périmés",consumableSoon),
+      compactItems("Calibrations bientôt expirées",equipmentSoon),
+    ].filter(Boolean).forEach(item=>open.push(item));
+
+    const facts=unitRows(effectiveScopedRows(ofData,"faits"),unit).filter(row=>!row.closedDate);
+    const ovens=unitRows(effectiveScopedRows(ofData,"etuvage"),unit);
+    const runningOvens=ovens.filter(row=>row.entreeDT&&!row.sortieDT);
+    const incompleteOvens=ovens.filter(row=>!row.validated&&ovenRequiredMissing(row).length);
+    [
+      compactItems("Suivis techniques ouverts",facts.map(row=>technicalFollowUpLabel(row))),
+      compactItems("Étuvages en cours",runningOvens.map(row=>row.fourN||row.entreeDT||"étuvage")),
+      compactItems("Étuvages incomplets",incompleteOvens.map(row=>ovenRequiredMissing(row).join(" / "))),
+    ].filter(Boolean).forEach(item=>open.push(item));
+    return {alerts,open};
+  };
+  drawUnitSummary=(unit,sectionTitle)=>{
+    const key=unit?.id||"of-global";
+    if(summarizedUnits.has(key)) return;
+    summarizedUnits.add(key);
+    const summary=unitSummary(unit);
+    warningBlock("ALERTES",summary.alerts,"red",sectionTitle,unit);
+    warningBlock("POINTS OUVERTS",summary.open,"yellow",sectionTitle,unit);
+  };
   const rowPdf=(cells,row,extraTrace="")=>({
     cells,
     deleted:!!row?.deleted,
@@ -833,6 +911,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const displayTitle=unit&&unit.id!=="of-global" ? `${unitLabel(unit)} - ${title}` : title;
       page=newPage();
       headerBlock(displayTitle,unit,displayTitle);
+      drawUnitSummary(unit,displayTitle);
       if(warningRows.length){
         text("Points à vérifier",M,page.y-1,7.2,true,color.red);
         page.y-=10;
@@ -875,7 +954,14 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     const testEquipRows=(ofData?.testequip?.rows||[])
       .filter(inUnit)
       .sort((a,b)=>(isFourEquip(b)?1:0)-(isFourEquip(a)?1:0))
-      .map(r=>rowPdf([r.createdDT,r.createdVisa,isFourEquip(r)?"FOUR":"-",r.nInv,r.type,r.designation,r.dateExpiration,r.checkDate],r));
+      .map(r=>{
+        const status=calibStatus(r.dateExpiration);
+        const row=rowPdf([r.createdDT,r.createdVisa,isFourEquip(r)?"FOUR":"-",r.nInv,r.type,r.designation,r.dateExpiration,r.checkDate],r);
+        return {...row,cellStyles:{
+          ...(status?.label==="HORS CALIBRATION"?{6:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),
+          ...(status?.label==="EXPIRE BIENTÔT"?{6:{fill:"0.99 0.96 0.84",color:color.warn,bold:true}}:{})
+        }};
+      });
     section("Test Equip.",["Date","Visa","Four","N INV","Type","Designation","Date calib","Ctrl"],testEquipRows,[23,13,18,30,26,79,25,24],unit);
 
     section("Suivi technique",["Date","Visa","Type","Numero","Date ouv.","Description"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.commentaires],r,commentsForPdf(r))),[25,15,20,36,28,145],unit);
@@ -892,12 +978,12 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const lastText=last.action ? `${last.action} ${last.dt||"-"} ${last.visa||"-"}` : "Aucune action";
       const tone=connectorStateTone(last.action);
       const group={fullText:`${c.nConect||"Connecteur ?"} - Etat actuel : ${state} - Derniere action : ${lastText} - ${cycles.length} cycle${cycles.length>1?"s":""}`,fill:tone.fill,stroke:tone.stroke,color:tone.text};
-      if(!cycles.length) return [group,rowPdf(["","0","-","-","-","-"],c)];
+      if(!cycles.length) return [group,rowPdf([c.nConect||"-","0","-","-","-","-"],c)];
       const sortedCycles=cycles
         .map((cy,i)=>({cy,n:i+1}))
         .sort((a,b)=>String(cycleLastDt(b.cy)).localeCompare(String(cycleLastDt(a.cy))) || b.n-a.n);
       return [group,...sortedCycles.map(({cy,n})=>rowPdf([
-        "",
+        c.nConect||"-",
         String(n),
         cy.mat?.dt||"-",
         cy.mat?.visa||"-",
@@ -905,7 +991,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         cy.dem?.visa||"-"
       ],c))];
     });
-    section("Mating / Demating",["","Cycle","Mating date","Visa M","Demating date","Visa D"],demRows,[8,14,44,18,44,18],unit);
+    section("Mating / Demating",["Connecteur","Cycle","Mating date","Visa M","Demating date","Visa D"],demRows,[22,14,44,18,44,18],unit);
 
   });
 

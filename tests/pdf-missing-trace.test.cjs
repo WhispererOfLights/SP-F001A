@@ -34,6 +34,7 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
       {id:'expired',createdDT:'18/09/2026 08:01',createdVisa:'JGR',consoId:'c1',lot:'0000020516',dp:'17.09.26',validated:true}
     ]}]}},lists:{consommables:[{id:'c1',sap:'1600000046',label:'Consommable test'}]},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['consommables']}).text();
   assert.ok(/0\.99 0\.91 0\.91 rg/.test(consoPdf),'Expired consumable DP cell is highlighted in red');
+  assert.ok(consoPdf.includes('(ALERTES)')&&consoPdf.includes('Consommables p'),'Expired consumable appears in the summary');
   const factsPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},faits:{rows:[{id:'fact1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',type:'NC',numero:'NC-123',date:'18/09/2026',lien:'REF',commentaires:'Fait visible',closedDate:'31/12/2099',closedVisa:'CLOSEV',snIds:['u1']}]}},
     lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['faits']}).text();
@@ -44,6 +45,21 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
     lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['etuvage']}).text();
   assert.ok(ovenPdf.includes('(Dur\\351e [h])'),'Oven duration header includes hours');
   assert.ok(ovenPdf.includes('(Temp\\351rature [\\260C])'),'Oven temperature header includes degrees Celsius');
+  const equipmentPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
+    units:{rows:units},testequip:{rows:[
+      {id:'expired-equipment',createdDT:'18/09/2026 08:00',createdVisa:'JGR',nInv:'INV-HS',type:'Multimetre',designation:'Hors calibration',dateExpiration:'2025-06',checkDate:'18/09/2026',snIds:['u1']},
+      {id:'other-equipment',createdDT:'18/09/2026 08:00',createdVisa:'JGR',nInv:'INV-OTHER',type:'Multimetre',designation:'Autre SN',dateExpiration:'2025-06',checkDate:'18/09/2026',snIds:['u2']},
+    ]}},lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['testequip']}).text();
+  assert.ok(equipmentPdf.includes('(ALERTES)')&&equipmentPdf.includes('Appareils hors calibration'),'Expired equipment appears in the summary');
+  assert.ok(equipmentPdf.includes('INV-HS')&&!equipmentPdf.includes('INV-OTHER'),'Summary and table respect the selected SN');
+  assert.ok(/\/F2 6\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(2025-06\)/.test(equipmentPdf),'Expired calibration date is red and bold');
+  const matingPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
+    units:{rows:units},demating:{connectors:[{id:'j3',nConect:'J3',snIds:['u1'],events:[
+      {id:'d1',action:'Demating',dt:'18/09/2026 08:00',visa:'JGR'},
+      {id:'m1',action:'Mating',dt:'18/09/2026 09:00',visa:'JGR'},
+    ]}]}},lists:{},exportedAt:'18/09/2026 09:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['demating']}).text();
+  assert.ok(matingPdf.includes('(Connecteur)'),'Mating table names its first column');
+  assert.ok((matingPdf.match(/\(J3\)/g)||[]).length>=1,'Connector name appears in the cycle row');
   const many=await build(Array.from({length:100},(_,i)=>row('R'+i,'S','',''))).text();
   for(const match of many.matchAll(/ ([\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+) re B/g))
     assert.ok(Number(match[2])>=0,'Warnings and cells must stay within the page');

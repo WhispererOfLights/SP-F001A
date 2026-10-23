@@ -3073,12 +3073,14 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       }
     });
   };
+  var drawUnitSummary = function drawUnitSummary() {};
   var section = function section(title, headers, rows, widths, unit) {
     if (!includeSection(title)) return;
     if (skipEmptyReports && !rows.length) return;
     page = newPage();
     var displayTitle = unit && unit.id !== "of-global" ? "".concat(unitLabel(unit), " - ").concat(title) : title;
     headerBlock(displayTitle, unit, displayTitle);
+    drawUnitSummary(unit, displayTitle);
     var body = rows.length ? rows : [headers.map(function (_, i) {
       return i === 0 ? "Aucune ligne" : "";
     })];
@@ -3120,6 +3122,112 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
   var consoById = Object.fromEntries(((lists === null || lists === void 0 ? void 0 : lists.consommables) || []).map(function (c) {
     return [c.id, c];
   }));
+  var summarizedUnits = new Set();
+  var unitRows = function unitRows(rows, unit) {
+    return (rows || []).filter(function (row) {
+      return !(row !== null && row !== void 0 && row.deleted) && unitMatches(row, unit) && rowInSelectedSn(row);
+    });
+  };
+  var compactItems = function compactItems(label, items) {
+    var max = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 5;
+    var values = _toConsumableArray(new Set(items.map(function (value) {
+      return String(value || "").trim();
+    }).filter(Boolean)));
+    if (!values.length) return "";
+    var shown = values.slice(0, max);
+    return "".concat(label, " : ").concat(shown.join(", ")).concat(values.length > shown.length ? " (+".concat(values.length - shown.length, ")") : "");
+  };
+  var unitSummary = function unitSummary(unit) {
+    var _ofData3, _ofData4;
+    var alerts = [];
+    var open = [];
+    var reworkRows = unitRows((_ofData3 = ofData) === null || _ofData3 === void 0 || (_ofData3 = _ofData3.rework) === null || _ofData3 === void 0 ? void 0 : _ofData3.rows, unit);
+    var reworkWarnings = computeReworkWarnings(reworkRows);
+    var openDesoldered = computeOpenDesoudes(reworkRows);
+    var missingControls = reworkRows.filter(function (row) {
+      return row.validated && ["S", "R"].includes(row.action1) && !row.visaCtrl;
+    });
+    var missingTrace = reworkRows.filter(function (row) {
+      return row.validated && missingReworkTrace(row, true).length;
+    });
+    var expiredCodes = reworkRows.filter(function (row) {
+      var dc = dcCheck(row.dc, row.createdDT);
+      return row.validated && ["S", "P", "M"].includes(row.action1) && (dc === null || dc === void 0 ? void 0 : dc.max) !== undefined && !dc.ok;
+    });
+    [compactItems("Contrôles manquants", missingControls.map(function (row) {
+      return row.repere || "repère ?";
+    })), compactItems("Traçabilité LOT/DC incomplète", missingTrace.map(function (row) {
+      return row.repere || "repère ?";
+    })), compactItems("Dates code hors validité", expiredCodes.map(function (row) {
+      return row.repere || "repère ?";
+    }))].filter(Boolean).forEach(function (item) {
+      return alerts.push(item);
+    });
+    [compactItems("Composants dessoudés sans remontage", openDesoldered.map(function (row) {
+      return row.repere || "repère ?";
+    })), compactItems("Composants pointés à souder", reworkWarnings.pointed.map(function (item) {
+      var _item$row;
+      return item.repere || ((_item$row = item.row) === null || _item$row === void 0 ? void 0 : _item$row.repere) || "repère ?";
+    }))].filter(Boolean).forEach(function (item) {
+      return open.push(item);
+    });
+    var consumableIssues = [];
+    var consumableSoon = [];
+    unitRows((_ofData4 = ofData) === null || _ofData4 === void 0 || (_ofData4 = _ofData4.consommables) === null || _ofData4 === void 0 ? void 0 : _ofData4.ops, unit).forEach(function (op) {
+      return (op.items || []).filter(function (item) {
+        return !item.deleted;
+      }).forEach(function (item) {
+        var consumable = consoById[item.consoId] || {};
+        var name = compactArticleCode(consumable.sap || consumable.code || item.consoId) || "consommable ?";
+        var status = dpStatus(item.dp, item.createdDT || op.createdDT);
+        if (item.dp && !isValidDMY(item.dp)) consumableIssues.push("".concat(name, " date invalide"));else if ((status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ") consumableIssues.push("".concat(name, " p\xE9rim\xE9"));else if ((status === null || status === void 0 ? void 0 : status.label) === "BIENTÔT") consumableSoon.push("".concat(name, " bient\xF4t p\xE9rim\xE9"));
+      });
+    });
+    var expiredEquipment = [];
+    var equipmentSoon = [];
+    unitRows(effectiveScopedRows(ofData, "testequip"), unit).forEach(function (row) {
+      var status = calibStatus(row.dateExpiration);
+      var name = row.nInv || row.designation || "appareil ?";
+      if ((status === null || status === void 0 ? void 0 : status.label) === "HORS CALIBRATION") expiredEquipment.push(name);else if ((status === null || status === void 0 ? void 0 : status.label) === "EXPIRE BIENTÔT") equipmentSoon.push(name);
+    });
+    [compactItems("Consommables périmés ou invalides", consumableIssues), compactItems("Appareils hors calibration", expiredEquipment)].filter(Boolean).forEach(function (item) {
+      return alerts.push(item);
+    });
+    [compactItems("Consommables bientôt périmés", consumableSoon), compactItems("Calibrations bientôt expirées", equipmentSoon)].filter(Boolean).forEach(function (item) {
+      return open.push(item);
+    });
+    var facts = unitRows(effectiveScopedRows(ofData, "faits"), unit).filter(function (row) {
+      return !row.closedDate;
+    });
+    var ovens = unitRows(effectiveScopedRows(ofData, "etuvage"), unit);
+    var runningOvens = ovens.filter(function (row) {
+      return row.entreeDT && !row.sortieDT;
+    });
+    var incompleteOvens = ovens.filter(function (row) {
+      return !row.validated && ovenRequiredMissing(row).length;
+    });
+    [compactItems("Suivis techniques ouverts", facts.map(function (row) {
+      return technicalFollowUpLabel(row);
+    })), compactItems("Étuvages en cours", runningOvens.map(function (row) {
+      return row.fourN || row.entreeDT || "étuvage";
+    })), compactItems("Étuvages incomplets", incompleteOvens.map(function (row) {
+      return ovenRequiredMissing(row).join(" / ");
+    }))].filter(Boolean).forEach(function (item) {
+      return open.push(item);
+    });
+    return {
+      alerts: alerts,
+      open: open
+    };
+  };
+  drawUnitSummary = function drawUnitSummary(unit, sectionTitle) {
+    var key = (unit === null || unit === void 0 ? void 0 : unit.id) || "of-global";
+    if (summarizedUnits.has(key)) return;
+    summarizedUnits.add(key);
+    var summary = unitSummary(unit);
+    warningBlock("ALERTES", summary.alerts, "red", sectionTitle, unit);
+    warningBlock("POINTS OUVERTS", summary.open, "yellow", sectionTitle, unit);
+  };
   var rowPdf = function rowPdf(cells, row) {
     var extraTrace = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : "";
     return {
@@ -3138,11 +3246,11 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
     });
   };
   selectedUnits.forEach(function (unit) {
-    var _ofData3, _ofData4, _ofData5, _ofData6, _ofData7, _ofData8, _ofData9;
+    var _ofData5, _ofData6, _ofData7, _ofData8, _ofData9, _ofData0, _ofData1;
     var inUnit = function inUnit(row) {
       return unitMatches(row, unit) && rowInSelectedSn(row) && (includeDeleted || !(row !== null && row !== void 0 && row.deleted));
     };
-    var reworkRowsForUnit = (((_ofData3 = ofData) === null || _ofData3 === void 0 || (_ofData3 = _ofData3.rework) === null || _ofData3 === void 0 ? void 0 : _ofData3.rows) || []).filter(inUnit);
+    var reworkRowsForUnit = (((_ofData5 = ofData) === null || _ofData5 === void 0 || (_ofData5 = _ofData5.rework) === null || _ofData5 === void 0 ? void 0 : _ofData5.rows) || []).filter(inUnit);
     var reworkWarnings = computeReworkWarnings(reworkRowsForUnit);
     var openDesoudes = computeOpenDesoudes(reworkRowsForUnit);
     var openPointes = reworkWarnings.pointed;
@@ -3226,7 +3334,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
     var pdfValue = function pdfValue(value) {
       return String(value !== null && value !== void 0 ? value : "").trim() ? value : "N/A";
     };
-    var rework = (((_ofData4 = ofData) === null || _ofData4 === void 0 || (_ofData4 = _ofData4.rework) === null || _ofData4 === void 0 ? void 0 : _ofData4.rows) || []).filter(inUnit).map(function (r) {
+    var rework = (((_ofData6 = ofData) === null || _ofData6 === void 0 || (_ofData6 = _ofData6.rework) === null || _ofData6 === void 0 ? void 0 : _ofData6.rows) || []).filter(inUnit).map(function (r) {
       var quantity = String(r.qty || r.qte || "").trim();
       var repere = quantity && Number(quantity) !== 1 ? "".concat(quantity, "x ").concat(pdfValue(r.repere)) : pdfValue(r.repere);
       var controlRequired = ["S", "R"].includes(r.action1);
@@ -3275,6 +3383,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       var displayTitle = unit && unit.id !== "of-global" ? "".concat(unitLabel(unit), " - ").concat(title) : title;
       page = newPage();
       headerBlock(displayTitle, unit, displayTitle);
+      drawUnitSummary(unit, displayTitle);
       if (warningRows.length) {
         text("Points à vérifier", M, page.y - 1, 7.2, true, color.red);
         page.y -= 10;
@@ -3283,7 +3392,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       }
       table(["Repère TOPO", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "Date code", "SN composant", "Fiche suiveuse / fait", "N° OP", "VISA", "Date", "CTRL", "CTRL le"], rework.length ? rework : [["N/A"]], [22, 9, 9, 27, 55, 19, 17, 17, 39, 11, 15, 24, 36, 24], displayTitle, unit);
     }
-    var cons = (((_ofData5 = ofData) === null || _ofData5 === void 0 || (_ofData5 = _ofData5.consommables) === null || _ofData5 === void 0 ? void 0 : _ofData5.ops) || []).filter(inUnit).flatMap(function (op) {
+    var cons = (((_ofData7 = ofData) === null || _ofData7 === void 0 || (_ofData7 = _ofData7.consommables) === null || _ofData7 === void 0 ? void 0 : _ofData7.ops) || []).filter(inUnit).flatMap(function (op) {
       return (op.items || [{}]).filter(function (it) {
         return includeDeleted || !(it !== null && it !== void 0 && it.deleted);
       }).map(function (it) {
@@ -3312,19 +3421,35 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
       });
     });
     section("Consommables", ["Date", "Visa", "Fiche suiveuse", "OP", "Code article", "Description", "N ech.", "LOT", "DP"], cons, [23, 12, 26, 11, 34, 88, 22, 30, 20], unit);
-    var testEquipRows = (((_ofData6 = ofData) === null || _ofData6 === void 0 || (_ofData6 = _ofData6.testequip) === null || _ofData6 === void 0 ? void 0 : _ofData6.rows) || []).filter(inUnit).sort(function (a, b) {
+    var testEquipRows = (((_ofData8 = ofData) === null || _ofData8 === void 0 || (_ofData8 = _ofData8.testequip) === null || _ofData8 === void 0 ? void 0 : _ofData8.rows) || []).filter(inUnit).sort(function (a, b) {
       return (isFourEquip(b) ? 1 : 0) - (isFourEquip(a) ? 1 : 0);
     }).map(function (r) {
-      return rowPdf([r.createdDT, r.createdVisa, isFourEquip(r) ? "FOUR" : "-", r.nInv, r.type, r.designation, r.dateExpiration, r.checkDate], r);
+      var status = calibStatus(r.dateExpiration);
+      var row = rowPdf([r.createdDT, r.createdVisa, isFourEquip(r) ? "FOUR" : "-", r.nInv, r.type, r.designation, r.dateExpiration, r.checkDate], r);
+      return _objectSpread(_objectSpread({}, row), {}, {
+        cellStyles: _objectSpread(_objectSpread({}, (status === null || status === void 0 ? void 0 : status.label) === "HORS CALIBRATION" ? {
+          6: {
+            fill: "0.99 0.91 0.91",
+            color: color.red,
+            bold: true
+          }
+        } : {}), (status === null || status === void 0 ? void 0 : status.label) === "EXPIRE BIENTÔT" ? {
+          6: {
+            fill: "0.99 0.96 0.84",
+            color: color.warn,
+            bold: true
+          }
+        } : {})
+      });
     });
     section("Test Equip.", ["Date", "Visa", "Four", "N INV", "Type", "Designation", "Date calib", "Ctrl"], testEquipRows, [23, 13, 18, 30, 26, 79, 25, 24], unit);
-    section("Suivi technique", ["Date", "Visa", "Type", "Numero", "Date ouv.", "Description"], (((_ofData7 = ofData) === null || _ofData7 === void 0 || (_ofData7 = _ofData7.faits) === null || _ofData7 === void 0 ? void 0 : _ofData7.rows) || []).filter(inUnit).map(function (r) {
+    section("Suivi technique", ["Date", "Visa", "Type", "Numero", "Date ouv.", "Description"], (((_ofData9 = ofData) === null || _ofData9 === void 0 || (_ofData9 = _ofData9.faits) === null || _ofData9 === void 0 ? void 0 : _ofData9.rows) || []).filter(inUnit).map(function (r) {
       return rowPdfWithComments([r.createdDT, r.createdVisa, r.type, r.numero, r.date, r.commentaires], r, commentsForPdf(r));
     }), [25, 15, 20, 36, 28, 145], unit);
-    section("Etuvages", ["Date", "Visa", "Four", "Durée [h]", "Température [°C]", "Entrée", "Visa E", "Sortie", "Visa S"], (((_ofData8 = ofData) === null || _ofData8 === void 0 || (_ofData8 = _ofData8.etuvage) === null || _ofData8 === void 0 ? void 0 : _ofData8.rows) || []).filter(inUnit).map(function (r) {
+    section("Etuvages", ["Date", "Visa", "Four", "Durée [h]", "Température [°C]", "Entrée", "Visa E", "Sortie", "Visa S"], (((_ofData0 = ofData) === null || _ofData0 === void 0 || (_ofData0 = _ofData0.etuvage) === null || _ofData0 === void 0 ? void 0 : _ofData0.rows) || []).filter(inUnit).map(function (r) {
       return rowPdf([r.createdDT, r.createdVisa, r.fourN, r.duree, r.temp, r.entreeDT, r.entreeVisa, r.sortieDT, r.sortieVisa], r);
     }), [23, 13, 26, 16, 16, 36, 14, 36, 14], unit);
-    var demConnectors = (((_ofData9 = ofData) === null || _ofData9 === void 0 || (_ofData9 = _ofData9.demating) === null || _ofData9 === void 0 ? void 0 : _ofData9.connectors) || []).filter(function (c) {
+    var demConnectors = (((_ofData1 = ofData) === null || _ofData1 === void 0 || (_ofData1 = _ofData1.demating) === null || _ofData1 === void 0 ? void 0 : _ofData1.connectors) || []).filter(function (c) {
       return !c.deleted && inUnit(c);
     }).sort(function (a, b) {
       return connectorSortKey(a.nConect).localeCompare(connectorSortKey(b.nConect));
@@ -3344,7 +3469,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
         stroke: tone.stroke,
         color: tone.text
       };
-      if (!cycles.length) return [group, rowPdf(["", "0", "-", "-", "-", "-"], c)];
+      if (!cycles.length) return [group, rowPdf([c.nConect || "-", "0", "-", "-", "-", "-"], c)];
       var sortedCycles = cycles.map(function (cy, i) {
         return {
           cy: cy,
@@ -3357,10 +3482,10 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref37) {
         var _cy$mat, _cy$mat2, _cy$dem, _cy$dem2;
         var cy = _ref38.cy,
           n = _ref38.n;
-        return rowPdf(["", String(n), ((_cy$mat = cy.mat) === null || _cy$mat === void 0 ? void 0 : _cy$mat.dt) || "-", ((_cy$mat2 = cy.mat) === null || _cy$mat2 === void 0 ? void 0 : _cy$mat2.visa) || "-", ((_cy$dem = cy.dem) === null || _cy$dem === void 0 ? void 0 : _cy$dem.dt) || "-", ((_cy$dem2 = cy.dem) === null || _cy$dem2 === void 0 ? void 0 : _cy$dem2.visa) || "-"], c);
+        return rowPdf([c.nConect || "-", String(n), ((_cy$mat = cy.mat) === null || _cy$mat === void 0 ? void 0 : _cy$mat.dt) || "-", ((_cy$mat2 = cy.mat) === null || _cy$mat2 === void 0 ? void 0 : _cy$mat2.visa) || "-", ((_cy$dem = cy.dem) === null || _cy$dem === void 0 ? void 0 : _cy$dem.dt) || "-", ((_cy$dem2 = cy.dem) === null || _cy$dem2 === void 0 ? void 0 : _cy$dem2.visa) || "-"], c);
       })));
     });
-    section("Mating / Demating", ["", "Cycle", "Mating date", "Visa M", "Demating date", "Visa D"], demRows, [8, 14, 44, 18, 44, 18], unit);
+    section("Mating / Demating", ["Connecteur", "Cycle", "Mating date", "Visa M", "Demating date", "Visa D"], demRows, [22, 14, 44, 18, 44, 18], unit);
   });
   var printablePages = pages.filter(function (p) {
     return p.ops.length;
