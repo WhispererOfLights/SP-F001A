@@ -1043,7 +1043,8 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const consoLines=(ofData.consommables?.ops||[]).filter(exportable).flatMap(op=>(op.items||[])
     .filter(exportable).map(item=>({op,item,conso:consoById[item.consoId]||{}})));
   const facts=(ofData.faits?.rows||[]).filter(exportable);
-  const qty=value=>String(value??"").trim()||"1";
+  const qty=(value,fallback="1")=>String(value??"").trim()||fallback;
+  const consoQty=value=>qty(value,"0.1");
   const article=value=>compactArticleCode(value);
   const comments=value=>(value||[]).map(comment=>[comment.dt,comment.visa,comment.text].filter(Boolean).join(" - ")).join(" | ");
   const deletedInfo=row=>[
@@ -1055,7 +1056,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
 
   // IB52 : tous les consommables.
   consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>ib52.push([
-    "","",article(conso.sap||conso.code||item.consoId),"","",qty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
+    "","",article(conso.sap||conso.code||item.consoId),"","",consoQty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
   ])));
 
   // IB52 : état final de chaque repère TOPO pour chaque SN / LOT sélectionné.
@@ -1082,8 +1083,25 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
     article(row.codeERP),"",qty(row.qty),"","L","0010","0","7700","PRD3","","",String(row.lot||""),
   ])));
   consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>co02.push([
-    article(conso.sap||conso.code||item.consoId),"",qty(item.qty||item.qte||op.qty||op.qte),"","L","0010","0","7700","PRD3","","",String(item.lot||""),
+    article(conso.sap||conso.code||item.consoId),"",consoQty(item.qty||item.qte||op.qty||op.qte),"","L","0010","0","7700","PRD3","","",String(item.lot||""),
   ])));
+
+  // CO02 : une seule sortie par article + lot dans l'OF, avec somme des quantités.
+  const groupedCo02=[];
+  const groupedCo02ByKey=new Map();
+  co02.forEach(row=>{
+    const value=Number(String(row[2]||"").replace(",","."));
+    const key=`${String(row[0]||"").trim()}\u0000${String(row[11]||"").trim()}`;
+    const existing=groupedCo02ByKey.get(key);
+    if(!existing||!Number.isFinite(value)){
+      const copy=[...row];
+      groupedCo02.push(copy);
+      if(Number.isFinite(value)) groupedCo02ByKey.set(key,copy);
+      return;
+    }
+    const current=Number(String(existing[2]||"").replace(",","."));
+    existing[2]=String(Math.round((current+value)*1000000)/1000000);
+  });
 
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
   (ofData.rework?.rows||[]).forEach(row=>targetRows(row).forEach(target=>full.push([
@@ -1095,7 +1113,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
     const conso=consoById[item.consoId]||{};
     targetRows(op).forEach(target=>full.push([
       "Consommable",item.createdDT||op.createdDT||"",item.createdVisa||op.createdVisa||"",target.sn||"",target.lot||"",op.fiche||"",op.op||"",
-      consoDescriptionForCsv(conso,item.consoId),"",item.qty||item.qte||op.qty||op.qte||"1",item.echantillon||"",article(conso.sap||conso.code||item.consoId),
+      consoDescriptionForCsv(conso,item.consoId),"",consoQty(item.qty||item.qte||op.qty||op.qte),item.echantillon||"",article(conso.sap||conso.code||item.consoId),
       consoDescriptionForCsv(conso,item.consoId),item.lot||"",item.dp||"","",visaStamp(item.visaTraca,item.dateTraca),"","","","","",comments(item.comments),
       ...deletedInfo(item.deleted?item:op),
     ]));
@@ -1105,7 +1123,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
     row.numero||"",factSapArticle(row.type),row.commentaires||"",row.numero||"","","","",row.date||"",row.visa||"",row.closedDate||"",row.closedVisa||"",
     row.lien||"",[row.commentaires||"",comments(row.comments)].filter(Boolean).join(" | "),...deletedInfo(row),
   ])));
-  return {IB52:ib52,CO02:co02,FULL:full};
+  return {IB52:ib52,CO02:groupedCo02,FULL:full};
 };
 const SnFilter = ({value,onChange,header,title="Filtrer SN cible"}) => {
   const rows=snRowsFromHeader(header);

@@ -5734,7 +5734,11 @@ var buildSapExcelRows = function buildSapExcelRows(_ref59) {
   });
   var facts = (((_ofData$faits = ofData.faits) === null || _ofData$faits === void 0 ? void 0 : _ofData$faits.rows) || []).filter(exportable);
   var qty = function qty(value) {
-    return String(value !== null && value !== void 0 ? value : "").trim() || "1";
+    var fallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : "1";
+    return String(value !== null && value !== void 0 ? value : "").trim() || fallback;
+  };
+  var consoQty = function consoQty(value) {
+    return qty(value, "0.1");
   };
   var article = function article(value) {
     return compactArticleCode(value);
@@ -5757,7 +5761,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref59) {
       item = _ref60.item,
       conso = _ref60.conso;
     return targetRows(op).forEach(function () {
-      return ib52.push(["", "", article(conso.sap || conso.code || item.consoId), "", "", qty(item.qty || item.qte || op.qty || op.qte), "", "", String(item.lot || "")]);
+      return ib52.push(["", "", article(conso.sap || conso.code || item.consoId), "", "", consoQty(item.qty || item.qte || op.qty || op.qte), "", "", String(item.lot || "")]);
     });
   });
 
@@ -5807,8 +5811,25 @@ var buildSapExcelRows = function buildSapExcelRows(_ref59) {
       item = _ref62.item,
       conso = _ref62.conso;
     return targetRows(op).forEach(function () {
-      return co02.push([article(conso.sap || conso.code || item.consoId), "", qty(item.qty || item.qte || op.qty || op.qte), "", "L", "0010", "0", "7700", "PRD3", "", "", String(item.lot || "")]);
+      return co02.push([article(conso.sap || conso.code || item.consoId), "", consoQty(item.qty || item.qte || op.qty || op.qte), "", "L", "0010", "0", "7700", "PRD3", "", "", String(item.lot || "")]);
     });
+  });
+
+  // CO02 : une seule sortie par article + lot dans l'OF, avec somme des quantités.
+  var groupedCo02 = [];
+  var groupedCo02ByKey = new Map();
+  co02.forEach(function (row) {
+    var value = Number(String(row[2] || "").replace(",", "."));
+    var key = "".concat(String(row[0] || "").trim(), "\0").concat(String(row[11] || "").trim());
+    var existing = groupedCo02ByKey.get(key);
+    if (!existing || !Number.isFinite(value)) {
+      var copy = _toConsumableArray(row);
+      groupedCo02.push(copy);
+      if (Number.isFinite(value)) groupedCo02ByKey.set(key, copy);
+      return;
+    }
+    var current = Number(String(existing[2] || "").replace(",", "."));
+    existing[2] = String(Math.round((current + value) * 1000000) / 1000000);
   });
 
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
@@ -5821,7 +5842,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref59) {
     return (op.items || []).forEach(function (item) {
       var conso = consoById[item.consoId] || {};
       targetRows(op).forEach(function (target) {
-        return full.push(["Consommable", item.createdDT || op.createdDT || "", item.createdVisa || op.createdVisa || "", target.sn || "", target.lot || "", op.fiche || "", op.op || "", consoDescriptionForCsv(conso, item.consoId), "", item.qty || item.qte || op.qty || op.qte || "1", item.echantillon || "", article(conso.sap || conso.code || item.consoId), consoDescriptionForCsv(conso, item.consoId), item.lot || "", item.dp || "", "", visaStamp(item.visaTraca, item.dateTraca), "", "", "", "", "", comments(item.comments)].concat(_toConsumableArray(deletedInfo(item.deleted ? item : op))));
+        return full.push(["Consommable", item.createdDT || op.createdDT || "", item.createdVisa || op.createdVisa || "", target.sn || "", target.lot || "", op.fiche || "", op.op || "", consoDescriptionForCsv(conso, item.consoId), "", consoQty(item.qty || item.qte || op.qty || op.qte), item.echantillon || "", article(conso.sap || conso.code || item.consoId), consoDescriptionForCsv(conso, item.consoId), item.lot || "", item.dp || "", "", visaStamp(item.visaTraca, item.dateTraca), "", "", "", "", "", comments(item.comments)].concat(_toConsumableArray(deletedInfo(item.deleted ? item : op))));
       });
     });
   });
@@ -5832,7 +5853,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref59) {
   });
   return {
     IB52: ib52,
-    CO02: co02,
+    CO02: groupedCo02,
     FULL: full
   };
 };

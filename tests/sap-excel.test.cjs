@@ -63,6 +63,25 @@ assert.equal(rows.CO02.at(-1)[11],'0000020452');
 assert.equal(rows.CO02.some(row=>row.includes('NC-001')||row.includes('DM-001')||row.includes('ISS-001')),false,'Les faits techniques sont exclus de CO02');
 assert.equal(rows.IB52.some(row=>row.includes('Constat vérifié, laissé en l’état')),false,'Les observations sont exclues de IB52');
 assert.equal(rows.CO02.some(row=>row.includes('Constat vérifié, laissé en l’état')),false,'Les observations sont exclues de CO02');
+
+const groupedRows=context.sapRows({ofData:{
+  header:{of:'2000'},units:{rows:[unit]},
+  rework:{rows:[
+    rework('g1','R10','S','ARTICLE-R','01/05/2026 08:00',{lot:'LOT-R',qty:'2'}),
+    rework('g2','R11','S','ARTICLE-R','01/05/2026 09:00',{lot:'LOT-R',qty:'3'}),
+    rework('g3','R12','S','ARTICLE-R','01/05/2026 10:00',{lot:'LOT-AUTRE',qty:'4'}),
+  ]},
+  consommables:{ops:[
+    {id:'c-op1',validated:true,snScope:'custom',snIds:['u1'],items:[{id:'c-i1',validated:true,consoId:'conso1',lot:'LOT-C'}]},
+    {id:'c-op2',validated:true,snScope:'custom',snIds:['u1'],items:[{id:'c-i2',validated:true,consoId:'conso1',lot:'LOT-C'}]},
+    {id:'c-op3',validated:true,snScope:'custom',snIds:['u1'],items:[{id:'c-i3',validated:true,consoId:'conso1',lot:'LOT-C2'}]},
+  ]},
+},consommables:[{id:'conso1',sap:'1600000046',label:'Colle'}],selectedSnIds:['u1']});
+assert.ok(groupedRows.IB52.filter(row=>row[2]==='1600000046').every(row=>row[5]==='0.1'),'Un consommable sans quantité est exporté à 0.1');
+assert.equal(groupedRows.CO02.find(row=>row[0]==='ARTICLE-R'&&row[11]==='LOT-R')[2],'5','Les composants article + lot identiques sont additionnés');
+assert.equal(groupedRows.CO02.find(row=>row[0]==='ARTICLE-R'&&row[11]==='LOT-AUTRE')[2],'4','Un lot différent reste séparé');
+assert.equal(groupedRows.CO02.find(row=>row[0]==='1600000046'&&row[11]==='LOT-C')[2],'0.2','Les consommables article + lot identiques sont additionnés');
+assert.equal(groupedRows.CO02.find(row=>row[0]==='1600000046'&&row[11]==='LOT-C2')[2],'0.1','Le consommable d’un autre lot reste séparé');
 assert.ok(rows.FULL.every(row=>row.length===27));
 const fullObservation=rows.FULL.find(row=>row[8]==='Observation');
 assert.equal(fullObservation[7],'C100');
