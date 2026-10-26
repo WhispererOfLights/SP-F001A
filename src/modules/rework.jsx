@@ -567,7 +567,7 @@ const ReworkImportModal = ({header,existingRows=[],onImport,onClose}) => {
       {!!parsed.rows.length&&<div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:4,marginTop:10}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:10}}>
           <thead><tr style={{background:C.raised}}>
-            {["État","Ligne","Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Remarque"].map(label=><TH key={label}>{label}</TH>)}
+            {["État","Ligne","Repère topo","Qté","ADJ","Act.","Code article","Valeur - description","LOT","DC","SN composant","Fiche suiveuse","OP","Remarque (bulle)"].map(label=><TH key={label}>{label}</TH>)}
           </tr></thead>
           <tbody>{parsed.rows.slice(0,40).map((row,index)=><tr key={`${row.lineNumber}-${index}`} style={{background:index%2?C.stripe:"transparent"}}>
             <TD><span style={{color:isDuplicate(row)?C.yellow:C.green,fontWeight:800}}>{isDuplicate(row)?"Doublon possible":"Prêt"}</span></TD>
@@ -681,7 +681,11 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         fiche:source.fiche||last.fiche||"",etape:source.etape||last.op||"",ficheOpUpdatedAt:Date.now(),
         isAdjust:source.action1==="O"?false:!!source.isAdjust,
         visaOper:"",dateOper:"",visaCtrl:"",dateCtrl:"",
-        remarques:source.remarques||"",editHistory:[],validated:false,validError:"",deleted:false,
+        remarques:source.action1==="O"?(source.remarques||""):"",
+        comments:source.action1!=="O"&&source.remarques?[{
+          id:uid(),dt:importedAt,visa:user?.trigram||"",text:source.remarques,replyTo:null,
+        }]:[],
+        editHistory:[],validated:false,validError:"",deleted:false,
         tracaOk:false,visaTraca:"",dateTraca:"",
       };
       return {...row,importOrigin:{source:"clipboard",batchId,rowNumber:source.lineNumber,

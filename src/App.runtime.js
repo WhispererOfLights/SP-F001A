@@ -7348,6 +7348,8 @@ var CommentBtn = function CommentBtn(_ref69) {
       fontWeight: 400
     }
   }, "(", count, ")")), /*#__PURE__*/React.createElement("span", {
+    role: "button",
+    "aria-label": "Fermer les commentaires",
     onClick: close,
     style: {
       cursor: "pointer",
@@ -9387,7 +9389,7 @@ var ReworkImportModal = function ReworkImportModal(_ref79) {
     style: {
       background: C.raised
     }
-  }, ["État", "Ligne", "Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Remarque"].map(function (label) {
+  }, ["État", "Ligne", "Repère topo", "Qté", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "DC", "SN composant", "Fiche suiveuse", "OP", "Remarque (bulle)"].map(function (label) {
     return /*#__PURE__*/React.createElement(TH, {
       key: label
     }, label);
@@ -9708,7 +9710,14 @@ var TabRework = function TabRework(_ref80) {
         dateOper: "",
         visaCtrl: "",
         dateCtrl: "",
-        remarques: source.remarques || "",
+        remarques: source.action1 === "O" ? source.remarques || "" : "",
+        comments: source.action1 !== "O" && source.remarques ? [{
+          id: uid(),
+          dt: importedAt,
+          visa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+          text: source.remarques,
+          replyTo: null
+        }] : [],
         editHistory: [],
         validated: false,
         validError: "",

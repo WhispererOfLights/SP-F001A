@@ -1614,7 +1614,8 @@ const CommentBtn = ({comments, onChange, user, disabled=false}) => {
               <span style={{fontWeight:700,color:C.accent,fontSize:13}}>
                 💬 Commentaires {count>0&&<span style={{color:C.muted,fontWeight:400}}>({count})</span>}
               </span>
-              <span onClick={close} style={{cursor:"pointer",color:C.muted,fontSize:20,lineHeight:1}}>×</span>
+              <span role="button" aria-label="Fermer les commentaires" onClick={close}
+                style={{cursor:"pointer",color:C.muted,fontSize:20,lineHeight:1}}>×</span>
             </div>
 
             {/* Thread */}
