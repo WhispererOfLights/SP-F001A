@@ -1213,6 +1213,40 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
   </div>;
 };
 
+const BulkLabelOptionsModal = ({entries,consommables,onCancel,onConfirm}) => {
+  const [types,setTypes]=useState(["kitting"]);
+  const availability=id=>(entries||[]).reduce((result,entry)=>{
+    const status=operationalLabelAvailability({type:id,ofData:entry.ofData,selectedUnitIds:entry.selectedUnitIds,consommables});
+    result.count+=status.count;
+    result.total+=status.total;
+    return result;
+  },{count:0,total:0});
+  const available=id=>availability(id).count>0;
+  const toggleType=id=>available(id)&&setTypes(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
+  useEffect(()=>setTypes(current=>current.filter(available)),[entries,consommables]);
+  const unitCount=(entries||[]).reduce((total,entry)=>total+operationalLabelUnits(entry.ofData,entry.selectedUnitIds).length,0);
+  return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+    <div role="dialog" aria-modal="true" aria-labelledby="bulk-label-options-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:560,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
+      <h2 id="bulk-label-options-title" style={{margin:"0 0 6px",fontSize:16,color:C.blue}}>Imprimer des étiquettes</h2>
+      <div style={{color:C.muted,fontSize:12,marginBottom:14}}>{entries.length} dossier{entries.length>1?"s":""} · {unitCount} SN/lot{unitCount>1?"s":""}</div>
+      <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
+        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
+          {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.count>0;const isConditional=["bonding","facts"].includes(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
+            <input type="checkbox" aria-label={item.label} checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
+            <span>{item.label}</span>
+            {isConditional&&status.total>0&&<span style={{marginLeft:"auto",fontSize:10,color:status.count===status.total?C.green:C.orange,fontWeight:700,whiteSpace:"nowrap"}}>{status.count} sur {status.total} disponible{status.count>1?"s":""}</span>}
+          </label>})}
+        </div>
+      </fieldset>
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
+        <Btn onClick={onCancel} color={C.border} small>Annuler</Btn>
+        <Btn disabled={!types.length} onClick={()=>types.length&&onConfirm({types})} color={types.length?C.green:C.border} small>Générer</Btn>
+      </div>
+    </div>
+  </div>;
+};
+
 const PdfOptionsModal = ({snRows, defaultSelectedIds=null, includeHistoryDefault=false, onCancel, onConfirm}) => {
   const [includeHistory,setIncludeHistory] = useState(includeHistoryDefault);
   const [includeDeleted,setIncludeDeleted] = useState(true);

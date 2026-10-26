@@ -518,6 +518,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [expandedOfIds,setExpandedOfIds] = useState([]);
   const [homeMailKind,setHomeMailKind] = useState(null);
   const [showBulkPdf,setShowBulkPdf] = useState(false);
+  const [bulkLabelEntries,setBulkLabelEntries] = useState(null);
   const [copiedTeamsKey,setCopiedTeamsKey] = useState("");
   const [homeNow,setHomeNow] = useState(()=>new Date());
   useEffect(()=>{const timer=setInterval(()=>setHomeNow(new Date()),60000);return()=>clearInterval(timer);},[]);
@@ -747,27 +748,34 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       downloadBrowserBlob(merged,fileSafeName(`Feuilles composants dessoudés - ${suffix}`)+".pdf");
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };
-  const exportBulkKittingLabels=async()=>{
+  const prepareBulkLabels=async()=>{
     const grouped=new Map();
     selectedRows.forEach(row=>{
       const group=grouped.get(row.id)||{row,unitIds:[]};
       if(row._homeUnitId&&!group.unitIds.includes(row._homeUnitId)) group.unitIds.push(row._homeUnitId);
       grouped.set(row.id,group);
     });
-    try{
-      const entries=[];
-      for(const [id,group] of grouped){
-        let data=dataById[id];
-        if(!data){
-          const stored=await window.storage.get(`of:${id}`,true);
-          data=JSON.parse(stored.value);
-        }
-        entries.push({ofData:data,selectedUnitIds:group.unitIds.length?group.unitIds:null});
+    const entries=[];
+    for(const [id,group] of grouped){
+      let data=dataById[id];
+      if(!data){
+        const stored=await window.storage.get(`of:${id}`,true);
+        data=JSON.parse(stored.value);
       }
-      const blob=buildOperationalLabelsPdf({type:"kitting",entries,consommables});
-      const ofNumbers=[...grouped.values()].map(group=>group.row.of).filter(Boolean);
+      entries.push({ofData:data,selectedUnitIds:group.unitIds.length?group.unitIds:null});
+    }
+    setBulkLabelEntries(entries);
+  };
+  const exportBulkLabels=async options=>{
+    try{
+      const types=options.types?.length?options.types:["kitting"];
+      const blobs=types.map(type=>buildOperationalLabelsPdf({type,entries:bulkLabelEntries||[],consommables}));
+      const blob=await mergeGeneratedPdfBlobs(blobs);
+      const ofNumbers=(bulkLabelEntries||[]).map(entry=>entry.ofData?.header?.of).filter(Boolean);
       const suffix=ofNumbers.length===1?`OF ${ofNumbers[0]}`:`${ofNumbers.length} OF`;
-      downloadBrowserBlob(blob,fileSafeName(`Étiquettes kitting - ${suffix}`)+".pdf");
+      const label=types.length===1?OPERATIONAL_LABEL_TYPES.find(item=>item.id===types[0])?.label||"Étiquettes":"Lot d'étiquettes";
+      downloadBrowserBlob(blob,fileSafeName(`${label} - ${suffix}`)+".pdf");
+      setBulkLabelEntries(null);
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };
   const columnFilter=(key,label)=>["status","unitStatus"].includes(key)?<MultiFilter value={filterStatus} onChange={v=>{setFilterStatus(v);setPage(0);}} label="Tous" title="Filtrer les statuts OF et SN/LOT" options={Object.entries(STATUTS).map(([value,s])=>({value,label:s.label}))}/>:key==="reprise"?<select aria-label="Filtrer Reprise" value={columnFilters.reprise||""} onChange={e=>{setColumnFilters(prev=>({...prev,reprise:e.target.value}));setPage(0);}} style={{width:"100%",background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:"5px 6px",fontSize:12}}><option value="">Tous</option><option>Oui</option><option>Non</option></select>:<input aria-label={`Filtrer ${label}`} placeholder="Filtrer…" value={columnFilters[key]||""}
@@ -879,7 +887,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         <strong style={{color:C.blue,fontSize:12,minWidth:105}}>{selectedRows.length} sélectionnée{selectedRows.length>1?"s":""}</strong>
         <Btn onClick={()=>copyHomeRows(selectedRows,"selection")} color={copiedTeamsKey==="selection"?C.green:C.blue} small>{copiedTeamsKey==="selection"?"✓ Copié":"📋 Copier la sélection"}</Btn>
         <Btn onClick={()=>setShowBulkPdf(true)} color={C.blue} small>Imprimer les dossiers</Btn>
-        <Btn onClick={exportBulkKittingLabels} color={C.blue} small>Étiquettes kitting</Btn>
+        <Btn onClick={prepareBulkLabels} color={C.blue} small>Imprimer des étiquettes</Btn>
         <Btn onClick={exportBulkComponentSheets} color={C.blue} small>Feuilles composants</Btn>
         {isAdminManager(user)&&<>
           <Btn onClick={()=>setHomeMailKind("closure")} color={C.green} small>Clôture logistique</Btn>
@@ -1129,6 +1137,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       )}
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={v=>{onSaveProfile&&onSaveProfile(v);setShowProfile(false);}}/> }
       {showBulkPdf&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkReports}/>}
+      {bulkLabelEntries&&<BulkLabelOptionsModal entries={bulkLabelEntries} consommables={consommables} onCancel={()=>setBulkLabelEntries(null)} onConfirm={exportBulkLabels}/>}
       {homeMailKind&&isAdminManager(user)&&<HomeMailModal kind={homeMailKind} rows={selectedRows} user={user} onClose={()=>setHomeMailKind(null)}
         onMarkForClosure={rows=>onBulkUnitStatusChange
           ? onBulkUnitStatusChange(rows,"a_cloturer")

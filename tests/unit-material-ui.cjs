@@ -131,10 +131,15 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('checkbox',{name:'Sélectionner LOT-A - OF 100TEST',exact:true}).uncheck();
     await page.getByRole('checkbox',{name:'Sélectionner SN1 - OF 100TEST',exact:true}).check();
     await page.getByRole('checkbox',{name:'Sélectionner SN2 - OF 100TEST',exact:true}).check();
+    await page.getByRole('button',{name:'Imprimer des étiquettes',exact:true}).click();
+    const labelDialog=page.getByRole('dialog',{name:'Imprimer des étiquettes',exact:true});
+    await labelDialog.waitFor();
+    assert.ok(await labelDialog.getByRole('checkbox',{name:'Kitting',exact:true}).isChecked());
+    assert.ok((await labelDialog.textContent()).includes('1 dossier · 2 SN/lots'));
     const kittingDownloadPromise=page.waitForEvent('download');
-    await page.getByRole('button',{name:'Étiquettes kitting',exact:true}).click();
+    await labelDialog.getByRole('button',{name:'Générer',exact:true}).click();
     const kittingDownload=await kittingDownloadPromise;
-    assert.ok((await kittingDownload.suggestedFilename()).includes('kitting'));
+    assert.ok((await kittingDownload.suggestedFilename()).toLowerCase().includes('kitting'));
     await kittingDownload.saveAs(path.join(__dirname,'artifacts/kitting-labels.pdf'));
     const sheetsDownloadPromise=page.waitForEvent('download');
     await page.getByRole('button',{name:'Feuilles composants',exact:true}).click();
