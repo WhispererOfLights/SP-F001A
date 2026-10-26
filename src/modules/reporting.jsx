@@ -434,7 +434,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
       if(type==="binder"){
         pages.push(page({dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),22)}));
       }else if(type==="stock"){
-        pages.push(page({footer:"MISE EN STOCK",dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),13)}));
+        pages.push(page({dividerY:59,lines:commonHeader(identity,13)}));
       }else if(type==="bonding"){
         const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
         if(!polymerization) return;

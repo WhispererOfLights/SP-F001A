@@ -16,6 +16,7 @@ const vm = require('node:vm');
   const units=[
     {id:'u1',sn:'SN001',unitKind:'sn'},
     {id:'u2',sn:'SN002',unitKind:'sn'},
+    {id:'u3',lot:'LOT-42',unitKind:'lot',qteActuelle:'12'},
   ];
   const ofData={
     header:{of:'16000001',codeArticle:'250001153',description:'Module test',otp:'7400-TEST'},
@@ -63,6 +64,12 @@ const vm = require('node:vm');
     if(type==='binder') assert.ok(!content.includes('CLASSEUR'));
     fs.writeFileSync(path.join(__dirname,`artifacts/${type}-label.pdf`),Buffer.from(await blob.arrayBuffer()));
   }
+  const stockLotBlob=context.labels({type:'stock',entries:[{ofData,selectedUnitIds:['u3']}],consommables});
+  const stockLot=await stockLotBlob.text();
+  assert.ok(stockLot.includes('LOT-42'));
+  assert.ok(!stockLot.includes('MISE EN STOCK'));
+  assert.ok(!stockLot.includes('Qt\\351 12'));
+  fs.writeFileSync(path.join(__dirname,'artifacts/stock-lot-label.pdf'),Buffer.from(await stockLotBlob.arrayBuffer()));
 
   const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
   const bonding=await bondingBlob.text();

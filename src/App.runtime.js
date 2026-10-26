@@ -2524,9 +2524,8 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref34) {
         }));
       } else if (type === "stock") {
         pages.push(page({
-          footer: "MISE EN STOCK",
           dividerY: 59,
-          lines: commonHeader(operationalLabelIdentityWithQuantity(unit), 13)
+          lines: commonHeader(identity, 13)
         }));
       } else if (type === "bonding") {
         var _polymerization$consu;
