@@ -1311,20 +1311,26 @@ const BulkPdfOptionsModal = ({rows,onCancel,onConfirm}) => {
   const [includeHistory,setIncludeHistory]=useState(false);
   const [includeDeleted,setIncludeDeleted]=useState(true);
   const [skipEmptyReports,setSkipEmptyReports]=useState(true);
+  const [includePdf,setIncludePdf]=useState(true);
+  const [includeExcel,setIncludeExcel]=useState(false);
   const [selectedSections,setSelectedSections]=useState(()=>REPORT_SECTIONS.map(section=>section.id));
   const [running,setRunning]=useState(false);
   const [error,setError]=useState("");
   const ofCount=new Set(rows.map(row=>row.id)).size;
   const run=async()=>{
     setRunning(true);setError("");
-    try{await onConfirm({selectedSections,includeHistory,includeDeleted,skipEmptyReports});}
+    try{await onConfirm({selectedSections,includeHistory,includeDeleted,skipEmptyReports,includePdf,includeExcel});}
     catch(reason){setError(reason?.message||String(reason));setRunning(false);}
   };
   return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
     <div role="dialog" aria-modal="true" aria-labelledby="bulk-pdf-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:520,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
       <h2 id="bulk-pdf-title" style={{margin:"0 0 6px",fontSize:16,color:C.blue}}>Impression en masse</h2>
       <div style={{color:C.muted,fontSize:12,marginBottom:14}}>{ofCount} dossier{ofCount>1?"s":""} · {rows.length} SN/lot{rows.length>1?"s":""} sélectionné{rows.length>1?"s":""}</div>
-      <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
+      <div style={{display:"flex",gap:16,marginBottom:14,flexWrap:"wrap"}}>
+        <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={includePdf} onChange={event=>setIncludePdf(event.target.checked)}/>PDF groupé</label>
+        <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,cursor:"pointer"}}><input type="checkbox" checked={includeExcel} onChange={event=>setIncludeExcel(event.target.checked)}/>Excel SAP (IB52 + CO02)</label>
+      </div>
+      {includePdf&&<fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
         <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Pages du PDF groupé</legend>
         <div style={{display:"flex",gap:8,marginBottom:8}}>
           <Btn small color={C.border} onClick={()=>setSelectedSections(REPORT_SECTIONS.map(section=>section.id))}>Tout cocher</Btn>
@@ -1335,14 +1341,16 @@ const BulkPdfOptionsModal = ({rows,onCancel,onConfirm}) => {
             <input type="checkbox" checked={selectedSections.includes(section.id)} onChange={()=>setSelectedSections(previous=>previous.includes(section.id)?previous.filter(id=>id!==section.id):[...previous,section.id])}/>{section.label}
           </label>)}
         </div>
-      </fieldset>
-      <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,marginBottom:12,cursor:"pointer"}}><input type="checkbox" checked={includeHistory} onChange={event=>setIncludeHistory(event.target.checked)}/>Inclure les historiques de modification</label>
-      <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,marginBottom:12,cursor:"pointer"}}><input type="checkbox" checked={includeDeleted} onChange={event=>setIncludeDeleted(event.target.checked)}/>Inclure les lignes annulées barrées</label>
-      <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,marginBottom:14,cursor:"pointer"}}><input type="checkbox" checked={skipEmptyReports} onChange={event=>setSkipEmptyReports(event.target.checked)}/>Ne pas exporter les rapports vides</label>
+      </fieldset>}
+      {includePdf&&<>
+        <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,marginBottom:12,cursor:"pointer"}}><input type="checkbox" checked={includeHistory} onChange={event=>setIncludeHistory(event.target.checked)}/>Inclure les historiques de modification</label>
+        <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,marginBottom:12,cursor:"pointer"}}><input type="checkbox" checked={includeDeleted} onChange={event=>setIncludeDeleted(event.target.checked)}/>Inclure les lignes annulées barrées</label>
+        <label style={{display:"flex",alignItems:"center",gap:8,color:C.text,fontSize:12,marginBottom:14,cursor:"pointer"}}><input type="checkbox" checked={skipEmptyReports} onChange={event=>setSkipEmptyReports(event.target.checked)}/>Ne pas exporter les rapports vides</label>
+      </>}
       {error&&<div role="alert" style={{color:C.red,fontSize:12,marginBottom:10}}>{error}</div>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onCancel} disabled={running} color={C.border} small>Annuler</Btn>
-        <Btn onClick={run} disabled={running||!selectedSections.length} color={C.blue} small>{running?"Génération…":"Créer le PDF à imprimer"}</Btn>
+        <Btn onClick={run} disabled={running||(!includePdf&&!includeExcel)||(includePdf&&!selectedSections.length)} color={C.blue} small>{running?"Génération…":"Générer les fichiers"}</Btn>
       </div>
     </div>
   </div>;

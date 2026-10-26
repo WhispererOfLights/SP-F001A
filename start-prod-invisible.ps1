@@ -1,43 +1,35 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$python = "C:\Users\Julien Grosjean\AppData\Local\Programs\Python\Python311\python.exe"
-$dataDir = "\\neu-fs01.neu.orolia\Dpts\OP_SPACE\RAFS_USO\SP-F001(Web)\data"
 $statusUrl = "http://127.0.0.1:5181/api/health"
 $logDir = Join-Path $env:LOCALAPPDATA "SP-F001A"
-$environmentFile = "C:\ProgramData\SP-F001A\server.env"
-
-if (Test-Path -LiteralPath $environmentFile -PathType Leaf) {
-    foreach ($line in Get-Content -LiteralPath $environmentFile) {
-        $setting = $line.Trim()
-        if (-not $setting -or $setting.StartsWith("#") -or -not $setting.Contains("=")) {
-            continue
-        }
-        $name, $value = $setting.Split("=", 2)
-        [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), "Process")
-    }
-}
+$watchdogLog = Join-Path $logDir "watchdog.log"
+$runner = Join-Path $root "run-prod-server.ps1"
 
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 
+$mutex = New-Object Threading.Mutex($false, "Local\SP-F001A-Server-Watchdog")
+if (-not $mutex.WaitOne(0)) { exit 0 }
+
 try {
-    $response = Invoke-WebRequest -UseBasicParsing $statusUrl -TimeoutSec 2
-    if ($response.StatusCode -eq 200) { exit 0 }
-} catch {}
+    "$(Get-Date -Format s) - Surveillance du serveur demarree." | Add-Content -LiteralPath $watchdogLog
+    while ($true) {
+        try {
+            $response = Invoke-WebRequest -UseBasicParsing $statusUrl -TimeoutSec 3
+            if ($response.StatusCode -eq 200) {
+                Start-Sleep -Seconds 30
+                continue
+            }
+        } catch {}
 
-if (-not (Test-Path -LiteralPath $dataDir -PathType Container)) {
-    "$(Get-Date -Format s) - Dossier reseau inaccessible : $dataDir" |
-        Add-Content -LiteralPath (Join-Path $logDir "launcher-error.log")
-    exit 2
+        "$(Get-Date -Format s) - Serveur indisponible, tentative de relance." | Add-Content -LiteralPath $watchdogLog
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File $runner
+        $exitCode = $LASTEXITCODE
+        "$(Get-Date -Format s) - Processus serveur termine (code $exitCode), nouvelle tentative dans 30 s." | Add-Content -LiteralPath $watchdogLog
+        Start-Sleep -Seconds 30
+    }
+} finally {
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
 }
-
-$arguments = @(
-    "server.py", "--host", "0.0.0.0", "--port", "5181",
-    "--data-dir", ('"' + $dataDir + '"')
-)
-
-Start-Process -FilePath $python -WorkingDirectory $root -WindowStyle Hidden `
-    -ArgumentList $arguments `
-    -RedirectStandardOutput (Join-Path $logDir "server.log") `
-    -RedirectStandardError (Join-Path $logDir "server-error.log")
 

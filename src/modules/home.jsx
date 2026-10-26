@@ -658,7 +658,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     setCopiedTeamsKey(key);
     setTimeout(()=>setCopiedTeamsKey(current=>current===key?"":current),1800);
   };
-  const exportBulkPdf=async options=>{
+  const exportBulkReports=async options=>{
     const logoImage=await loadPdfLogoImage("assets/logo.png");
     const grouped=new Map();
     selectedRows.forEach(row=>{
@@ -666,34 +666,61 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       if(row._homeUnitId&&!group.unitIds.includes(row._homeUnitId)) group.unitIds.push(row._homeUnitId);
       grouped.set(row.id,group);
     });
-    const blobs=[];
+    const dossiers=[];
     for(const [id,group] of grouped){
       let data=dataById[id];
       if(!data){
         const stored=await window.storage.get(`of:${id}`,true);
         data=JSON.parse(stored.value);
       }
-      try{
-        blobs.push(buildDirectReportPdf({
-          ofData:data,
-          lists:{consommables},
-          exportedAt:nowDT(),
-          exportedBy:user?.trigram||"",
-          includeHistory:!!options.includeHistory,
-          includeDeleted:options.includeDeleted!==false,
-          skipEmptyReports:!!options.skipEmptyReports,
-          selectedSections:options.selectedSections,
-          selectedSnIds:group.unitIds.length?group.unitIds:null,
-          logoImage
-        }));
-      }catch(error){
-        if(!options.skipEmptyReports||!String(error?.message||error).includes("Aucun rapport non vide")) throw error;
-      }
+      dossiers.push({data,unitIds:group.unitIds.length?group.unitIds:null});
     }
-    const merged=await mergeGeneratedPdfBlobs(blobs);
     const ofNumbers=[...grouped.values()].map(group=>group.row.of).filter(Boolean);
     const suffix=ofNumbers.length===1?`OF ${ofNumbers[0]}`:`${ofNumbers.length} OF`;
-    downloadBrowserBlob(merged,fileSafeName(`SP-F001A - Impression groupée - ${suffix} - ${nowDT().replace(/[/:]/g,"-")} - ${user?.trigram||"VISA"}`)+".pdf");
+    const baseName=fileSafeName(`SP-F001A - Export groupé - ${suffix} - ${nowDT().replace(/[/:]/g,"-")} - ${user?.trigram||"VISA"}`);
+    if(options.includePdf){
+      const blobs=[];
+      for(const dossier of dossiers){
+        try{
+          blobs.push(buildDirectReportPdf({
+            ofData:dossier.data,
+            lists:{consommables},
+            exportedAt:nowDT(),
+            exportedBy:user?.trigram||"",
+            includeHistory:!!options.includeHistory,
+            includeDeleted:options.includeDeleted!==false,
+            skipEmptyReports:!!options.skipEmptyReports,
+            selectedSections:options.selectedSections,
+            selectedSnIds:dossier.unitIds,
+            logoImage
+          }));
+        }catch(error){
+          if(!options.skipEmptyReports||!String(error?.message||error).includes("Aucun rapport non vide")) throw error;
+        }
+      }
+      const merged=await mergeGeneratedPdfBlobs(blobs);
+      downloadBrowserBlob(merged,baseName+".pdf");
+    }
+    if(options.includeExcel){
+      const groupedSheet=(name,headers,key)=>{
+        const rows=[];
+        const headerRows=[];
+        dossiers.forEach((dossier,index)=>{
+          const start=rows.length;
+          const data=buildSapExcelRows({ofData:dossier.data,consommables,selectedSnIds:dossier.unitIds});
+          rows.push(...sapExcelDocumentHeader({ofData:dossier.data,selectedSnIds:dossier.unitIds}),headers,...data[key]);
+          headerRows.push(start,start+3);
+          if(index<dossiers.length-1) rows.push([]);
+        });
+        return {name,rows,headerRows};
+      };
+      const workbook=buildExcelWorkbook([
+        groupedSheet("IB52",SAP_IB52_HEADERS,"IB52"),
+        groupedSheet("CO02",SAP_CO02_HEADERS,"CO02"),
+        groupedSheet("Toutes les infos",SAP_FULL_HEADERS,"FULL"),
+      ]);
+      downloadBrowserBlob(workbook,baseName+" - SAP IB52 CO02.xlsx");
+    }
     setShowBulkPdf(false);
   };
   const exportBulkComponentSheets=async()=>{
@@ -1101,7 +1128,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
       )}
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={v=>{onSaveProfile&&onSaveProfile(v);setShowProfile(false);}}/> }
-      {showBulkPdf&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkPdf}/>}
+      {showBulkPdf&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkReports}/>}
       {homeMailKind&&isAdminManager(user)&&<HomeMailModal kind={homeMailKind} rows={selectedRows} user={user} onClose={()=>setHomeMailKind(null)}
         onMarkForClosure={rows=>onBulkUnitStatusChange
           ? onBulkUnitStatusChange(rows,"a_cloturer")
