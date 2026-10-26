@@ -51,6 +51,7 @@ const documentHeader=context.sapHeader({ofData,selectedSnIds:['u1']});
 assert.ok(rows.IB52.every(row=>row.length===9));
 assert.ok(rows.CO02.every(row=>row.length===12));
 assert.equal(rows.IB52[0][2],'1600000046','Les consommables sont placés en premier dans IB52');
+assert.equal(rows.IB52[0][4],'','Le numéro d’échantillon consommable ne doit pas être exporté comme numéro de série IB52');
 assert.deepEqual(Array.from(rows.IB52,row=>row[2]),['1600000046','ARTICLE-C','ARTICLE-P','ARTICLE-M','2920000656','2920000657','2920000656']);
 assert.equal(rows.IB52.some(row=>row[2]==='ARTICLE-A'),false,'Un composant finalement dessoudé est absent de IB52');
 assert.equal(rows.IB52.find(row=>row[2]==='ARTICLE-P')[4],'SN-COMP');

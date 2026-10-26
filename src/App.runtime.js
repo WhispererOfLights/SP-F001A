@@ -5596,7 +5596,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref58) {
       item = _ref59.item,
       conso = _ref59.conso;
     return targetRows(op).forEach(function () {
-      return ib52.push(["", "", article(conso.sap || conso.code || item.consoId), "", String(item.echantillon || ""), qty(item.qty || item.qte || op.qty || op.qte), "", "", String(item.lot || "")]);
+      return ib52.push(["", "", article(conso.sap || conso.code || item.consoId), "", "", qty(item.qty || item.qte || op.qty || op.qte), "", "", String(item.lot || "")]);
     });
   });
 

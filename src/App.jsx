@@ -1055,7 +1055,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
 
   // IB52 : tous les consommables.
   consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>ib52.push([
-    "","",article(conso.sap||conso.code||item.consoId),"",String(item.echantillon||""),qty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
+    "","",article(conso.sap||conso.code||item.consoId),"","",qty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
   ])));
 
   // IB52 : état final de chaque repère TOPO pour chaque SN / LOT sélectionné.
