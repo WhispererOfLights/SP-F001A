@@ -434,7 +434,12 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
       if(type==="binder"){
         pages.push(page({dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),22)}));
       }else if(type==="stock"){
-        pages.push(page({dividerY:59,lines:commonHeader(identity,13)}));
+        pages.push(page({lines:[
+          {text:article,y:116,max:18,min:12,bold:true},
+          {text:description,y:91,max:9,min:5.8},
+          {text:identity,y:54,max:17,min:9,bold:true},
+          {text:`OF ${of} - OTP ${otp}`,y:18,max:8,min:5.2,bold:true},
+        ]}));
       }else if(type==="bonding"){
         const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
         if(!polymerization) return;

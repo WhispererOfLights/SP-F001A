@@ -69,6 +69,8 @@ const vm = require('node:vm');
   assert.ok(stockLot.includes('LOT-42'));
   assert.ok(!stockLot.includes('MISE EN STOCK'));
   assert.ok(!stockLot.includes('Qt\\351 12'));
+  assert.ok(!stockLot.includes('0.70 0.73 0.77 RG .45 w 8 59.00 m'),'L’étiquette de stockage ne contient plus de trait séparateur');
+  assert.ok(/\/F2 18\.00 Tf [^\n]+\(250001153\)/.test(stockLot),'Le code article SAP est affiché en grand');
   fs.writeFileSync(path.join(__dirname,'artifacts/stock-lot-label.pdf'),Buffer.from(await stockLotBlob.arrayBuffer()));
 
   const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});

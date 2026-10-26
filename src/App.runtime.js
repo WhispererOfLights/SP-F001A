@@ -2524,8 +2524,30 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref34) {
         }));
       } else if (type === "stock") {
         pages.push(page({
-          dividerY: 59,
-          lines: commonHeader(identity, 13)
+          lines: [{
+            text: article,
+            y: 116,
+            max: 18,
+            min: 12,
+            bold: true
+          }, {
+            text: description,
+            y: 91,
+            max: 9,
+            min: 5.8
+          }, {
+            text: identity,
+            y: 54,
+            max: 17,
+            min: 9,
+            bold: true
+          }, {
+            text: "OF ".concat(of, " - OTP ").concat(otp),
+            y: 18,
+            max: 8,
+            min: 5.2,
+            bold: true
+          }]
         }));
       } else if (type === "bonding") {
         var _polymerization$consu;
