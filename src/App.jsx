@@ -1044,7 +1044,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
     .filter(exportable).map(item=>({op,item,conso:consoById[item.consoId]||{}})));
   const facts=(ofData.faits?.rows||[]).filter(exportable);
   const qty=(value,fallback="1")=>String(value??"").trim()||fallback;
-  const consoQty=value=>qty(value,"0.1");
+  const consoQty=value=>qty(value,"1");
   const article=value=>compactArticleCode(value);
   const comments=value=>(value||[]).map(comment=>[comment.dt,comment.visa,comment.text].filter(Boolean).join(" - ")).join(" | ");
   const deletedInfo=row=>[

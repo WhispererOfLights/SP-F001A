@@ -5760,7 +5760,7 @@ var buildSapExcelRows = function buildSapExcelRows(_ref59) {
     return String(value !== null && value !== void 0 ? value : "").trim() || fallback;
   };
   var consoQty = function consoQty(value) {
-    return qty(value, "0.1");
+    return qty(value, "1");
   };
   var article = function article(value) {
     return compactArticleCode(value);

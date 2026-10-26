@@ -77,11 +77,11 @@ const groupedRows=context.sapRows({ofData:{
     {id:'c-op3',validated:true,snScope:'custom',snIds:['u1'],items:[{id:'c-i3',validated:true,consoId:'conso1',lot:'LOT-C2'}]},
   ]},
 },consommables:[{id:'conso1',sap:'1600000046',label:'Colle'}],selectedSnIds:['u1']});
-assert.ok(groupedRows.IB52.filter(row=>row[2]==='1600000046').every(row=>row[5]==='0.1'),'Un consommable sans quantité est exporté à 0.1');
+assert.ok(groupedRows.IB52.filter(row=>row[2]==='1600000046').every(row=>row[5]==='1'),'Un consommable sans quantité est exporté à 1');
 assert.equal(groupedRows.CO02.find(row=>row[0]==='ARTICLE-R'&&row[11]==='LOT-R')[2],'5','Les composants article + lot identiques sont additionnés');
 assert.equal(groupedRows.CO02.find(row=>row[0]==='ARTICLE-R'&&row[11]==='LOT-AUTRE')[2],'4','Un lot différent reste séparé');
-assert.equal(groupedRows.CO02.find(row=>row[0]==='1600000046'&&row[11]==='LOT-C')[2],'0.2','Les consommables article + lot identiques sont additionnés');
-assert.equal(groupedRows.CO02.find(row=>row[0]==='1600000046'&&row[11]==='LOT-C2')[2],'0.1','Le consommable d’un autre lot reste séparé');
+assert.equal(groupedRows.CO02.find(row=>row[0]==='1600000046'&&row[11]==='LOT-C')[2],'2','Les consommables article + lot identiques sont additionnés');
+assert.equal(groupedRows.CO02.find(row=>row[0]==='1600000046'&&row[11]==='LOT-C2')[2],'1','Le consommable d’un autre lot reste séparé');
 assert.ok(rows.FULL.every(row=>row.length===27));
 const fullObservation=rows.FULL.find(row=>row[8]==='Observation');
 assert.equal(fullObservation[7],'C100');
