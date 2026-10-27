@@ -13434,6 +13434,7 @@ var TabConsommables = function TabConsommables(_ref86) {
 // ─── 4. Test Equipment — format AAAA-MM + détection hors calibration ───────
 var normCalib = function normCalib(s) {
   if (!s) return s;
+  if (["N/A", "NA"].includes(String(s).trim().toUpperCase().replace(/\s+/g, ""))) return "N/A";
   var d = s.replace(/\D/g, "");
   // AAMM "2506" → "2025-06"
   if (d.length === 4) return "20" + d.slice(0, 2) + "-" + d.slice(2, 4);
@@ -13454,10 +13455,16 @@ var parseCalibDate = function parseCalibDate(s) {
 var isValidCalibDate = function isValidCalibDate(s) {
   if (!s) return true;
   var n = normCalib(s);
+  if (n === "N/A") return true;
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(n)) return false;
   return true;
 };
 var calibStatus = function calibStatus(s) {
+  if (normCalib(s) === "N/A") return {
+    label: "N/A",
+    color: C.blue,
+    bg: C.blue + "12"
+  };
   var d = parseCalibDate(normCalib(s));
   if (!d) return null;
   var diff = (d - new Date()) / 86400000;
@@ -13860,7 +13867,7 @@ var TabTestEquip = function TabTestEquip(_ref93) {
       onChange: function onChange(v) {
         return upd(r.id, "dateExpiration", v);
       },
-      placeholder: "2026-06 ou AAMM",
+      placeholder: "2026-06, AAMM ou N/A",
       small: true,
       readOnly: locked,
       onBlur: function onBlur(e) {
@@ -13876,7 +13883,7 @@ var TabTestEquip = function TabTestEquip(_ref93) {
         fontSize: 9,
         marginTop: 2
       }
-    }, "Format AAAA-MM, mois 01-12")), /*#__PURE__*/React.createElement(TD, {
+    }, "Format AAAA-MM, mois 01-12, ou N/A")), /*#__PURE__*/React.createElement(TD, {
       center: true
     }, st ? /*#__PURE__*/React.createElement(Badge, {
       label: st.label,
@@ -14015,7 +14022,7 @@ var TabTestEquip = function TabTestEquip(_ref93) {
       fontSize: 11,
       color: C.muted
     }
-  }, "\u2726 Visa pr\xE9-rempli \xB7 \xD7 annule et barre la ligne \xB7 Format date calibration : AAAA-MM (ex: 2026-06 = juin 2026)"), deleteTarget && /*#__PURE__*/React.createElement(DeleteModal, {
+  }, "\u2726 Visa pr\xE9-rempli \xB7 \xD7 annule et barre la ligne \xB7 Date calibration : AAAA-MM (ex: 2026-06) ou N/A"), deleteTarget && /*#__PURE__*/React.createElement(DeleteModal, {
     godMode: perms.godMode,
     onConfirm: confirmDel,
     onCancel: function onCancel() {
@@ -21250,24 +21257,167 @@ var homeFactSearchText = function homeFactSearchText(facts) {
     return [fact.type, fact.numero, fact.commentaires, fact.date, fact.visa, fact.closedDate, fact.closedVisa].filter(Boolean).join(" ");
   }).join(" ");
 };
-var OFSelector = function OFSelector(_ref132) {
-  var _STATUTS1, _STATUTS10, _STATUTS11;
-  var ofList = _ref132.ofList,
-    consommables = _ref132.consommables,
-    onSelect = _ref132.onSelect,
-    onCreate = _ref132.onCreate,
-    onDelete = _ref132.onDelete,
-    onImportOFs = _ref132.onImportOFs,
-    user = _ref132.user,
-    onLogout = _ref132.onLogout,
-    openHistory = _ref132.openHistory,
-    onUpdateStatus = _ref132.onUpdateStatus,
-    onUnitStatusChange = _ref132.onUnitStatusChange,
-    onBulkUnitStatusChange = _ref132.onBulkUnitStatusChange,
-    onFinishedSnChange = _ref132.onFinishedSnChange,
-    onSaveProfile = _ref132.onSaveProfile,
-    onManageUsers = _ref132.onManageUsers,
-    onManageStatuses = _ref132.onManageStatuses;
+var HomeOperationalAlerts = function HomeOperationalAlerts(_ref132) {
+  var polymerizations = _ref132.polymerizations,
+    ovens = _ref132.ovens,
+    loading = _ref132.loading,
+    onSelect = _ref132.onSelect;
+  var listStyle = {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+    maxHeight: 126,
+    overflowY: "auto"
+  };
+  var itemStyle = {
+    display: "grid",
+    gridTemplateColumns: "minmax(70px,.55fr) minmax(90px,.7fr) minmax(150px,1fr)",
+    gap: 8,
+    alignItems: "center",
+    width: "100%",
+    padding: "5px 7px",
+    border: 0,
+    borderBottom: "1px solid ".concat(C.border),
+    background: "transparent",
+    color: C.text,
+    cursor: "pointer",
+    textAlign: "left",
+    fontSize: 11
+  };
+  var empty = /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      fontSize: 11,
+      padding: "8px 7px"
+    }
+  }, "Aucun \xE9l\xE9ment");
+  return /*#__PURE__*/React.createElement("section", {
+    "aria-label": "Activit\xE9s en cours sur tous les OF",
+    style: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))",
+      borderTop: "1px solid ".concat(C.border),
+      borderBottom: "1px solid ".concat(C.border),
+      background: C.surface,
+      marginBottom: 12
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 10px",
+      borderRight: "1px solid ".concat(C.border),
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 3
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      fontSize: 11,
+      color: C.yellow,
+      textTransform: "uppercase"
+    }
+  }, "Polym\xE9risations en cours"), /*#__PURE__*/React.createElement(Badge, {
+    label: String(polymerizations.length),
+    color: C.yellow
+  })), /*#__PURE__*/React.createElement("div", {
+    style: listStyle
+  }, loading ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      fontSize: 11,
+      padding: 7
+    }
+  }, "Chargement\u2026") : polymerizations.length ? polymerizations.map(function (alert) {
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      key: alert.key,
+      "aria-label": "Ouvrir polym\xE9risation OF ".concat(alert.of, " - ").concat(alert.unit),
+      onClick: function onClick() {
+        return onSelect(alert.id, alert.unitId, "consommables");
+      },
+      style: itemStyle
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        fontFamily: "monospace"
+      }
+    }, "OF ", alert.of), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "monospace",
+        color: C.blue
+      }
+    }, alert.unit), /*#__PURE__*/React.createElement("span", null, "Sous vide d\xE8s le ", /*#__PURE__*/React.createElement("strong", null, formatAvailabilityDT(alert.readyAt))));
+  }) : empty)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "8px 10px",
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 3
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      fontSize: 11,
+      color: C.red,
+      textTransform: "uppercase"
+    }
+  }, "\xC9tuvages \xE0 faire"), /*#__PURE__*/React.createElement(Badge, {
+    label: String(ovens.length),
+    color: ovens.length ? C.red : C.green
+  })), /*#__PURE__*/React.createElement("div", {
+    style: listStyle
+  }, loading ? /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      fontSize: 11,
+      padding: 7
+    }
+  }, "Chargement\u2026") : ovens.length ? ovens.map(function (alert) {
+    return /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      key: alert.key,
+      "aria-label": "Ouvrir \xE9tuvage OF ".concat(alert.of, " - ").concat(alert.unit),
+      onClick: function onClick() {
+        return onSelect(alert.id, alert.unitId, "etuvage");
+      },
+      style: itemStyle
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        fontFamily: "monospace"
+      }
+    }, "OF ", alert.of), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "monospace",
+        color: C.blue
+      }
+    }, alert.unit), /*#__PURE__*/React.createElement("span", null, "\xC0 faire depuis ", /*#__PURE__*/React.createElement("strong", null, alert.label)));
+  }) : empty)));
+};
+var OFSelector = function OFSelector(_ref133) {
+  var _STATUTS10, _STATUTS11, _STATUTS12;
+  var ofList = _ref133.ofList,
+    consommables = _ref133.consommables,
+    onSelect = _ref133.onSelect,
+    onCreate = _ref133.onCreate,
+    onDelete = _ref133.onDelete,
+    onImportOFs = _ref133.onImportOFs,
+    user = _ref133.user,
+    onLogout = _ref133.onLogout,
+    openHistory = _ref133.openHistory,
+    onUpdateStatus = _ref133.onUpdateStatus,
+    onUnitStatusChange = _ref133.onUnitStatusChange,
+    onBulkUnitStatusChange = _ref133.onBulkUnitStatusChange,
+    onFinishedSnChange = _ref133.onFinishedSnChange,
+    onSaveProfile = _ref133.onSaveProfile,
+    onManageUsers = _ref133.onManageUsers,
+    onManageStatuses = _ref133.onManageStatuses;
   var blankForm = {
     of: "",
     sn: "",
@@ -21413,7 +21563,7 @@ var OFSelector = function OFSelector(_ref132) {
           case 5:
             _context28.n = 6;
             return Promise.all(ofList.map(/*#__PURE__*/function () {
-              var _ref134 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee27(o) {
+              var _ref135 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee27(o) {
                 var _data$units6, data, r, _t38;
                 return _regenerator().w(function (_context27) {
                   while (1) switch (_context27.p = _context27.n) {
@@ -21456,7 +21606,7 @@ var OFSelector = function OFSelector(_ref132) {
                 }, _callee27, null, [[0, 3]]);
               }));
               return function (_x10) {
-                return _ref134.apply(this, arguments);
+                return _ref135.apply(this, arguments);
               };
             }()));
           case 6:
@@ -21639,6 +21789,37 @@ var OFSelector = function OFSelector(_ref132) {
       _homeFactSearch: homeFactSearchText(facts)
     });
   });
+  var operationalRows = baseHomeRows.filter(function (row) {
+    var _STATUTS8, _UNIT_STATUTS4;
+    return !((_STATUTS8 = STATUTS[row.status || "en_cours"]) !== null && _STATUTS8 !== void 0 && _STATUTS8.closed) && !((_UNIT_STATUTS4 = UNIT_STATUTS[row.unitStatus || "en_cours"]) !== null && _UNIT_STATUTS4 !== void 0 && _UNIT_STATUTS4.closed);
+  });
+  var polymerizationAlerts = operationalRows.map(function (row) {
+    var status = pendingHomePolymerization(dataById[row.id], consommables, row._homeUnitId, homeNow);
+    return status ? {
+      key: "".concat(homeRowKey(row), ":poly"),
+      id: row.id,
+      unitId: row._homeUnitId,
+      of: row.of,
+      unit: homeUnitName(row),
+      readyAt: status.readyAt
+    } : null;
+  }).filter(Boolean).sort(function (a, b) {
+    return a.readyAt - b.readyAt;
+  });
+  var ovenAlerts = operationalRows.map(function (row) {
+    var info = nextEtuvageForRow(row);
+    return info.count && info.overdue ? {
+      key: "".concat(homeRowKey(row), ":oven"),
+      id: row.id,
+      unitId: row._homeUnitId,
+      of: row.of,
+      unit: homeUnitName(row),
+      label: info.label,
+      nextAt: info.nextAt
+    } : null;
+  }).filter(Boolean).sort(function (a, b) {
+    return a.nextAt - b.nextAt;
+  });
   var allHomeRows = columnSort.key ? _toConsumableArray(baseHomeRows).sort(function (a, b) {
     var av = homeSortValue(a, columnSort.key),
       bv = homeSortValue(b, columnSort.key);
@@ -21659,18 +21840,18 @@ var OFSelector = function OFSelector(_ref132) {
     });
   }) : baseHomeRows;
   var matching = allHomeRows.filter(function (o) {
-    var _STATUTS8, _warningsById$o$id3, _STATUTS9, _STATUTS0;
+    var _STATUTS9, _warningsById$o$id3, _STATUTS0, _STATUTS1;
     var q = search.toLowerCase().trim();
-    if (hideCloture && (_STATUTS8 = STATUTS[o.status || "en_cours"]) !== null && _STATUTS8 !== void 0 && _STATUTS8.closed) return false;
+    if (hideCloture && (_STATUTS9 = STATUTS[o.status || "en_cours"]) !== null && _STATUTS9 !== void 0 && _STATUTS9.closed) return false;
     if (onlyWarnings && !((_warningsById$o$id3 = warningsById[o.id]) !== null && _warningsById$o$id3 !== void 0 && _warningsById$o$id3.length)) return false;
     if (filterStatus.length && !filterStatus.includes(o.status || "en_cours") && !filterStatus.includes(o.unitStatus || "en_cours")) return false;
-    if (Object.entries(columnFilters).some(function (_ref136) {
-      var _ref137 = _slicedToArray(_ref136, 2),
-        key = _ref137[0],
-        value = _ref137[1];
+    if (Object.entries(columnFilters).some(function (_ref137) {
+      var _ref138 = _slicedToArray(_ref137, 2),
+        key = _ref138[0],
+        value = _ref138[1];
       return value && !columnValue(o, key).toLowerCase().includes(value.toLowerCase().trim());
     })) return false;
-    return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS9 = STATUTS[o.status || "en_cours"]) === null || _STATUTS9 === void 0 ? void 0 : _STATUTS9.label, (_STATUTS0 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, o._homeFactSearch].some(function (v) {
+    return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS0 = STATUTS[o.status || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, (_STATUTS1 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS1 === void 0 ? void 0 : _STATUTS1.label, o._homeFactSearch].some(function (v) {
       return String(v || "").toLowerCase().includes(q);
     });
   });
@@ -22135,10 +22316,10 @@ var OFSelector = function OFSelector(_ref132) {
       },
       label: "Tous",
       title: "Filtrer les statuts OF et SN/LOT",
-      options: Object.entries(STATUTS).map(function (_ref138) {
-        var _ref139 = _slicedToArray(_ref138, 2),
-          value = _ref139[0],
-          s = _ref139[1];
+      options: Object.entries(STATUTS).map(function (_ref139) {
+        var _ref140 = _slicedToArray(_ref139, 2),
+          value = _ref140[0],
+          s = _ref140[1];
         return {
           value: value,
           label: s.label
@@ -22548,10 +22729,10 @@ var OFSelector = function OFSelector(_ref132) {
     },
     label: "Tous statuts OF/SN",
     title: "Filtrer les statuts OF et SN/LOT",
-    options: Object.entries(STATUTS).map(function (_ref140) {
-      var _ref141 = _slicedToArray(_ref140, 2),
-        value = _ref141[0],
-        s = _ref141[1];
+    options: Object.entries(STATUTS).map(function (_ref141) {
+      var _ref142 = _slicedToArray(_ref141, 2),
+        value = _ref142[0],
+        s = _ref142[1];
       return {
         value: value,
         label: s.label
@@ -22581,7 +22762,12 @@ var OFSelector = function OFSelector(_ref132) {
       });
     },
     color: showNew ? C.border : C.accent
-  }, showNew ? "✕ Annuler" : "+ Nouveau dossier")), selectionMode && /*#__PURE__*/React.createElement("div", {
+  }, showNew ? "✕ Annuler" : "+ Nouveau dossier")), /*#__PURE__*/React.createElement(HomeOperationalAlerts, {
+    polymerizations: polymerizationAlerts,
+    ovens: ovenAlerts,
+    loading: loadingWorked,
+    onSelect: onSelect
+  }), selectionMode && /*#__PURE__*/React.createElement("div", {
     role: "toolbar",
     "aria-label": "Actions sur la s\xE9lection",
     style: {
@@ -22719,12 +22905,12 @@ var OFSelector = function OFSelector(_ref132) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref142) {
-    var _ref143 = _slicedToArray(_ref142, 4),
-      label = _ref143[0],
-      key = _ref143[1],
-      ph = _ref143[2],
-      title = _ref143[3];
+  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref143) {
+    var _ref144 = _slicedToArray(_ref143, 4),
+      label = _ref144[0],
+      key = _ref144[1],
+      ph = _ref144[2],
+      title = _ref144[3];
     return /*#__PURE__*/React.createElement("div", {
       key: key
     }, /*#__PURE__*/React.createElement("div", {
@@ -22821,20 +23007,20 @@ var OFSelector = function OFSelector(_ref132) {
     },
     style: {
       width: "100%",
-      background: ((_STATUTS1 = STATUTS[form.status || "en_cours"]) === null || _STATUTS1 === void 0 ? void 0 : _STATUTS1.color) + "22",
-      border: "1px solid ".concat((_STATUTS10 = STATUTS[form.status || "en_cours"]) === null || _STATUTS10 === void 0 ? void 0 : _STATUTS10.color),
+      background: ((_STATUTS10 = STATUTS[form.status || "en_cours"]) === null || _STATUTS10 === void 0 ? void 0 : _STATUTS10.color) + "22",
+      border: "1px solid ".concat((_STATUTS11 = STATUTS[form.status || "en_cours"]) === null || _STATUTS11 === void 0 ? void 0 : _STATUTS11.color),
       borderRadius: 4,
-      color: (_STATUTS11 = STATUTS[form.status || "en_cours"]) === null || _STATUTS11 === void 0 ? void 0 : _STATUTS11.color,
+      color: (_STATUTS12 = STATUTS[form.status || "en_cours"]) === null || _STATUTS12 === void 0 ? void 0 : _STATUTS12.color,
       padding: "6px 10px",
       fontSize: 13,
       fontFamily: "monospace",
       fontWeight: 700,
       outline: "none"
     }
-  }, Object.entries(STATUTS).map(function (_ref144) {
-    var _ref145 = _slicedToArray(_ref144, 2),
-      k = _ref145[0],
-      v = _ref145[1];
+  }, Object.entries(STATUTS).map(function (_ref145) {
+    var _ref146 = _slicedToArray(_ref145, 2),
+      k = _ref146[0],
+      v = _ref146[1];
     return /*#__PURE__*/React.createElement("option", {
       key: k,
       value: k
@@ -22975,10 +23161,10 @@ var OFSelector = function OFSelector(_ref132) {
       color: C.muted,
       cursor: "pointer"
     }
-  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref146) {
-    var _ref147 = _slicedToArray(_ref146, 2),
-      key = _ref147[0],
-      label = _ref147[1];
+  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref147) {
+    var _ref148 = _slicedToArray(_ref147, 2),
+      key = _ref148[0],
+      label = _ref148[1];
     return /*#__PURE__*/React.createElement("td", {
       key: key,
       style: {
@@ -22990,7 +23176,7 @@ var OFSelector = function OFSelector(_ref132) {
       padding: "4px 5px"
     }
   }, columnFilter("followup", "Suivi technique")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
-    var _STATUTS12, _STATUTS13, _STATUTS14, _UNIT_STATUTS$groupSt, _UNIT_STATUTS$groupSt2, _UNIT_STATUTS4, _UNIT_STATUTS5, _UNIT_STATUTS6, _warningsById$o$id4, _warningsById$o$id5;
+    var _STATUTS13, _STATUTS14, _STATUTS15, _UNIT_STATUTS$groupSt, _UNIT_STATUTS$groupSt2, _UNIT_STATUTS5, _UNIT_STATUTS6, _UNIT_STATUTS7, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
     var snLabels = snLabelsById[o.id] || snRowsFromHeader(o).map(snTitle);
     var ofRows = allHomeRows.filter(function (row) {
@@ -23177,20 +23363,20 @@ var OFSelector = function OFSelector(_ref132) {
         onUpdateStatus(o.id, e.target.value);
       },
       style: {
-        background: ((_STATUTS12 = STATUTS[o.status || "en_cours"]) === null || _STATUTS12 === void 0 ? void 0 : _STATUTS12.color) + "22",
-        border: "1px solid ".concat((_STATUTS13 = STATUTS[o.status || "en_cours"]) === null || _STATUTS13 === void 0 ? void 0 : _STATUTS13.color),
+        background: ((_STATUTS13 = STATUTS[o.status || "en_cours"]) === null || _STATUTS13 === void 0 ? void 0 : _STATUTS13.color) + "22",
+        border: "1px solid ".concat((_STATUTS14 = STATUTS[o.status || "en_cours"]) === null || _STATUTS14 === void 0 ? void 0 : _STATUTS14.color),
         borderRadius: 20,
         padding: "2px 8px",
         fontSize: 10,
         fontWeight: 700,
-        color: (_STATUTS14 = STATUTS[o.status || "en_cours"]) === null || _STATUTS14 === void 0 ? void 0 : _STATUTS14.color,
+        color: (_STATUTS15 = STATUTS[o.status || "en_cours"]) === null || _STATUTS15 === void 0 ? void 0 : _STATUTS15.color,
         outline: "none",
         cursor: "pointer"
       }
-    }, Object.entries(STATUTS).map(function (_ref148) {
-      var _ref149 = _slicedToArray(_ref148, 2),
-        k = _ref149[0],
-        v = _ref149[1];
+    }, Object.entries(STATUTS).map(function (_ref149) {
+      var _ref150 = _slicedToArray(_ref149, 2),
+        k = _ref150[0],
+        v = _ref150[1];
       return /*#__PURE__*/React.createElement("option", {
         key: k,
         value: k
@@ -23213,17 +23399,17 @@ var OFSelector = function OFSelector(_ref132) {
       },
       style: {
         width: "100%",
-        background: ((_UNIT_STATUTS4 = UNIT_STATUTS[o.unitStatus || "en_cours"]) === null || _UNIT_STATUTS4 === void 0 ? void 0 : _UNIT_STATUTS4.color) + "18",
-        color: (_UNIT_STATUTS5 = UNIT_STATUTS[o.unitStatus || "en_cours"]) === null || _UNIT_STATUTS5 === void 0 ? void 0 : _UNIT_STATUTS5.color,
-        border: "1px solid ".concat((_UNIT_STATUTS6 = UNIT_STATUTS[o.unitStatus || "en_cours"]) === null || _UNIT_STATUTS6 === void 0 ? void 0 : _UNIT_STATUTS6.color),
+        background: ((_UNIT_STATUTS5 = UNIT_STATUTS[o.unitStatus || "en_cours"]) === null || _UNIT_STATUTS5 === void 0 ? void 0 : _UNIT_STATUTS5.color) + "18",
+        color: (_UNIT_STATUTS6 = UNIT_STATUTS[o.unitStatus || "en_cours"]) === null || _UNIT_STATUTS6 === void 0 ? void 0 : _UNIT_STATUTS6.color,
+        border: "1px solid ".concat((_UNIT_STATUTS7 = UNIT_STATUTS[o.unitStatus || "en_cours"]) === null || _UNIT_STATUTS7 === void 0 ? void 0 : _UNIT_STATUTS7.color),
         borderRadius: 4,
         padding: "3px 5px",
         fontSize: 12
       }
-    }, Object.entries(UNIT_STATUTS).map(function (_ref150) {
-      var _ref151 = _slicedToArray(_ref150, 2),
-        value = _ref151[0],
-        s = _ref151[1];
+    }, Object.entries(UNIT_STATUTS).map(function (_ref151) {
+      var _ref152 = _slicedToArray(_ref151, 2),
+        value = _ref152[0],
+        s = _ref152[1];
       return /*#__PURE__*/React.createElement("option", {
         key: value,
         value: value
@@ -24468,12 +24654,12 @@ function App() {
             }
             _context50.n = 3;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref157 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee48(_ref156) {
-                var _ref158, id, unitIds, _t71, _t72;
+              var _ref158 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee48(_ref157) {
+                var _ref159, id, unitIds, _t71, _t72;
                 return _regenerator().w(function (_context48) {
                   while (1) switch (_context48.n) {
                     case 0:
-                      _ref158 = _slicedToArray(_ref156, 2), id = _ref158[0], unitIds = _ref158[1];
+                      _ref159 = _slicedToArray(_ref157, 2), id = _ref159[0], unitIds = _ref159[1];
                       _t71 = id;
                       _context48.n = 1;
                       return window.storage.updateWorkOrderSummary("of:".concat(id), {
@@ -24494,7 +24680,7 @@ function App() {
                 }, _callee48);
               }));
               return function (_x23) {
-                return _ref157.apply(this, arguments);
+                return _ref158.apply(this, arguments);
               };
             }()));
           case 3:
@@ -24506,12 +24692,12 @@ function App() {
           case 4:
             _context50.n = 5;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref160 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee49(_ref159) {
-                var _ref161, id, unitIds, record, data;
+              var _ref161 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee49(_ref160) {
+                var _ref162, id, unitIds, record, data;
                 return _regenerator().w(function (_context49) {
                   while (1) switch (_context49.n) {
                     case 0:
-                      _ref161 = _slicedToArray(_ref159, 2), id = _ref161[0], unitIds = _ref161[1];
+                      _ref162 = _slicedToArray(_ref160, 2), id = _ref162[0], unitIds = _ref162[1];
                       _context49.n = 1;
                       return window.storage.get("of:".concat(id), true);
                     case 1:
@@ -24536,7 +24722,7 @@ function App() {
                 }, _callee49);
               }));
               return function (_x24) {
-                return _ref160.apply(this, arguments);
+                return _ref161.apply(this, arguments);
               };
             }()));
           case 5:
@@ -24869,7 +25055,7 @@ function App() {
     return importOFs;
   }();
   var save = useCallback(/*#__PURE__*/function () {
-    var _ref163 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee53(data) {
+    var _ref164 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee53(data) {
       var etvRows, lastEtv, _t76;
       return _regenerator().w(function (_context54) {
         while (1) switch (_context54.p = _context54.n) {
@@ -24927,11 +25113,11 @@ function App() {
       }, _callee53, null, [[2, 4]]);
     }));
     return function (_x26) {
-      return _ref163.apply(this, arguments);
+      return _ref164.apply(this, arguments);
     };
   }(), [currentId]);
   var closeWorkItem = useCallback(/*#__PURE__*/function () {
-    var _ref164 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee54(tab, rowId, closed) {
+    var _ref165 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee54(tab, rowId, closed) {
       var stored, _t77;
       return _regenerator().w(function (_context55) {
         while (1) switch (_context55.p = _context55.n) {
@@ -24972,7 +25158,7 @@ function App() {
       }, _callee54, null, [[2, 5]]);
     }));
     return function (_x27, _x28, _x29) {
-      return _ref164.apply(this, arguments);
+      return _ref165.apply(this, arguments);
     };
   }(), [currentId, user]);
   useEffect(function () {
@@ -26033,7 +26219,7 @@ function App() {
   var reportSous = h.codeArticle || h.description || "—";
   var reportSn = snRows.length ? snRows.map(snTitle).join(" ; ") : "".concat(h.sn || "—", " / ").concat(h.lot || "—");
   var ReportTitle = function ReportTitle() {
-    var _STATUTS15;
+    var _STATUTS16;
     return printAll ? /*#__PURE__*/React.createElement("div", {
       style: {
         borderBottom: "3px solid ".concat(C.accent),
@@ -26083,7 +26269,7 @@ function App() {
         textTransform: "uppercase",
         letterSpacing: .8
       }
-    }, "Statut OF"), /*#__PURE__*/React.createElement("strong", null, ((_STATUTS15 = STATUTS[h.status || "en_cours"]) === null || _STATUTS15 === void 0 ? void 0 : _STATUTS15.label) || "—")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, "Statut OF"), /*#__PURE__*/React.createElement("strong", null, ((_STATUTS16 = STATUTS[h.status || "en_cours"]) === null || _STATUTS16 === void 0 ? void 0 : _STATUTS16.label) || "—")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.muted,
         fontSize: 9,
@@ -26092,8 +26278,8 @@ function App() {
       }
     }, "\xC9dit\xE9"), /*#__PURE__*/React.createElement("strong", null, nowDT(), " - ", user.trigram)))) : null;
   };
-  var ReportHead = function ReportHead(_ref165) {
-    var tab = _ref165.tab;
+  var ReportHead = function ReportHead(_ref166) {
+    var tab = _ref166.tab;
     return printAll ? /*#__PURE__*/React.createElement("div", {
       style: {
         border: "1px solid ".concat(C.border),
@@ -26478,10 +26664,10 @@ function App() {
       gap: 4,
       alignItems: "center"
     }
-  }, [["dossier", "Dossier"], ["sn", "Pièces de l'OF"]].map(function (_ref166) {
-    var _ref167 = _slicedToArray(_ref166, 2),
-      id = _ref167[0],
-      label = _ref167[1];
+  }, [["dossier", "Dossier"], ["sn", "Pièces de l'OF"]].map(function (_ref167) {
+    var _ref168 = _slicedToArray(_ref167, 2),
+      id = _ref168[0],
+      label = _ref168[1];
     return /*#__PURE__*/React.createElement("button", {
       key: id,
       onClick: function onClick() {
@@ -26619,7 +26805,7 @@ function App() {
       save(u);
     },
     onUpdateStatus: (/*#__PURE__*/function () {
-      var _ref169 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee67(status) {
+      var _ref170 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee67(status) {
         var stored, _updated, _updated2, _t88;
         return _regenerator().w(function (_context70) {
           while (1) switch (_context70.p = _context70.n) {
@@ -26667,7 +26853,7 @@ function App() {
         }, _callee67, null, [[1, 4]]);
       }));
       return function (_x40) {
-        return _ref169.apply(this, arguments);
+        return _ref170.apply(this, arguments);
       };
     }())
   }) : /*#__PURE__*/React.createElement(TrackedSNs, {

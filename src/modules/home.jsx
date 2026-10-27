@@ -496,6 +496,36 @@ const homeFactsForUnit = (data,unitId) => {
 const homeFactSearchText = facts => (facts||[]).map(fact=>[
   fact.type,fact.numero,fact.commentaires,fact.date,fact.visa,fact.closedDate,fact.closedVisa,
 ].filter(Boolean).join(" ")).join(" ");
+const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
+  const listStyle={display:"flex",flexDirection:"column",gap:3,maxHeight:126,overflowY:"auto"};
+  const itemStyle={display:"grid",gridTemplateColumns:"minmax(70px,.55fr) minmax(90px,.7fr) minmax(150px,1fr)",gap:8,alignItems:"center",
+    width:"100%",padding:"5px 7px",border:0,borderBottom:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",textAlign:"left",fontSize:11};
+  const empty=<span style={{color:C.muted,fontSize:11,padding:"8px 7px"}}>Aucun élément</span>;
+  return <section aria-label="Activités en cours sur tous les OF" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,background:C.surface,marginBottom:12}}>
+    <div style={{padding:"8px 10px",borderRight:`1px solid ${C.border}`,minWidth:0}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+        <strong style={{fontSize:11,color:C.yellow,textTransform:"uppercase"}}>Polymérisations en cours</strong>
+        <Badge label={String(polymerizations.length)} color={C.yellow}/>
+      </div>
+      <div style={listStyle}>{loading?<span style={{color:C.muted,fontSize:11,padding:7}}>Chargement…</span>:polymerizations.length?polymerizations.map(alert=><button type="button" key={alert.key}
+        aria-label={`Ouvrir polymérisation OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"consommables")} style={itemStyle}>
+        <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span style={{fontFamily:"monospace",color:C.blue}}>{alert.unit}</span>
+        <span>Sous vide dès le <strong>{formatAvailabilityDT(alert.readyAt)}</strong></span>
+      </button>):empty}</div>
+    </div>
+    <div style={{padding:"8px 10px",minWidth:0}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
+        <strong style={{fontSize:11,color:C.red,textTransform:"uppercase"}}>Étuvages à faire</strong>
+        <Badge label={String(ovens.length)} color={ovens.length?C.red:C.green}/>
+      </div>
+      <div style={listStyle}>{loading?<span style={{color:C.muted,fontSize:11,padding:7}}>Chargement…</span>:ovens.length?ovens.map(alert=><button type="button" key={alert.key}
+        aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={itemStyle}>
+        <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span style={{fontFamily:"monospace",color:C.blue}}>{alert.unit}</span>
+        <span>À faire depuis <strong>{alert.label}</strong></span>
+      </button>):empty}</div>
+    </div>
+  </section>;
+};
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageUsers,onManageStatuses}) => {
   const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
   const [search,setSearch]          = useState("");
@@ -605,6 +635,17 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     const facts=homeFactsForUnit(dataById[row.id],row._homeUnitId);
     return {...row,_homeFacts:facts,_homeFactSearch:homeFactSearchText(facts)};
   });
+  const operationalRows=baseHomeRows.filter(row=>
+    !STATUTS[row.status||"en_cours"]?.closed&&!UNIT_STATUTS[row.unitStatus||"en_cours"]?.closed
+  );
+  const polymerizationAlerts=operationalRows.map(row=>{
+    const status=pendingHomePolymerization(dataById[row.id],consommables,row._homeUnitId,homeNow);
+    return status?{key:`${homeRowKey(row)}:poly`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),readyAt:status.readyAt}:null;
+  }).filter(Boolean).sort((a,b)=>a.readyAt-b.readyAt);
+  const ovenAlerts=operationalRows.map(row=>{
+    const info=nextEtuvageForRow(row);
+    return info.count&&info.overdue?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),label:info.label,nextAt:info.nextAt}:null;
+  }).filter(Boolean).sort((a,b)=>a.nextAt-b.nextAt);
   const allHomeRows=columnSort.key?[...baseHomeRows].sort((a,b)=>{
     const av=homeSortValue(a,columnSort.key),bv=homeSortValue(b,columnSort.key);
     const aBlank=av===null||av===undefined||String(av).trim()==="",bBlank=bv===null||bv===undefined||String(bv).trim()==="";
@@ -882,6 +923,8 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
           </Btn>
         )}
       </div>
+
+      <HomeOperationalAlerts polymerizations={polymerizationAlerts} ovens={ovenAlerts} loading={loadingWorked} onSelect={onSelect}/>
 
       {selectionMode&&<div role="toolbar" aria-label="Actions sur la sélection" style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:12,padding:"8px 10px",background:C.blue+"10",border:`1px solid ${C.blue}`,borderRadius:6}}>
         <strong style={{color:C.blue,fontSize:12,minWidth:105}}>{selectedRows.length} sélectionnée{selectedRows.length>1?"s":""}</strong>

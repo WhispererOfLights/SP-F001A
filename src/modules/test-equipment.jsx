@@ -1,6 +1,7 @@
 // ─── 4. Test Equipment — format AAAA-MM + détection hors calibration ───────
 const normCalib = s => {
   if(!s) return s;
+  if(["N/A","NA"].includes(String(s).trim().toUpperCase().replace(/\s+/g,""))) return "N/A";
   const d=s.replace(/\D/g,"");
   // AAMM "2506" → "2025-06"
   if(d.length===4) return "20"+d.slice(0,2)+"-"+d.slice(2,4);
@@ -18,10 +19,12 @@ const parseCalibDate = s => {
 const isValidCalibDate = s => {
   if(!s) return true;
   const n=normCalib(s);
+  if(n==="N/A") return true;
   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(n)) return false;
   return true;
 };
 const calibStatus = s => {
+  if(normCalib(s)==="N/A") return{label:"N/A",color:C.blue,bg:C.blue+"12"};
   const d=parseCalibDate(normCalib(s));
   if(!d)return null;
   const diff=(d-new Date())/86400000;
@@ -147,10 +150,10 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                   <TD><Input value={r.designation} onChange={v=>upd(r.id,"designation",v)} small readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/></TD>
                   <TD>
                     <Input value={r.dateExpiration} onChange={v=>upd(r.id,"dateExpiration",v)}
-                      placeholder="2026-06 ou AAMM" small readOnly={locked}
+                      placeholder="2026-06, AAMM ou N/A" small readOnly={locked}
                       onBlur={e=>!locked&&upd(r.id,"dateExpiration",normCalib(e.target.value))}
                       style={{...(locked?LOCKED_INPUT_STYLE:{borderColor:invalid?C.red:undefined,color:invalid?C.red:undefined})}}/>
-                    {invalid&&!locked&&<div style={{color:C.red,fontSize:9,marginTop:2}}>Format AAAA-MM, mois 01-12</div>}
+                    {invalid&&!locked&&<div style={{color:C.red,fontSize:9,marginTop:2}}>Format AAAA-MM, mois 01-12, ou N/A</div>}
                   </TD>
                   <TD center>
                     {st
@@ -214,7 +217,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
       </div>
       {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun équipement</div>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
-        ✦ Visa pré-rempli · × annule et barre la ligne · Format date calibration : AAAA-MM (ex: 2026-06 = juin 2026)
+        ✦ Visa pré-rempli · × annule et barre la ligne · Date calibration : AAAA-MM (ex: 2026-06) ou N/A
       </div>
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}
       {restoreTarget&&<RestoreModal onConfirm={restore} onCancel={()=>setRestoreTarget(null)}/>}

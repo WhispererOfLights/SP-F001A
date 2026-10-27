@@ -55,6 +55,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
         'user:CDP':{trigram:'CDP',prenom:'Paul',nom:'Projet',role:'Chef de projet',email:'projet@example.com'}});
       window.testRecords['consommables-list']=[{id:'long-sap',sap:'1600000046',label:'Colle test longue référence',cat:'Colle',polymerizationHours:'876000'}];
       window.testRecords['of:test-of'].consommables={ops:[{id:'conso-op',createdVisa:'OTHER',createdDT:'18/09/2026 10:00',fiche:'DOC',op:'10',snScope:'all',validated:true,items:[{id:'conso-item',createdVisa:'OTHER',createdDT:'18/09/2026 10:00',consoId:'long-sap',validated:true,lot:'0000020516',dp:'17.09.26'}]}]};
+      window.testRecords['of:test-of'].etuvage={rows:[{id:'home-oven-due',createdVisa:'OTHER',createdDT:'18/09/2026 08:00',snScope:'custom',snIds:['u1'],fourN:'FOUR-1',duree:'72',temp:'85',entreeDT:'18/09/2026 08:00',entreeVisa:'OTHER',sortieDT:'18/09/2026 10:00',sortieVisa:'OTHER',validated:true}]};
       window.storage = {
         get: async key => {await new Promise(resolve => setTimeout(resolve, 5)); if (!(key in window.testRecords)) throw new Error('Not found'); return {value: JSON.stringify(window.testRecords[key])};},
         set: async (key, value) => {await new Promise(resolve => setTimeout(resolve, 10)); window.testRecords[key] = JSON.parse(value);},
@@ -64,6 +65,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     }, {entry, data, user,otherEntry});
     await page.addScriptTag({path: path.join(root, 'src/App.runtime.js')});
     await page.waitForFunction(()=>Array.from(document.querySelectorAll('label')).find(el=>el.textContent==='Mes OF travaillés')?.querySelector('input')?.checked);
+    await page.getByRole('region',{name:'Activités en cours sur tous les OF',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Ouvrir polymérisation OF 100TEST - SN1',exact:true}).waitFor();
+    await page.getByRole('button',{name:'Ouvrir étuvage OF 100TEST - SN1',exact:true}).waitFor();
     await page.getByTitle(/Sous vide dès le/).first().waitFor();
     assert.equal(await page.getByRole('columnheader',{name:/Suivi technique/}).count(),1);
     assert.equal(await page.getByRole('columnheader',{name:'Faits',exact:true}).count(),0);
