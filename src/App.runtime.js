@@ -20218,10 +20218,6 @@ var ofWarnings = function ofWarnings(data) {
     var status = _ref123.status;
     return (status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ";
   })) messages.push("Consommable périmé à la date d'utilisation");
-  if (consoRows.some(function (_ref124) {
-    var status = _ref124.status;
-    return (status === null || status === void 0 ? void 0 : status.label) === "BIENTÔT";
-  })) messages.push("Consommable bientôt périmé à la date d'utilisation");
   var consoById = Object.fromEntries(consommables.map(function (item) {
     return [item.id, item];
   }));
@@ -20256,10 +20252,10 @@ var ofWarnings = function ofWarnings(data) {
   if ((data === null || data === void 0 || (_data$header4 = data.header) === null || _data$header4 === void 0 ? void 0 : _data$header4.status) === "bloque") messages.push("OF bloqué");
   return messages;
 };
-var FinishedProductSn = function FinishedProductSn(_ref125) {
-  var of = _ref125.of,
-    user = _ref125.user,
-    onSave = _ref125.onSave;
+var FinishedProductSn = function FinishedProductSn(_ref124) {
+  var of = _ref124.of,
+    user = _ref124.user,
+    onSave = _ref124.onSave;
   var _useState209 = useState(of.snProduitFini || ""),
     _useState210 = _slicedToArray(_useState209, 2),
     draft = _useState210[0],
@@ -20391,18 +20387,18 @@ var currentBrowserHref = function currentBrowserHref() {
   var _window$location2;
   return typeof window !== "undefined" && (_window$location2 = window.location) !== null && _window$location2 !== void 0 && _window$location2.href ? window.location.href : "http://neu-jgr-sp:5181/";
 };
-var buildFolderLink = function buildFolderLink(_ref126) {
-  var ofId = _ref126.ofId,
-    _ref126$unitId = _ref126.unitId,
-    unitId = _ref126$unitId === void 0 ? "" : _ref126$unitId,
-    _ref126$ofNumber = _ref126.ofNumber,
-    ofNumber = _ref126$ofNumber === void 0 ? "" : _ref126$ofNumber,
-    _ref126$sn = _ref126.sn,
-    sn = _ref126$sn === void 0 ? "" : _ref126$sn,
-    _ref126$lot = _ref126.lot,
-    lot = _ref126$lot === void 0 ? "" : _ref126$lot,
-    _ref126$tab = _ref126.tab,
-    tab = _ref126$tab === void 0 ? "rework" : _ref126$tab;
+var buildFolderLink = function buildFolderLink(_ref125) {
+  var ofId = _ref125.ofId,
+    _ref125$unitId = _ref125.unitId,
+    unitId = _ref125$unitId === void 0 ? "" : _ref125$unitId,
+    _ref125$ofNumber = _ref125.ofNumber,
+    ofNumber = _ref125$ofNumber === void 0 ? "" : _ref125$ofNumber,
+    _ref125$sn = _ref125.sn,
+    sn = _ref125$sn === void 0 ? "" : _ref125$sn,
+    _ref125$lot = _ref125.lot,
+    lot = _ref125$lot === void 0 ? "" : _ref125$lot,
+    _ref125$tab = _ref125.tab,
+    tab = _ref125$tab === void 0 ? "rework" : _ref125$tab;
   var baseHref = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : appBaseHref();
   var url = new URL(baseHref);
   url.search = "";
@@ -20536,9 +20532,9 @@ var folderLinksForMail = function folderLinksForMail(groups) {
     }));
   })), [""]);
 };
-var buildClosureRequest = function buildClosureRequest(_ref127) {
-  var rows = _ref127.rows,
-    user = _ref127.user;
+var buildClosureRequest = function buildClosureRequest(_ref126) {
+  var rows = _ref126.rows,
+    user = _ref126.user;
   var groups = groupHomeMailRows(rows);
   var otps = _toConsumableArray(new Set(groups.map(function (group) {
     return group.otp;
@@ -20551,10 +20547,10 @@ var buildClosureRequest = function buildClosureRequest(_ref127) {
     body: ["Bonjour,", "", intro, ""].concat(_toConsumableArray(closureMailTable(groups)), _toConsumableArray(folderLinksForMail(groups)), ["Merci,", [user.prenom, user.nom].filter(Boolean).join(" ") || user.trigram, user.trigram]).join("\n")
   };
 };
-var buildIpInvitation = function buildIpInvitation(_ref128) {
-  var rows = _ref128.rows,
-    user = _ref128.user,
-    ipName = _ref128.ipName;
+var buildIpInvitation = function buildIpInvitation(_ref127) {
+  var rows = _ref127.rows,
+    user = _ref127.user,
+    ipName = _ref127.ipName;
   var groups = groupHomeMailRows(rows);
   var otps = _toConsumableArray(new Set(groups.map(function (group) {
     return group.otp || "Non renseigné";
@@ -20604,23 +20600,23 @@ var formatIcsLocal = function formatIcsLocal(date) {
   };
   return "".concat(date.getFullYear()).concat(pad(date.getMonth() + 1)).concat(pad(date.getDate()), "T").concat(pad(date.getHours())).concat(pad(date.getMinutes()), "00");
 };
-var buildOutlookMeetingIcs = function buildOutlookMeetingIcs(_ref129) {
-  var subject = _ref129.subject,
-    body = _ref129.body,
-    date = _ref129.date,
-    time = _ref129.time,
-    _ref129$duration = _ref129.duration,
-    duration = _ref129$duration === void 0 ? 60 : _ref129$duration,
-    _ref129$location = _ref129.location,
-    location = _ref129$location === void 0 ? "" : _ref129$location,
-    _ref129$recipients = _ref129.recipients,
-    recipients = _ref129$recipients === void 0 ? [] : _ref129$recipients,
-    _ref129$requiredRecip = _ref129.requiredRecipients,
-    requiredRecipients = _ref129$requiredRecip === void 0 ? recipients : _ref129$requiredRecip,
-    _ref129$optionalRecip = _ref129.optionalRecipients,
-    optionalRecipients = _ref129$optionalRecip === void 0 ? [] : _ref129$optionalRecip,
-    _ref129$organizer = _ref129.organizer,
-    organizer = _ref129$organizer === void 0 ? {} : _ref129$organizer;
+var buildOutlookMeetingIcs = function buildOutlookMeetingIcs(_ref128) {
+  var subject = _ref128.subject,
+    body = _ref128.body,
+    date = _ref128.date,
+    time = _ref128.time,
+    _ref128$duration = _ref128.duration,
+    duration = _ref128$duration === void 0 ? 60 : _ref128$duration,
+    _ref128$location = _ref128.location,
+    location = _ref128$location === void 0 ? "" : _ref128$location,
+    _ref128$recipients = _ref128.recipients,
+    recipients = _ref128$recipients === void 0 ? [] : _ref128$recipients,
+    _ref128$requiredRecip = _ref128.requiredRecipients,
+    requiredRecipients = _ref128$requiredRecip === void 0 ? recipients : _ref128$requiredRecip,
+    _ref128$optionalRecip = _ref128.optionalRecipients,
+    optionalRecipients = _ref128$optionalRecip === void 0 ? [] : _ref128$optionalRecip,
+    _ref128$organizer = _ref128.organizer,
+    organizer = _ref128$organizer === void 0 ? {} : _ref128$organizer;
   var matchDate = String(date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   var matchTime = String(time || "").match(/^(\d{2}):(\d{2})$/);
   if (!matchDate || !matchTime) throw new Error("Date ou heure de réunion invalide");
@@ -20640,15 +20636,15 @@ var buildOutlookMeetingIcs = function buildOutlookMeetingIcs(_ref129) {
   lines.push("END:VEVENT", "END:VCALENDAR", "");
   return lines.join("\r\n");
 };
-var downloadOutlookMeeting = function downloadOutlookMeeting(_ref130) {
-  var draft = _ref130.draft,
-    date = _ref130.date,
-    time = _ref130.time,
-    duration = _ref130.duration,
-    location = _ref130.location,
-    requiredRecipients = _ref130.requiredRecipients,
-    optionalRecipients = _ref130.optionalRecipients,
-    user = _ref130.user;
+var downloadOutlookMeeting = function downloadOutlookMeeting(_ref129) {
+  var draft = _ref129.draft,
+    date = _ref129.date,
+    time = _ref129.time,
+    duration = _ref129.duration,
+    location = _ref129.location,
+    requiredRecipients = _ref129.requiredRecipients,
+    optionalRecipients = _ref129.optionalRecipients,
+    user = _ref129.user;
   var content = buildOutlookMeetingIcs({
     subject: draft.subject,
     body: draft.body,
@@ -20674,12 +20670,12 @@ var downloadOutlookMeeting = function downloadOutlookMeeting(_ref130) {
     return URL.revokeObjectURL(url);
   }, 1000);
 };
-var HomeMailModal = function HomeMailModal(_ref131) {
-  var kind = _ref131.kind,
-    rows = _ref131.rows,
-    user = _ref131.user,
-    onClose = _ref131.onClose,
-    onMarkForClosure = _ref131.onMarkForClosure;
+var HomeMailModal = function HomeMailModal(_ref130) {
+  var kind = _ref130.kind,
+    rows = _ref130.rows,
+    user = _ref130.user,
+    onClose = _ref130.onClose,
+    onMarkForClosure = _ref130.onMarkForClosure;
   var isIp = kind === "ip";
   var _useState211 = useState(""),
     _useState212 = _slicedToArray(_useState211, 2),
@@ -21257,11 +21253,11 @@ var homeFactSearchText = function homeFactSearchText(facts) {
     return [fact.type, fact.numero, fact.commentaires, fact.date, fact.visa, fact.closedDate, fact.closedVisa].filter(Boolean).join(" ");
   }).join(" ");
 };
-var HomeOperationalAlerts = function HomeOperationalAlerts(_ref132) {
-  var polymerizations = _ref132.polymerizations,
-    ovens = _ref132.ovens,
-    loading = _ref132.loading,
-    onSelect = _ref132.onSelect;
+var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
+  var polymerizations = _ref131.polymerizations,
+    ovens = _ref131.ovens,
+    loading = _ref131.loading,
+    onSelect = _ref131.onSelect;
   var listStyle = {
     display: "flex",
     flexDirection: "column",
@@ -21400,24 +21396,24 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref132) {
     }, alert.unit), /*#__PURE__*/React.createElement("span", null, "\xC0 faire depuis ", /*#__PURE__*/React.createElement("strong", null, alert.label)));
   }) : empty)));
 };
-var OFSelector = function OFSelector(_ref133) {
+var OFSelector = function OFSelector(_ref132) {
   var _STATUTS10, _STATUTS11, _STATUTS12;
-  var ofList = _ref133.ofList,
-    consommables = _ref133.consommables,
-    onSelect = _ref133.onSelect,
-    onCreate = _ref133.onCreate,
-    onDelete = _ref133.onDelete,
-    onImportOFs = _ref133.onImportOFs,
-    user = _ref133.user,
-    onLogout = _ref133.onLogout,
-    openHistory = _ref133.openHistory,
-    onUpdateStatus = _ref133.onUpdateStatus,
-    onUnitStatusChange = _ref133.onUnitStatusChange,
-    onBulkUnitStatusChange = _ref133.onBulkUnitStatusChange,
-    onFinishedSnChange = _ref133.onFinishedSnChange,
-    onSaveProfile = _ref133.onSaveProfile,
-    onManageUsers = _ref133.onManageUsers,
-    onManageStatuses = _ref133.onManageStatuses;
+  var ofList = _ref132.ofList,
+    consommables = _ref132.consommables,
+    onSelect = _ref132.onSelect,
+    onCreate = _ref132.onCreate,
+    onDelete = _ref132.onDelete,
+    onImportOFs = _ref132.onImportOFs,
+    user = _ref132.user,
+    onLogout = _ref132.onLogout,
+    openHistory = _ref132.openHistory,
+    onUpdateStatus = _ref132.onUpdateStatus,
+    onUnitStatusChange = _ref132.onUnitStatusChange,
+    onBulkUnitStatusChange = _ref132.onBulkUnitStatusChange,
+    onFinishedSnChange = _ref132.onFinishedSnChange,
+    onSaveProfile = _ref132.onSaveProfile,
+    onManageUsers = _ref132.onManageUsers,
+    onManageStatuses = _ref132.onManageStatuses;
   var blankForm = {
     of: "",
     sn: "",
@@ -21563,7 +21559,7 @@ var OFSelector = function OFSelector(_ref133) {
           case 5:
             _context28.n = 6;
             return Promise.all(ofList.map(/*#__PURE__*/function () {
-              var _ref135 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee27(o) {
+              var _ref134 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee27(o) {
                 var _data$units6, data, r, _t38;
                 return _regenerator().w(function (_context27) {
                   while (1) switch (_context27.p = _context27.n) {
@@ -21606,7 +21602,7 @@ var OFSelector = function OFSelector(_ref133) {
                 }, _callee27, null, [[0, 3]]);
               }));
               return function (_x10) {
-                return _ref135.apply(this, arguments);
+                return _ref134.apply(this, arguments);
               };
             }()));
           case 6:
@@ -21845,10 +21841,10 @@ var OFSelector = function OFSelector(_ref133) {
     if (hideCloture && (_STATUTS9 = STATUTS[o.status || "en_cours"]) !== null && _STATUTS9 !== void 0 && _STATUTS9.closed) return false;
     if (onlyWarnings && !((_warningsById$o$id3 = warningsById[o.id]) !== null && _warningsById$o$id3 !== void 0 && _warningsById$o$id3.length)) return false;
     if (filterStatus.length && !filterStatus.includes(o.status || "en_cours") && !filterStatus.includes(o.unitStatus || "en_cours")) return false;
-    if (Object.entries(columnFilters).some(function (_ref137) {
-      var _ref138 = _slicedToArray(_ref137, 2),
-        key = _ref138[0],
-        value = _ref138[1];
+    if (Object.entries(columnFilters).some(function (_ref136) {
+      var _ref137 = _slicedToArray(_ref136, 2),
+        key = _ref137[0],
+        value = _ref137[1];
       return value && !columnValue(o, key).toLowerCase().includes(value.toLowerCase().trim());
     })) return false;
     return !q || [o.of, o.sn, o.lot, o.snProduitFini, o.description, o.otp, o.projet, o.ofRework, o.codeArticle, (_STATUTS0 = STATUTS[o.status || "en_cours"]) === null || _STATUTS0 === void 0 ? void 0 : _STATUTS0.label, (_STATUTS1 = STATUTS[o.unitStatus || "en_cours"]) === null || _STATUTS1 === void 0 ? void 0 : _STATUTS1.label, o._homeFactSearch].some(function (v) {
@@ -22316,10 +22312,10 @@ var OFSelector = function OFSelector(_ref133) {
       },
       label: "Tous",
       title: "Filtrer les statuts OF et SN/LOT",
-      options: Object.entries(STATUTS).map(function (_ref139) {
-        var _ref140 = _slicedToArray(_ref139, 2),
-          value = _ref140[0],
-          s = _ref140[1];
+      options: Object.entries(STATUTS).map(function (_ref138) {
+        var _ref139 = _slicedToArray(_ref138, 2),
+          value = _ref139[0],
+          s = _ref139[1];
         return {
           value: value,
           label: s.label
@@ -22729,10 +22725,10 @@ var OFSelector = function OFSelector(_ref133) {
     },
     label: "Tous statuts OF/SN",
     title: "Filtrer les statuts OF et SN/LOT",
-    options: Object.entries(STATUTS).map(function (_ref141) {
-      var _ref142 = _slicedToArray(_ref141, 2),
-        value = _ref142[0],
-        s = _ref142[1];
+    options: Object.entries(STATUTS).map(function (_ref140) {
+      var _ref141 = _slicedToArray(_ref140, 2),
+        value = _ref141[0],
+        s = _ref141[1];
       return {
         value: value,
         label: s.label
@@ -22905,12 +22901,12 @@ var OFSelector = function OFSelector(_ref133) {
       gap: 10,
       marginBottom: 10
     }
-  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref143) {
-    var _ref144 = _slicedToArray(_ref143, 4),
-      label = _ref144[0],
-      key = _ref144[1],
-      ph = _ref144[2],
-      title = _ref144[3];
+  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref142) {
+    var _ref143 = _slicedToArray(_ref142, 4),
+      label = _ref143[0],
+      key = _ref143[1],
+      ph = _ref143[2],
+      title = _ref143[3];
     return /*#__PURE__*/React.createElement("div", {
       key: key
     }, /*#__PURE__*/React.createElement("div", {
@@ -23017,10 +23013,10 @@ var OFSelector = function OFSelector(_ref133) {
       fontWeight: 700,
       outline: "none"
     }
-  }, Object.entries(STATUTS).map(function (_ref145) {
-    var _ref146 = _slicedToArray(_ref145, 2),
-      k = _ref146[0],
-      v = _ref146[1];
+  }, Object.entries(STATUTS).map(function (_ref144) {
+    var _ref145 = _slicedToArray(_ref144, 2),
+      k = _ref145[0],
+      v = _ref145[1];
     return /*#__PURE__*/React.createElement("option", {
       key: k,
       value: k
@@ -23161,10 +23157,10 @@ var OFSelector = function OFSelector(_ref133) {
       color: C.muted,
       cursor: "pointer"
     }
-  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref147) {
-    var _ref148 = _slicedToArray(_ref147, 2),
-      key = _ref148[0],
-      label = _ref148[1];
+  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref146) {
+    var _ref147 = _slicedToArray(_ref146, 2),
+      key = _ref147[0],
+      label = _ref147[1];
     return /*#__PURE__*/React.createElement("td", {
       key: key,
       style: {
@@ -23373,10 +23369,10 @@ var OFSelector = function OFSelector(_ref133) {
         outline: "none",
         cursor: "pointer"
       }
-    }, Object.entries(STATUTS).map(function (_ref149) {
-      var _ref150 = _slicedToArray(_ref149, 2),
-        k = _ref150[0],
-        v = _ref150[1];
+    }, Object.entries(STATUTS).map(function (_ref148) {
+      var _ref149 = _slicedToArray(_ref148, 2),
+        k = _ref149[0],
+        v = _ref149[1];
       return /*#__PURE__*/React.createElement("option", {
         key: k,
         value: k
@@ -23406,10 +23402,10 @@ var OFSelector = function OFSelector(_ref133) {
         padding: "3px 5px",
         fontSize: 12
       }
-    }, Object.entries(UNIT_STATUTS).map(function (_ref151) {
-      var _ref152 = _slicedToArray(_ref151, 2),
-        value = _ref152[0],
-        s = _ref152[1];
+    }, Object.entries(UNIT_STATUTS).map(function (_ref150) {
+      var _ref151 = _slicedToArray(_ref150, 2),
+        value = _ref151[0],
+        s = _ref151[1];
       return /*#__PURE__*/React.createElement("option", {
         key: value,
         value: value
@@ -24654,12 +24650,12 @@ function App() {
             }
             _context50.n = 3;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref158 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee48(_ref157) {
-                var _ref159, id, unitIds, _t71, _t72;
+              var _ref157 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee48(_ref156) {
+                var _ref158, id, unitIds, _t71, _t72;
                 return _regenerator().w(function (_context48) {
                   while (1) switch (_context48.n) {
                     case 0:
-                      _ref159 = _slicedToArray(_ref157, 2), id = _ref159[0], unitIds = _ref159[1];
+                      _ref158 = _slicedToArray(_ref156, 2), id = _ref158[0], unitIds = _ref158[1];
                       _t71 = id;
                       _context48.n = 1;
                       return window.storage.updateWorkOrderSummary("of:".concat(id), {
@@ -24680,7 +24676,7 @@ function App() {
                 }, _callee48);
               }));
               return function (_x23) {
-                return _ref158.apply(this, arguments);
+                return _ref157.apply(this, arguments);
               };
             }()));
           case 3:
@@ -24692,12 +24688,12 @@ function App() {
           case 4:
             _context50.n = 5;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref161 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee49(_ref160) {
-                var _ref162, id, unitIds, record, data;
+              var _ref160 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee49(_ref159) {
+                var _ref161, id, unitIds, record, data;
                 return _regenerator().w(function (_context49) {
                   while (1) switch (_context49.n) {
                     case 0:
-                      _ref162 = _slicedToArray(_ref160, 2), id = _ref162[0], unitIds = _ref162[1];
+                      _ref161 = _slicedToArray(_ref159, 2), id = _ref161[0], unitIds = _ref161[1];
                       _context49.n = 1;
                       return window.storage.get("of:".concat(id), true);
                     case 1:
@@ -24722,7 +24718,7 @@ function App() {
                 }, _callee49);
               }));
               return function (_x24) {
-                return _ref161.apply(this, arguments);
+                return _ref160.apply(this, arguments);
               };
             }()));
           case 5:
@@ -25055,7 +25051,7 @@ function App() {
     return importOFs;
   }();
   var save = useCallback(/*#__PURE__*/function () {
-    var _ref164 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee53(data) {
+    var _ref163 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee53(data) {
       var etvRows, lastEtv, _t76;
       return _regenerator().w(function (_context54) {
         while (1) switch (_context54.p = _context54.n) {
@@ -25113,11 +25109,11 @@ function App() {
       }, _callee53, null, [[2, 4]]);
     }));
     return function (_x26) {
-      return _ref164.apply(this, arguments);
+      return _ref163.apply(this, arguments);
     };
   }(), [currentId]);
   var closeWorkItem = useCallback(/*#__PURE__*/function () {
-    var _ref165 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee54(tab, rowId, closed) {
+    var _ref164 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee54(tab, rowId, closed) {
       var stored, _t77;
       return _regenerator().w(function (_context55) {
         while (1) switch (_context55.p = _context55.n) {
@@ -25158,7 +25154,7 @@ function App() {
       }, _callee54, null, [[2, 5]]);
     }));
     return function (_x27, _x28, _x29) {
-      return _ref165.apply(this, arguments);
+      return _ref164.apply(this, arguments);
     };
   }(), [currentId, user]);
   useEffect(function () {
@@ -26278,8 +26274,8 @@ function App() {
       }
     }, "\xC9dit\xE9"), /*#__PURE__*/React.createElement("strong", null, nowDT(), " - ", user.trigram)))) : null;
   };
-  var ReportHead = function ReportHead(_ref166) {
-    var tab = _ref166.tab;
+  var ReportHead = function ReportHead(_ref165) {
+    var tab = _ref165.tab;
     return printAll ? /*#__PURE__*/React.createElement("div", {
       style: {
         border: "1px solid ".concat(C.border),
@@ -26664,10 +26660,10 @@ function App() {
       gap: 4,
       alignItems: "center"
     }
-  }, [["dossier", "Dossier"], ["sn", "Pièces de l'OF"]].map(function (_ref167) {
-    var _ref168 = _slicedToArray(_ref167, 2),
-      id = _ref168[0],
-      label = _ref168[1];
+  }, [["dossier", "Dossier"], ["sn", "Pièces de l'OF"]].map(function (_ref166) {
+    var _ref167 = _slicedToArray(_ref166, 2),
+      id = _ref167[0],
+      label = _ref167[1];
     return /*#__PURE__*/React.createElement("button", {
       key: id,
       onClick: function onClick() {
@@ -26805,7 +26801,7 @@ function App() {
       save(u);
     },
     onUpdateStatus: (/*#__PURE__*/function () {
-      var _ref170 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee67(status) {
+      var _ref169 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee67(status) {
         var stored, _updated, _updated2, _t88;
         return _regenerator().w(function (_context70) {
           while (1) switch (_context70.p = _context70.n) {
@@ -26853,7 +26849,7 @@ function App() {
         }, _callee67, null, [[1, 4]]);
       }));
       return function (_x40) {
-        return _ref170.apply(this, arguments);
+        return _ref169.apply(this, arguments);
       };
     }())
   }) : /*#__PURE__*/React.createElement(TrackedSNs, {

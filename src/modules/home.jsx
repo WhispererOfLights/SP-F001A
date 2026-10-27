@@ -114,7 +114,6 @@ const ofWarnings = (data,consommables=[]) => {
   const consoRows=(data?.consommables?.ops||[]).filter(o=>!o.deleted).flatMap(o=>(o.items||[]).filter(it=>!it.deleted).map(it=>({it,status:dpStatus(it.dp,it.createdDT||o.createdDT)})));
   if(consoRows.some(({it})=>it.dp&&!isValidDMY(it.dp))) messages.push("Date de péremption consommable invalide");
   if(consoRows.some(({status})=>status?.label==="PÉRIMÉ")) messages.push("Consommable périmé à la date d'utilisation");
-  if(consoRows.some(({status})=>status?.label==="BIENTÔT")) messages.push("Consommable bientôt périmé à la date d'utilisation");
   const consoById=Object.fromEntries(consommables.map(item=>[item.id,item]));
   const pendingPolymerizations=(data?.consommables?.ops||[])
     .filter(o=>!o.deleted&&o.validated)

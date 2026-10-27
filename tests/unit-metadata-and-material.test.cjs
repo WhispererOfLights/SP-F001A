@@ -63,6 +63,8 @@ assert.equal(context.dcCheck('1801','02/01/2025 08:00').ok,true);
 assert.equal(context.dcCheck('1801','01/02/2025 08:00').ok,false);
 const warningData={header:{status:'en_cours'},consommables:{ops:[{createdDT:'18/09/2026 08:00',items:[{dp:'17.09.26'}]}]}};
 assert.ok(Array.from(context.ofWarnings(warningData)).includes("Consommable périmé à la date d'utilisation"));
+const soonConsumableData={header:{status:'en_cours'},consommables:{ops:[{createdDT:'18/09/2026 08:00',items:[{dp:'19.09.26'}]}]}};
+assert.ok(!Array.from(context.ofWarnings(soonConsumableData)).some(message=>message.includes('bientôt périmé')));
 const polymerization=context.polymerizationStatus({cat:'Colle',polymerizationHours:'24'},'25/09/2026 08:00','25/09/2026 12:00');
 assert.equal(polymerization.done,false);
 assert.equal(polymerization.readyAt.getTime(),new Date(2026,8,26,8,0).getTime());
