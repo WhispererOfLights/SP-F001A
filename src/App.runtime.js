@@ -21393,6 +21393,9 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
     textAlign: "left",
     fontSize: 11
   };
+  var ovenItemStyle = _objectSpread(_objectSpread({}, itemStyle), {}, {
+    gridTemplateColumns: "minmax(70px,.45fr) minmax(75px,.55fr) minmax(180px,1.3fr) minmax(105px,.7fr)"
+  });
   var empty = /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.muted,
@@ -21477,7 +21480,7 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
       color: C.red,
       textTransform: "uppercase"
     }
-  }, "\xC9tuvages \xE0 faire aujourd'hui"), /*#__PURE__*/React.createElement(Badge, {
+  }, "\xC9tuvages \xE0 faire ce soir"), /*#__PURE__*/React.createElement(Badge, {
     label: String(ovens.length),
     color: ovens.length ? C.red : C.green
   })), /*#__PURE__*/React.createElement("div", {
@@ -21496,7 +21499,7 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
       onClick: function onClick() {
         return onSelect(alert.id, alert.unitId, "etuvage");
       },
-      style: itemStyle
+      style: ovenItemStyle
     }, /*#__PURE__*/React.createElement("strong", {
       style: {
         fontFamily: "monospace"
@@ -21507,6 +21510,17 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
         color: C.blue
       }
     }, alert.unit), /*#__PURE__*/React.createElement("span", {
+      title: [alert.article, alert.description].filter(Boolean).join(" - "),
+      style: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, /*#__PURE__*/React.createElement("strong", {
+      style: {
+        fontFamily: "monospace"
+      }
+    }, alert.article || "—"), alert.description ? " \u2014 ".concat(alert.description) : ""), /*#__PURE__*/React.createElement("span", {
       title: "\xC9ch\xE9ance d\xE9pass\xE9e depuis le ".concat(alert.label)
     }, /*#__PURE__*/React.createElement("strong", null, alert.daysWithoutOven, " jour", alert.daysWithoutOven > 1 ? "s" : ""), " sans \xE9tuvage"));
   }) : empty)));
@@ -21923,6 +21937,8 @@ var OFSelector = function OFSelector(_ref132) {
       unitId: row._homeUnitId,
       of: row.of,
       unit: homeUnitName(row),
+      article: row.codeArticle || row.articleNo || "",
+      description: row.description || "",
       label: info.label,
       nextAt: info.nextAt,
       daysWithoutOven: Math.max(1, Math.ceil((homeNow.getTime() - info.nextAt) / 86400000))

@@ -506,6 +506,7 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
   const listStyle={display:"flex",flexDirection:"column",gap:3,maxHeight:126,overflowY:"auto"};
   const itemStyle={display:"grid",gridTemplateColumns:"minmax(70px,.55fr) minmax(90px,.7fr) minmax(150px,1fr)",gap:8,alignItems:"center",
     width:"100%",padding:"5px 7px",border:0,borderBottom:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",textAlign:"left",fontSize:11};
+  const ovenItemStyle={...itemStyle,gridTemplateColumns:"minmax(70px,.45fr) minmax(75px,.55fr) minmax(180px,1.3fr) minmax(105px,.7fr)"};
   const empty=<span style={{color:C.muted,fontSize:11,padding:"8px 7px"}}>Aucun élément</span>;
   return <section aria-label="Activités en cours sur tous les OF" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,background:C.surface,marginBottom:12}}>
     <div style={{padding:"8px 10px",borderRight:`1px solid ${C.border}`,minWidth:0}}>
@@ -521,12 +522,13 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
     </div>
     <div style={{padding:"8px 10px",minWidth:0}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-        <strong style={{fontSize:11,color:C.red,textTransform:"uppercase"}}>Étuvages à faire aujourd'hui</strong>
+        <strong style={{fontSize:11,color:C.red,textTransform:"uppercase"}}>Étuvages à faire ce soir</strong>
         <Badge label={String(ovens.length)} color={ovens.length?C.red:C.green}/>
       </div>
       <div style={listStyle}>{loading?<span style={{color:C.muted,fontSize:11,padding:7}}>Chargement…</span>:ovens.length?ovens.map(alert=><button type="button" key={alert.key}
-        aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={itemStyle}>
+        aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={ovenItemStyle}>
         <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span style={{fontFamily:"monospace",color:C.blue}}>{alert.unit}</span>
+        <span title={[alert.article,alert.description].filter(Boolean).join(" - ")} style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><strong style={{fontFamily:"monospace"}}>{alert.article||"—"}</strong>{alert.description?` — ${alert.description}`:""}</span>
         <span title={`Échéance dépassée depuis le ${alert.label}`}><strong>{alert.daysWithoutOven} jour{alert.daysWithoutOven>1?"s":""}</strong> sans étuvage</span>
       </button>):empty}</div>
     </div>
@@ -651,7 +653,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   }).filter(Boolean).sort((a,b)=>a.readyAt-b.readyAt);
   const ovenAlerts=operationalRows.map(row=>{
     const info=nextEtuvageForRow(row);
-    return info.count&&info.overdue?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),label:info.label,nextAt:info.nextAt,daysWithoutOven:Math.max(1,Math.ceil((homeNow.getTime()-info.nextAt)/86400000))}:null;
+    return info.count&&info.overdue?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),article:row.codeArticle||row.articleNo||"",description:row.description||"",label:info.label,nextAt:info.nextAt,daysWithoutOven:Math.max(1,Math.ceil((homeNow.getTime()-info.nextAt)/86400000))}:null;
   }).filter(Boolean).sort((a,b)=>a.nextAt-b.nextAt);
   const allHomeRows=columnSort.key?[...baseHomeRows].sort((a,b)=>{
     const av=homeSortValue(a,columnSort.key),bv=homeSortValue(b,columnSort.key);
