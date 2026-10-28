@@ -236,11 +236,22 @@ const MultiFilter = ({value,onChange,options,label="Tous",title="Filtre"}) => {
 };
 const filterHasValue = value => Array.isArray(value)?value.length>0:!!value;
 const filterMatches = (filter,value) => !filterHasValue(filter)||filter==="all"||(Array.isArray(filter)?filter.includes(value):filter===value);
-const workedOnOf = (data,visa) => {
-  if(!data||typeof data!=="object") return false;
-  return Object.entries(data).some(([key,value])=>
-    typeof value==="object"?workedOnOf(value,visa):(/visa|createdBy/i.test(key)&&String(value||"").toUpperCase()===visa));
+const activityVisasOf = data => {
+  const visas=new Set();
+  const visit=value=>{
+    if(Array.isArray(value)){value.forEach(visit);return;}
+    if(!value||typeof value!=="object") return;
+    Object.entries(value).forEach(([key,item])=>{
+      if(item&&typeof item==="object"){visit(item);return;}
+      if(!/visa|createdBy|closedBy|deletedBy|restoredBy/i.test(key)) return;
+      const visa=String(item||"").trim().toUpperCase();
+      if(visa) visas.add(visa);
+    });
+  };
+  visit(data);
+  return [...visas].sort((a,b)=>a.localeCompare(b,"fr",{numeric:true,sensitivity:"base"}));
 };
+const workedOnOf = (data,visa) => activityVisasOf(data).includes(String(visa||"").trim().toUpperCase());
 const deletedLineIds = data => {
   if(!data||typeof data!=="object") return [];
   return [...(data.deleted&&data.id?[data.id]:[]),...Object.values(data).flatMap(v=>deletedLineIds(v))];

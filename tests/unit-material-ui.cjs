@@ -64,7 +64,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       };
     }, {entry, data, user,otherEntry});
     await page.addScriptTag({path: path.join(root, 'src/App.runtime.js')});
-    await page.waitForFunction(()=>Array.from(document.querySelectorAll('label')).find(el=>el.textContent==='Mes OF travaillés')?.querySelector('input')?.checked);
+    await page.getByRole('button',{name:'Mes OF (1)',exact:true}).waitFor();
     await page.getByRole('region',{name:'Activités en cours sur tous les OF',exact:true}).waitFor();
     await page.getByRole('button',{name:'Ouvrir polymérisation OF 100TEST - SN1',exact:true}).waitFor();
     await page.getByRole('button',{name:'Ouvrir étuvage OF 100TEST - SN1',exact:true}).waitFor();
@@ -73,12 +73,15 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.getByRole('columnheader',{name:'Faits',exact:true}).count(),0);
     assert.equal(await page.getByRole('columnheader',{name:'Suivi',exact:true}).count(),0);
     assert.equal(await page.getByRole('cell',{name:'100OTHER',exact:true}).count(),0);
+    await page.getByRole('img',{name:"2 intervenants sur l'OF 100TEST",exact:true}).waitFor();
     const homeSearch=page.getByTitle('Rechercher un OF, SN ou lot',{exact:true});
+    await homeSearch.fill('JGR');
+    await page.waitForFunction(()=>Array.from(document.querySelectorAll('td')).filter(cell=>cell.textContent?.trim()==='100TEST').length>1);
+    assert.equal(await page.getByRole('cell',{name:'100OTHER',exact:true}).count(),0);
     await homeSearch.fill('100OTHER');
-    await page.getByRole('cell',{name:'100OTHER',exact:true}).waitFor();
-    assert.ok(!(await page.getByRole('checkbox',{name:'Mes OF travaillés',exact:true}).isChecked()));
+    await page.getByText('100OTHER',{exact:true}).waitFor();
     await homeSearch.fill('');
-    await page.waitForFunction(()=>Array.from(document.querySelectorAll('label')).find(el=>el.textContent==='Mes OF travaillés')?.querySelector('input')?.checked);
+    await page.getByRole('button',{name:'Mes OF (1)',exact:true}).waitFor();
     const expandHomeOf=page.getByRole('button',{name:'Déplier les 2 SN / 1 LOT de OF 100TEST',exact:true});
     await expandHomeOf.waitFor();
     assert.equal(await page.getByRole('cell',{name:'2 SN',exact:true}).count()>0,true);

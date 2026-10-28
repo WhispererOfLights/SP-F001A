@@ -151,6 +151,13 @@ const homeWorkedFilter = (rows,workedIds,onlyWorked,searchActive) => {
   const active=onlyWorked&&!searchActive&&rows.some(row=>worked.has(row.id));
   return {active,rows:active?rows.filter(row=>worked.has(row.id)):rows};
 };
+const homeSearchMatches = (row,query,contributors=[]) => {
+  const q=String(query||"").toLowerCase().trim();
+  return !q||[row.of,row.sn,row.lot,row.snProduitFini,row.description,row.otp,row.projet,row.ofRework,row.codeArticle,
+    STATUTS[row.status||"en_cours"]?.label,STATUTS[row.unitStatus||"en_cours"]?.label,
+    row._homeFactSearch,...contributors
+  ].some(value=>String(value||"").toLowerCase().includes(q));
+};
 const homeRowKey = row => `${row.id}:${row._homeUnitId||"of"}`;
 const homeUnitName = row => row.sn||row.lot||"Sans SN / LOT";
 const homeClipboardData = rows => {
@@ -541,7 +548,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [warningsById,setWarningsById] = useState({});
   const [openOWById,setOpenOWById] = useState({});
   const [etuvagesById,setEtuvagesById] = useState({});
-  const [snLabelsById,setSnLabelsById] = useState({});
+  const [contributorsById,setContributorsById] = useState({});
   const [loadingWorked,setLoadingWorked] = useState(true);
   const [selectedKeys,setSelectedKeys] = useState([]);
   const [expandedOfIds,setExpandedOfIds] = useState([]);
@@ -564,10 +571,11 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             data=JSON.parse(r.value);
           }
           data=withUnitMetadata(data);
-          return {id:o.id,data,worked:workedOnOf(data,user.trigram)||workedOnOf(o,user.trigram),warnings:ofWarnings(data,consommables),openOW:effectiveScopedRows(data,"faits").filter(r=>r.type==="OW"&&!r.closedDate).length,etuvages:effectiveEtuvageRows(data),snLabels:(data.units?.rows||snRowsFromHeader(data.header)).filter(u=>!u.deleted&&hasUnitIdentity(u)).map(snTitle)};
-        }catch{return {id:o.id,worked:workedOnOf(o,user.trigram),warnings:o.status==="bloque"?["OF bloqué"]:[]};}
+          const contributors=activityVisasOf(data);
+          return {id:o.id,data,contributors,worked:contributors.includes(String(user.trigram||"").toUpperCase())||workedOnOf(o,user.trigram),warnings:ofWarnings(data,consommables),openOW:effectiveScopedRows(data,"faits").filter(r=>r.type==="OW"&&!r.closedDate).length,etuvages:effectiveEtuvageRows(data)};
+        }catch{const contributors=activityVisasOf(o);return {id:o.id,contributors,worked:contributors.includes(String(user.trigram||"").toUpperCase()),warnings:o.status==="bloque"?["OF bloqué"]:[]};}
       }));
-      if(!cancelled){setWorkedIds(results.filter(r=>r.worked).map(r=>r.id));setWarningsById(Object.fromEntries(results.map(r=>[r.id,r.warnings])));setOpenOWById(Object.fromEntries(results.map(r=>[r.id,r.openOW||0])));setEtuvagesById(Object.fromEntries(results.map(r=>[r.id,r.etuvages||[]])));setSnLabelsById(Object.fromEntries(results.filter(r=>r.snLabels).map(r=>[r.id,r.snLabels])));setDataById(Object.fromEntries(results.filter(r=>r.data).map(r=>[r.id,r.data])));setLoadingWorked(false);}
+      if(!cancelled){setWorkedIds(results.filter(r=>r.worked).map(r=>r.id));setContributorsById(Object.fromEntries(results.map(r=>[r.id,r.contributors||[]])));setWarningsById(Object.fromEntries(results.map(r=>[r.id,r.warnings])));setOpenOWById(Object.fromEntries(results.map(r=>[r.id,r.openOW||0])));setEtuvagesById(Object.fromEntries(results.map(r=>[r.id,r.etuvages||[]])));setDataById(Object.fromEntries(results.filter(r=>r.data).map(r=>[r.id,r.data])));setLoadingWorked(false);}
     })();
     return ()=>{cancelled=true;};
   },[ofList,user.trigram,consommables]);
@@ -661,10 +669,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     if(onlyWarnings&&!warningsById[o.id]?.length) return false;
     if(filterStatus.length&&!filterStatus.includes(o.status||"en_cours")&&!filterStatus.includes(o.unitStatus||"en_cours")) return false;
     if(Object.entries(columnFilters).some(([key,value])=>value&&!columnValue(o,key).toLowerCase().includes(value.toLowerCase().trim()))) return false;
-    return !q||[o.of,o.sn,o.lot,o.snProduitFini,o.description,o.otp,o.projet,o.ofRework,o.codeArticle,
-      STATUTS[o.status||"en_cours"]?.label,STATUTS[o.unitStatus||"en_cours"]?.label,
-      o._homeFactSearch
-    ].some(v=>String(v||"").toLowerCase().includes(q));
+    return homeSearchMatches(o,q,contributorsById[o.id]);
   });
   const searchActive=!!search.trim()||Object.values(columnFilters).some(value=>String(value).trim());
   const workedFilter=homeWorkedFilter(matching,workedIds,onlyWorked,searchActive);
@@ -904,10 +909,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
           style={{background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 10px",fontSize:12,fontFamily:"monospace",outline:"none"}}>
           {SORT_OPTS.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
-        {/* Filtre statut */}
-        <label style={{display:"flex",alignItems:"center",gap:6,color:C.text,fontSize:12}}><input type="checkbox" checked={workedFilter.active} disabled={loadingWorked||searchActive||!matching.some(o=>workedIds.includes(o.id))} onChange={e=>{setOnlyWorked(e.target.checked);setPage(0);}}/>Mes OF travaillés</label>
-        <label style={{display:"flex",alignItems:"center",gap:6,color:onlyWarnings?C.yellow:C.text,fontSize:12}}><input type="checkbox" checked={onlyWarnings} onChange={e=>{setOnlyWarnings(e.target.checked);setPage(0);}}/>OF à surveiller</label>
-        <MultiFilter value={filterStatus} onChange={v=>{setFilterStatus(v);setPage(0);}} label="Tous statuts OF/SN" title="Filtrer les statuts OF et SN/LOT" options={Object.entries(STATUTS).map(([value,s])=>({value,label:s.label}))}/>
+        <div role="group" aria-label="Vue des dossiers" style={{display:"inline-flex",alignItems:"center",gap:2,padding:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,whiteSpace:"nowrap"}}>
+          <span style={{padding:"0 6px",fontSize:9,fontWeight:800,color:C.muted,textTransform:"uppercase"}}>Vue</span>
+          <button type="button" onClick={()=>{setOnlyWorked(false);setPage(0);}} style={{border:0,borderRadius:4,padding:"4px 8px",background:!workedFilter.active?C.blue:"transparent",color:!workedFilter.active?"#fff":C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>Tous</button>
+          <button type="button" disabled={loadingWorked} onClick={()=>{setOnlyWorked(true);setPage(0);}} title={searchActive?"La recherche s'effectue temporairement dans tous les OF":"Afficher uniquement les OF comportant une action avec votre visa"} style={{border:0,borderRadius:4,padding:"4px 8px",background:workedFilter.active?C.blue:"transparent",color:workedFilter.active?"#fff":C.text,fontSize:11,fontWeight:700,cursor:loadingWorked?"default":"pointer",opacity:loadingWorked?.55:1}}>Mes OF ({workedIds.length})</button>
+        </div>
+        <button type="button" onClick={()=>{setOnlyWarnings(value=>!value);setPage(0);}} style={{background:onlyWarnings?C.yellow+"22":"transparent",border:`1px solid ${onlyWarnings?C.yellow:C.border}`,borderRadius:4,color:onlyWarnings?C.yellow:C.muted,padding:"6px 9px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>À surveiller ({Object.values(warningsById).filter(items=>items?.length).length})</button>
         {/* Filtre créateur */}
         {/* Masquer clôturés */}
         <button onClick={()=>setHideCloture(v=>!v)}
@@ -1046,7 +1053,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
               <tr style={{background:C.raised}}>
                 <td/>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
-                {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['status','Statut OF'],['unitStatus','Statut SN'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
+                {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['status','Statut OF'],['unitStatus','Statut SN'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{key==="unitStatus"?<span title="Le filtre de statut est commun aux OF et aux SN / LOT" style={{display:"block",textAlign:"center",fontSize:9,color:C.muted}}>Filtre commun</span>:columnFilter(key,label)}</td>)}
                 <td style={{padding:"4px 5px"}}>{columnFilter("followup","Suivi technique")}</td>
                 <td/>
               </tr>
@@ -1054,7 +1061,6 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             <tbody>
               {paged.map((o,i)=>{
                 const isFav=favs.includes(o.id);
-                const snLabels=snLabelsById[o.id]||snRowsFromHeader(o).map(snTitle);
                 const ofRows=allHomeRows.filter(row=>row.id===o.id);
                 const multiSn=ofRows.length>1;
                 const collapsed=multiSn&&!revealMatchingUnits&&!expandedOfIds.includes(o.id);
@@ -1071,6 +1077,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const summaryName=[snCount&&`${snCount} SN`,lotCount&&`${lotCount} LOT`].filter(Boolean).join(" / ")||`${ofRows.length} élément(s)`;
                 const groupStatuses=[...new Set(ofRows.map(row=>row.unitStatus||"en_cours"))];
                 const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
+                const contributors=contributorsById[o.id]||[];
                 return (
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
                     onClick={()=>selectionMode?(collapsed?toggleOfSelection(o.id):toggleSelected(o)):onSelect(o.id,collapsed?null:o._homeUnitId)}
@@ -1087,11 +1094,11 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                       </span>
                     </TD>
                     <TD>
-                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"nowrap"}}>
                         {multiSn&&groupStart&&<button type="button" aria-label={`${collapsed?"Déplier":"Replier"} les ${summaryName} de OF ${o.of}`} title={collapsed?"Afficher les SN / LOT":"Replier les SN / LOT"} onClick={e=>{e.stopPropagation();toggleOfExpanded(o.id);}}
                           style={{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:`1px solid ${C.blue}`,borderRadius:4,background:C.blue+"12",color:C.blue,fontSize:13,fontWeight:900,cursor:"pointer",flexShrink:0}}>{collapsed?"+":"−"}</button>}
                         <span style={{fontWeight:700,fontFamily:"monospace",color:C.text}}>{o.of}</span>
-                        {multiSn&&groupStart&&<span title={`${snLabels.length} SN / LOT : ${snLabels.join(", ")}`}><Badge label={summaryName} color={C.blue}/></span>}
+                        {groupStart&&contributors.length>0&&<span role="img" aria-label={`${contributors.length} intervenant${contributors.length>1?"s":""} sur l'OF ${o.of}`} title={`Intervenants : ${contributors.join(", ")}`} style={{display:"inline-flex",alignItems:"center",gap:3,color:C.muted,fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>👥 {contributors.length}</span>}
                       </div>
                     </TD>
                     <TD><span style={{fontFamily:"monospace",color:C.muted}}>{o.codeArticle||o.articleNo||"—"}</span></TD>
