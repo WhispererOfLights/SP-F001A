@@ -725,6 +725,9 @@ class StorageServer(SimpleHTTPRequestHandler):
         if path.startswith("/api/admin/users/") and path.endswith("/reset-password"):
             trigram = unquote(path[len("/api/admin/users/"):-len("/reset-password")]).strip("/")
             return self.admin_reset_password(trigram)
+        if path.startswith("/api/admin/users/") and path.endswith("/active"):
+            trigram = unquote(path[len("/api/admin/users/"):-len("/active")]).strip("/")
+            return self.admin_set_user_active(trigram)
         self.send_error(404, "not found")
 
     def close_work_item(self) -> None:
@@ -921,7 +924,7 @@ class StorageServer(SimpleHTTPRequestHandler):
                 SESSIONS.pop(token, None)
                 return None
             account = raw_user(self.db_path, session["trigram"])
-            if not account:
+            if not account or account[0].get("active", True) is False:
                 SESSIONS.pop(token, None)
                 return None
             session["lastActivity"] = now
@@ -959,7 +962,7 @@ class StorageServer(SimpleHTTPRequestHandler):
         except (ValueError, json.JSONDecodeError, AttributeError):
             return self.send_json({"ok": False, "error": "Requête invalide"}, 400)
         record = raw_user(self.db_path, trigram)
-        if not record or not verify_password(record[0], password):
+        if not record or record[0].get("active", True) is False or not verify_password(record[0], password):
             return self.send_json({"ok": False, "error": "Trigramme ou mot de passe incorrect"}, 401)
         user = dict(record[0])
         if not isinstance(user.get("passwordAuth"), dict):
@@ -1027,13 +1030,11 @@ class StorageServer(SimpleHTTPRequestHandler):
         self.send_json({"ok": True, "user": session["user"]})
 
     def all_users(self) -> list[dict]:
-        users = []
-        for key in storage_keys(self.db_path):
-            if not key.startswith("user:"):
-                continue
-            record = raw_user(self.db_path, key[5:])
-            if record:
-                users.append(sanitized_user(record[0]))
+        # One connection and one batch read avoids one SQL round-trip per user.
+        with connect_db(self.db_path) as conn:
+            keys = [key for key in document_keys(conn) if key.startswith("user:")]
+            records = read_documents(conn, keys)
+        users = [sanitized_user(records[key][0]) for key in keys if key in records]
         return sorted(users, key=lambda item: item.get("trigram", ""))
 
     def admin_save_user(self, trigram: str) -> None:
@@ -1050,6 +1051,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             if field in payload:
                 user[field] = str(payload[field] or "").strip()
         user["trigram"] = trigram
+        if not existing:
+            user["active"] = True
         password = str(payload.get("password") or "")
         if not existing or password:
             password = password or f"{trigram.lower()}0"
@@ -1058,6 +1061,33 @@ class StorageServer(SimpleHTTPRequestHandler):
             user["mustChangePassword"] = True
         save_user(self.db_path, user, expected=existing[1] if existing else None)
         self.send_json({"ok": True, "user": sanitized_user(user), "temporaryPassword": password or None})
+
+    def admin_set_user_active(self, trigram: str) -> None:
+        session = self.require_session({"Admin", "Manager"})
+        if not session:
+            return
+        trigram = trigram.strip().upper()
+        if trigram == "ADMIN":
+            return self.send_json({"ok": False, "error": "Le compte ADMIN reste toujours actif"}, 400)
+        if trigram == str(session.get("trigram") or "").upper():
+            return self.send_json({"ok": False, "error": "Vous ne pouvez pas désactiver votre propre compte"}, 400)
+        try:
+            payload = self.read_json_body()
+            active = bool(payload.get("active"))
+        except (ValueError, json.JSONDecodeError, AttributeError):
+            return self.send_json({"ok": False, "error": "Requête invalide"}, 400)
+        record = raw_user(self.db_path, trigram)
+        if not record:
+            return self.send_json({"ok": False, "error": "Compte introuvable"}, 404)
+        user = dict(record[0])
+        user["active"] = active
+        save_user(self.db_path, user, expected=record[1])
+        if not active:
+            with SESSION_LOCK:
+                for token, current in list(SESSIONS.items()):
+                    if str(current.get("trigram") or "").upper() == trigram:
+                        SESSIONS.pop(token, None)
+        self.send_json({"ok": True, "user": sanitized_user(user)})
 
     def admin_import_users(self) -> None:
         if not self.require_session({"Admin", "Manager"}):

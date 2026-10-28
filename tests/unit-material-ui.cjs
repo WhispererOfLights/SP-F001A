@@ -492,7 +492,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(await copyDialog.getByRole('checkbox',{name:'OF 100OTHER — SNOTHER',exact:true}).isDisabled());
     await page.screenshot({path:path.join(__dirname,'artifacts/cross-of-copy-1920.png')});
     await copyDialog.getByRole('button',{name:'Fermer',exact:true}).click();
-    await page.getByRole('button',{name:"Pièces de l'OF",exact:true}).click();
+    const unitPanelButton=page.getByRole('button',{name:"Pièces de l'OF",exact:true});
+    if(await unitPanelButton.getAttribute('aria-expanded')!=='true') await unitPanelButton.click();
     await page.getByRole('button',{name:'+ SN / lot',exact:true}).click();
     const unitTable=page.getByRole('columnheader',{name:'Qté actuelle',exact:true}).locator('xpath=ancestor::table');
     const newLotRow=unitTable.locator('tbody tr').last();
@@ -809,7 +810,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100OTHER');
     await page.keyboard.press('PageUp');
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100TEST');
-    await page.getByRole('button',{name:"Pièces de l'OF",exact:true}).click();
+    if(await unitPanelButton.getAttribute('aria-expanded')!=='true') await unitPanelButton.click();
     const lampRow=page.locator('tr:has(input[value="LAMPE-EM07"])');
     await lampRow.getByRole('button',{name:'→ SN',exact:true}).click();
     await page.waitForFunction(()=>{

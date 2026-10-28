@@ -1144,9 +1144,10 @@ const SnScopePicker = ({row,header,onChange,disabled=false}) => {
   const place=()=>{
     const r=btnRef.current?.getBoundingClientRect();
     if(!r) return;
-    const w=230;
+    const w=230, h=300;
+    const below=r.bottom+4;
     setPos({
-      top:Math.min(r.bottom+4,window.innerHeight-40),
+      top:below+h<=window.innerHeight-8?below:Math.max(8,r.top-h-4),
       left:Math.max(8,Math.min(r.left,window.innerWidth-w-8))
     });
   };
@@ -1479,7 +1480,7 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:620}}>
             <thead>
               <tr>
-                <TH w={150}>SN</TH><TH w={150}>LOT</TH>{showQty&&<TH w={90}>Qté actuelle</TH>}<TH w={150}>SN produit fini</TH><TH w={120}>Statut SN</TH><TH>Remarque</TH><TH w={240}></TH>
+                <TH w={150}>SN</TH><TH w={150}>LOT</TH>{showQty&&<TH w={90}>Qté actuelle</TH>}<TH w={150}>SN produit fini</TH><TH w={120}>Statut SN</TH><TH w={150}>Commentaires</TH><TH w={240}></TH>
               </tr>
             </thead>
             <tbody>
@@ -1506,7 +1507,10 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
                       {Object.entries(UNIT_STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
                     </select>
                   </TD>
-                  <TD><Input readOnly={!editable} value={r.remarque} onChange={v=>upd(r.id,"remarque",v)} small/></TD>
+                  <TD><div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+                    {r.remarque&&<span title={r.remarque} style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.muted,fontSize:11}}>{r.remarque}</span>}
+                    <CommentBtn comments={r.comments||[]} onChange={comments=>upd(r.id,"comments",comments)} user={user} disabled={!canComment(user)}/>
+                  </div></TD>
                   <TD center>
                     <ActionGroup>
                       <IconBtn onClick={()=>onActiveUnitChange(r.id)} color={C.blue} title="Travailler sur ce SN" disabled={!hasUnitIdentity(r)}>●</IconBtn>
@@ -1748,6 +1752,29 @@ const TABS=[
   {id:"faits",         label:"Suivi technique", short:"SUIVI"},
 ];
 
+const SettingsModal = ({user,onClose,onUsers,onStatuses,onConsumables}) => {
+  const options=[
+    canManageUsers(user)&&{id:"users",label:"Utilisateurs",detail:"Comptes, rôles, mots de passe et activation",action:onUsers,color:C.blue},
+    canManageLists(user)&&{id:"statuses",label:"Statuts",detail:"Statuts communs aux OF et aux SN / LOT",action:onStatuses,color:C.green},
+    canManageLists(user)&&{id:"consumables",label:"Consommables",detail:"Catalogue, articles SAP et polymérisation",action:onConsumables,color:C.yellow},
+  ].filter(Boolean);
+  return <div role="dialog" aria-modal="true" aria-label="Paramètres" style={{position:"fixed",inset:0,zIndex:190,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
+    onClick={event=>{if(event.target===event.currentTarget)onClose();}}>
+    <div style={{width:680,maxWidth:"100%",background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,overflow:"hidden"}}>
+      <div style={{padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`}}>
+        <div><div style={{fontSize:15,fontWeight:800,color:C.text}}>Paramètres</div><div style={{fontSize:11,color:C.muted}}>Tables d'administration partagées</div></div>
+        <IconBtn onClick={onClose} title="Fermer" color={C.border}>×</IconBtn>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:10,padding:18}}>
+        {options.map(option=><button key={option.id} type="button" aria-label={option.label} onClick={option.action} style={{textAlign:"left",minHeight:100,padding:14,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderLeft:`4px solid ${option.color}`,borderRadius:6,cursor:"pointer"}}>
+          <div style={{fontSize:14,fontWeight:800,marginBottom:8}}>{option.label}</div>
+          <div style={{fontSize:11,color:C.muted,lineHeight:1.4}}>{option.detail}</div>
+        </button>)}
+      </div>
+    </div>
+  </div>;
+};
+
 export default function App(){
   const [,setThemeRevision] = useState(0);
   useEffect(()=>{
@@ -1792,6 +1819,7 @@ export default function App(){
   const [ofListReady,setOfListReady] = useState(false);
   const [openHistory,setOpenHistory] = useState([]); // IDs des OF récemment ouverts
   const [showAdminUsers,setShowAdminUsers] = useState(false);
+  const [showSettings,setShowSettings] = useState(false);
   const [copyAcrossRow,setCopyAcrossRow] = useState(null);
   const [copiedOfInfo,setCopiedOfInfo] = useState(false);
   const [copiedFolderLink,setCopiedFolderLink] = useState(false);
@@ -2577,11 +2605,15 @@ export default function App(){
         onBulkUnitStatusChange={updateHomeUnitsStatus}
         user={user} onLogout={handleLogout} openHistory={openHistory}
         onSaveProfile={handleSaveProfile}
-        onManageUsers={()=>setShowAdminUsers(true)}
-        onManageStatuses={()=>setShowStatusTypes(true)}
+        onManageSettings={()=>setShowSettings(true)}
         onUpdateStatus={updateHomeStatus}/>
-      {showAdminUsers&&canManageUsers(user)&&<AdminUsersModal onClose={()=>setShowAdminUsers(false)}/>}
+      {showSettings&&<SettingsModal user={user} onClose={()=>setShowSettings(false)}
+        onUsers={()=>{setShowSettings(false);setShowAdminUsers(true);}}
+        onStatuses={()=>{setShowSettings(false);setShowStatusTypes(true);}}
+        onConsumables={()=>{setShowSettings(false);openConsommablesEditor();}}/>}
+      {showAdminUsers&&canManageUsers(user)&&<AdminUsersModal currentUser={user} onClose={()=>setShowAdminUsers(false)}/>}
       {showStatusTypes&&canManageLists(user)&&<StatusTypesManager types={statusTypes} onClose={()=>setShowStatusTypes(false)} onSave={saveStatusTypes}/>}
+      {showConsoEditor&&canManageLists(user)&&<ConsommableListManager items={consommables} onClose={()=>setShowConsoEditor(false)} onSave={saveConsommables}/>}
     </>
   );
 
@@ -2822,18 +2854,14 @@ export default function App(){
           <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",
             marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
-              {[
-                ["dossier","Dossier"],
-                ["sn","Pièces de l'OF"]
-              ].map(([id,label])=>(
-                <button key={id} onClick={()=>setHeaderPanel(id)}
-                  style={{background:headerPanel===id?C.accent+"22":"transparent",
-                    border:`1px solid ${headerPanel===id?C.accent:C.border}`,borderRadius:4,
-                    color:headerPanel===id?C.accent:C.muted,padding:"4px 10px",
-                    fontSize:11,fontWeight:800,cursor:"pointer",textTransform:"uppercase",letterSpacing:.6}}>
-                  {label}
-                </button>
-              ))}
+              <button type="button" aria-expanded={headerPanel==="sn"} onClick={()=>setHeaderPanel(current=>current==="sn"?"dossier":"sn")}
+                style={{background:headerPanel==="sn"?C.accent+"22":"transparent",
+                  border:`1px solid ${headerPanel==="sn"?C.accent:C.border}`,borderRadius:4,
+                  color:headerPanel==="sn"?C.accent:C.muted,padding:"4px 10px",
+                  fontSize:11,fontWeight:800,cursor:"pointer",textTransform:"uppercase",letterSpacing:.6}}>
+                Pièces de l'OF
+              </button>
+              <Badge label={String(snRows.length)} color={snRows.length?C.blue:C.muted}/>
               <button type="button" className="no-print" title="Copier les informations sous forme de tableau" aria-label="Copier les informations du dossier dans le presse-papier" onClick={async()=>{
                 await copyRichToClipboard(buildOfClipboardData(h,activeUnit?[activeUnit]:snRows));
                 setCopiedOfInfo(true);setTimeout(()=>setCopiedOfInfo(false),1800);
@@ -2850,8 +2878,7 @@ export default function App(){
               </select>:<strong>{snTitle(entryUnit)}</strong>}
             </div>}
           </div>
-          {headerPanel==="dossier" ? (
-            <Header of={workHeader} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={async status=>{
+          <Header of={workHeader} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={async status=>{
               if(!isAdminManager(user)) return;
               try{
                 if(window.storage.updateWorkOrderSummary){
@@ -2865,14 +2892,14 @@ export default function App(){
                 setOfData(updated);save(updated);
               }catch(error){setSaveError(error?.message||"Le statut n'a pas été enregistré.");}
             }}/>
-          ) : (
-            <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
-              splitHistory={ofData.lotSplits||[]} onSplitLot={(id,remaining,destinations)=>{const updated=splitTrackedLot(ofData,id,remaining,destinations,user);setOfData(updated);saveSections(["units","lotSplits","rework","consommables","testequip","faits","etuvage","demating","openwork"],updated);}}
-              onLotQuantity={(id,qty)=>{const updated=changeTrackedLotQuantity(ofData,id,qty,user);setOfData(updated);saveSections(["units"],updated);}}
-              onConvertUnit={(id,kind)=>{const updated=convertTrackedUnitKind(ofData,id,kind,user);setOfData(updated);saveSections(["units"],updated);}}
-              header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
-          )}
         </div>
+        {headerPanel==="sn"&&(
+          <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
+            splitHistory={ofData.lotSplits||[]} onSplitLot={(id,remaining,destinations)=>{const updated=splitTrackedLot(ofData,id,remaining,destinations,user);setOfData(updated);saveSections(["units","lotSplits","rework","consommables","testequip","faits","etuvage","demating","openwork"],updated);}}
+            onLotQuantity={(id,qty)=>{const updated=changeTrackedLotQuantity(ofData,id,qty,user);setOfData(updated);saveSections(["units"],updated);}}
+            onConvertUnit={(id,kind)=>{const updated=convertTrackedUnitKind(ofData,id,kind,user);setOfData(updated);saveSections(["units"],updated);}}
+            header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
+        )}
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:16,maxWidth:1520}}>
           <ReportTitle/>
           {(printAll||activeTab==="rework")&&<>

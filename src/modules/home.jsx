@@ -525,7 +525,7 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
     </div>
   </section>;
 };
-const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageUsers,onManageStatuses}) => {
+const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageSettings}) => {
   const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
   const [search,setSearch]          = useState("");
   const [page,setPage]               = useState(0);
@@ -875,8 +875,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <ThemeButton/>
-          {canManageLists(user)&&<Btn onClick={onManageStatuses} color={C.border} small>Statuts</Btn>}
-          {canManageUsers(user)&&<Btn onClick={onManageUsers} color={C.blue} small>Utilisateurs</Btn>}
+          {(canManageLists(user)||canManageUsers(user))&&<Btn onClick={onManageSettings} color={C.blue} small>Paramètres</Btn>}
           <div style={{background:C.accent+"22",border:`1px solid ${C.accent}`,borderRadius:20,padding:"4px 14px",
             fontFamily:"monospace",fontWeight:700,color:C.accent,fontSize:14,cursor:"pointer"}}
             title="Mon profil" onClick={e=>{e.stopPropagation();setShowProfile(true);}}>

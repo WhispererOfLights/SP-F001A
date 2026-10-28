@@ -112,7 +112,8 @@ def create_schema(conn, Jsonb) -> None:
             trigram TEXT PRIMARY KEY, document_key TEXT NOT NULL UNIQUE
                 REFERENCES documents(key) ON DELETE CASCADE,
             first_name TEXT, last_name TEXT, service TEXT, email TEXT,
-            role_code TEXT REFERENCES roles(code), must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
+            role_code TEXT REFERENCES roles(code), active BOOLEAN NOT NULL DEFAULT TRUE,
+            must_change_password BOOLEAN NOT NULL DEFAULT FALSE,
             password_scheme TEXT, password_iterations INTEGER, password_salt TEXT,
             password_digest TEXT, legacy_password_hash TEXT,
             source_revision BIGINT NOT NULL, updated_at TIMESTAMPTZ NOT NULL)""",
@@ -223,10 +224,11 @@ def create_schema(conn, Jsonb) -> None:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS restored_by TEXT")
         conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS restored_at_text TEXT")
     conn.execute("ALTER TABLE connector_events ADD COLUMN IF NOT EXISTS deleted BOOLEAN NOT NULL DEFAULT FALSE")
+    conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE")
 
     conn.execute("""CREATE OR REPLACE VIEW user_directory AS
         SELECT u.trigram,u.first_name,u.last_name,u.service,u.email,
-               u.role_code,r.label AS role,u.must_change_password,u.updated_at
+               u.role_code,r.label AS role,u.must_change_password,u.updated_at,u.active
         FROM users u LEFT JOIN roles r ON r.code=u.role_code""")
 
     indexes = (
@@ -291,13 +293,13 @@ def _sync_user(conn, key, payload, revision, updated_at):
     conn.execute("DELETE FROM users WHERE document_key=%s OR trigram=%s", (key, trigram))
     auth = _object(user.get("passwordAuth"))
     conn.execute(
-        """INSERT INTO users(trigram,document_key,first_name,last_name,service,email,role_code,
+        """INSERT INTO users(trigram,document_key,first_name,last_name,service,email,role_code,active,
            must_change_password,password_scheme,password_iterations,password_salt,password_digest,
            legacy_password_hash,source_revision,updated_at)
-           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
         (trigram, key, _text(user.get("prenom")), _text(user.get("nom")),
          _text(user.get("service")), _text(user.get("email")), _role_code(conn, user.get("role")),
-         _boolean(user.get("mustChangePassword")), _text(auth.get("scheme")),
+         user.get("active", True) is not False, _boolean(user.get("mustChangePassword")), _text(auth.get("scheme")),
          _integer(auth.get("iterations")), _text(auth.get("salt")), _text(auth.get("digest")),
          _text(user.get("pwd")), revision, updated_at),
     )
@@ -434,6 +436,7 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
              _text(unit.get("createdVisa")), _text(unit.get("createdDT")), Jsonb(unit)),
         )
         _set_lifecycle(conn, "of_units", key, "unit_id", unit_id, unit)
+        _add_comments(conn, Jsonb, key, "of_units", unit_id, unit)
 
     section_specs = (
         ("rework", "rows", "rework_operations"),

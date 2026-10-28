@@ -255,7 +255,7 @@ const ProfileModal = ({user, onClose, onSave}) => {
   );
 };
 
-const AdminUsersModal = ({onClose}) => {
+const AdminUsersModal = ({onClose,currentUser}) => {
   const blank = {trigram:"", prenom:"", nom:"", service:"Production", role:"Opérateur", email:"", pwd:""};
   const [users,setUsers] = React.useState([]);
   const [form,setForm] = React.useState(blank);
@@ -389,22 +389,25 @@ const AdminUsersModal = ({onClose}) => {
     setForm({...u, role:normalizeRole(u), pwd:""});
   };
 
-  const deleteUser = async trigram => {
+  const setUserActive = async account => {
     resetMessages();
-    if(trigram===ADMIN_TRIGRAM){setErr("Le compte ADMIN ne peut pas être supprimé");return;}
-    if(!window.confirm(`Supprimer l'utilisateur ${trigram} ?`)) return;
+    const trigram=account.trigram;
+    const active=account.active===false;
+    if(trigram===ADMIN_TRIGRAM){setErr("Le compte ADMIN reste toujours actif");return;}
+    if(!window.confirm(`${active?"Réactiver":"Désactiver"} le compte ${trigram} ? Les activités et les visas déjà enregistrés seront conservés.`)) return;
     try{
       if(window.authApi){
-        await window.authApi.deleteUser(trigram);
-        setOk(`Utilisateur ${trigram} supprimé`);
+        await window.authApi.setUserActive(trigram,active);
+        setOk(`Compte ${trigram} ${active?"réactivé":"désactivé"}. Les traces existantes sont conservées.`);
         await load();
         return;
       }
-      await window.storage.delete(`user:${trigram}`, true);
-      await setUserIndex((await getUserIndex()).filter(t=>t!==trigram));
-      setOk(`Utilisateur ${trigram} supprimé`);
+      const result=await window.storage.get(`user:${trigram}`,true);
+      const stored=JSON.parse(result.value);
+      await window.storage.set(`user:${trigram}`,JSON.stringify({...stored,active}),true);
+      setOk(`Compte ${trigram} ${active?"réactivé":"désactivé"}. Les traces existantes sont conservées.`);
       await load();
-    }catch{setErr("Erreur lors de la suppression");}
+    }catch(error){setErr(error?.message||"Le statut du compte n'a pas pu être modifié");}
   };
 
   const resetPassword = async account => {
@@ -491,10 +494,10 @@ const AdminUsersModal = ({onClose}) => {
           </div>
           <div style={{overflow:"auto",maxHeight:"62vh"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr><TH>Trigramme</TH><TH>Nom</TH><TH>Service</TH><TH>Rôle</TH><TH w={180}>Actions</TH></tr></thead>
+              <thead><tr><TH>Trigramme</TH><TH>Nom</TH><TH>Service</TH><TH>Rôle</TH><TH w={80}>État</TH><TH w={180}>Actions</TH></tr></thead>
               <tbody>
                 {users.map(u=>(
-                  <tr key={u.trigram}>
+                  <tr key={u.trigram} style={{opacity:u.active===false?.62:1}}>
                     <TD><span style={{fontFamily:"monospace",fontWeight:800,color:u.trigram===ADMIN_TRIGRAM?C.accent:C.text}}>{u.trigram}</span></TD>
                     <TD><span style={{color:C.text,fontWeight:650}}>{[u.prenom,u.nom].filter(Boolean).join(" ")||"—"}</span></TD>
                     <TD><span style={{color:C.text}}>{u.service||"—"}</span></TD>
@@ -505,11 +508,12 @@ const AdminUsersModal = ({onClose}) => {
                         {normalizeRole(u)}
                       </span>
                     </TD>
+                    <TD><Badge label={u.active===false?"Inactif":"Actif"} color={u.active===false?C.muted:C.green}/></TD>
                     <TD>
                       <div style={{display:"flex",gap:8}}>
                         <Btn onClick={()=>editUser(u)} color={C.blue} small>Modifier / MDP</Btn>
                         <Btn onClick={()=>resetPassword(u)} color={C.yellow} small>Réinitialiser MDP</Btn>
-                        <Btn onClick={()=>deleteUser(u.trigram)} color={C.red} small disabled={u.trigram===ADMIN_TRIGRAM}>Supprimer</Btn>
+                        <Btn onClick={()=>setUserActive(u)} color={u.active===false?C.green:C.red} small disabled={u.trigram===ADMIN_TRIGRAM||u.trigram===currentUser?.trigram}>{u.active===false?"Réactiver":"Désactiver"}</Btn>
                       </div>
                     </TD>
                   </tr>

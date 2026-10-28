@@ -49,6 +49,11 @@ window.authApi = location.protocol === "file:" ? null : {
       method: "POST", body: "{}"
     });
   },
+  setUserActive(trigram, active) {
+    return this._request("/api/admin/users/" + encodeURIComponent(trigram) + "/active", {
+      method: "POST", body: JSON.stringify({ active })
+    });
+  },
   deleteUser(trigram) {
     return this._request("/api/admin/users/" + encodeURIComponent(trigram), { method: "DELETE" });
   }

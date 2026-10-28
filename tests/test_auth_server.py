@@ -129,6 +129,38 @@ class AuthServerTests(unittest.TestCase):
         self.assertTrue(server.verify_password(record, "admin"))
         self.assertNotIn("pwd", record)
 
+    def test_manager_can_deactivate_user_without_losing_activity(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"}
+        )
+        self.assertEqual(status, 200)
+        status, payload, _ = self.request(
+            "/api/admin/users/OPR/active", "POST", {"active": False}
+        )
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["user"]["active"])
+        self.assertFalse(server.raw_user(self.db_path, "OPR")[0]["active"])
+        dossier = json.loads(server.storage_get(self.db_path, "of:test"))
+        self.assertEqual(dossier["rework"]["rows"][0]["createdVisa"], "OPR")
+
+        self.request("/api/auth/logout", "POST", {})
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 401)
+
+        self.request("/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"})
+        status, payload, _ = self.request(
+            "/api/admin/users/OPR/active", "POST", {"active": True}
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["user"]["active"])
+        self.request("/api/auth/logout", "POST", {})
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+
     def test_non_read_only_role_can_close_without_general_write_access(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "PA1", "password": "pa-test"}
