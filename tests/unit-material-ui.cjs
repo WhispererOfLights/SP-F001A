@@ -288,10 +288,14 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(await labelOptions.getByRole('checkbox',{name:/SN2/}).isChecked());
     assert.ok(await labelOptions.getByRole('checkbox',{name:'Info suivi technique',exact:true}).isDisabled());
     assert.ok(await labelOptions.getByRole('checkbox',{name:'Collage / coating',exact:true}).isEnabled());
+    assert.ok((await labelOptions.getByLabel('Disponibilité Collage / coating pour SN2',{exact:true}).textContent()).includes('✓'));
+    assert.ok((await labelOptions.getByLabel('Disponibilité Info suivi technique pour SN2',{exact:true}).textContent()).includes('—'));
     await page.screenshot({path:path.join(__dirname,'artifacts/label-options-unavailable.png')});
     await labelOptions.getByRole('checkbox',{name:/SN1/}).check();
     assert.ok(await labelOptions.getByRole('checkbox',{name:'Info suivi technique',exact:true}).isEnabled());
     assert.ok(await labelOptions.getByText('1 sur 2 disponible',{exact:true}).isVisible());
+    assert.ok((await labelOptions.getByLabel('Disponibilité Collage / coating pour SN1',{exact:true}).textContent()).includes('✓'));
+    assert.ok((await labelOptions.getByLabel('Disponibilité Info suivi technique pour SN1',{exact:true}).textContent()).includes('✓'));
     await labelOptions.getByRole('checkbox',{name:'Info suivi technique',exact:true}).check();
     await page.screenshot({path:path.join(__dirname,'artifacts/label-options.png')});
     const binderDownloadPromise=page.waitForEvent('download');

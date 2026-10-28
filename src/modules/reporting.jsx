@@ -1181,6 +1181,7 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
   const [selected,setSelected]=useState(()=>defaultSelectedIds?.length?defaultSelectedIds:snRows.map(unit=>unit.id));
   const toggle=id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
   const availability=id=>operationalLabelAvailability({type:id,ofData,selectedUnitIds:selected,consommables});
+  const availableForUnit=(type,unit)=>operationalLabelTypeAvailable({type,ofData,selectedUnitIds:[unit.id],consommables});
   const available=id=>availability(id).available;
   const toggleType=id=>available(id)&&setTypes(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
   useEffect(()=>setTypes(current=>current.filter(available)),[selected.join("|"),ofData,consommables]);
@@ -1203,11 +1204,28 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
           <Btn small color={C.border} onClick={()=>setSelected(snRows.map(unit=>unit.id))}>Tout cocher</Btn>
           <Btn small color={C.border} onClick={()=>setSelected([])}>Tout décocher</Btn>
         </div>
-        <div style={{maxHeight:210,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:4,padding:6,marginBottom:14}}>
-          {snRows.map(unit=><label key={unit.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 4px",borderBottom:`1px solid ${C.border}55`,fontFamily:"monospace",fontSize:12,color:C.text,cursor:"pointer"}}>
-            <input type="checkbox" checked={selected.includes(unit.id)} onChange={()=>toggle(unit.id)} style={{accentColor:C.blue}}/>
-            {snTitle(unit)}
-          </label>)}
+        <div style={{maxHeight:250,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:4,padding:6,marginBottom:14}}>
+          <div style={{display:"grid",gridTemplateColumns:"22px minmax(90px,1fr) 105px 105px",gap:6,padding:"2px 4px 6px",color:C.muted,fontSize:9,fontWeight:800,textTransform:"uppercase"}}>
+            <span/><span>SN / LOT</span><span>Collage</span><span>Suivi tech.</span>
+          </div>
+          {snRows.map(unit=>{
+            const bonding=availableForUnit("bonding",unit);
+            const facts=availableForUnit("facts",unit);
+            const status=(type,label,isAvailable)=>{
+              const requested=types.includes(type);
+              const color=isAvailable?C.green:requested?C.yellow:C.muted;
+              return <span aria-label={`Disponibilité ${label} pour ${snTitle(unit)}`} title={isAvailable?`${label} disponible`:`${label} non disponible`}
+                style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,minWidth:0,padding:"2px 5px",border:`1px solid ${color}`,borderRadius:3,color,fontSize:9,fontWeight:800,whiteSpace:"nowrap"}}>
+                <span>{isAvailable?"✓":"—"}</span><span>{label==="Collage / coating"?"Collage":"Suivi"}</span>
+              </span>;
+            };
+            return <label key={unit.id} style={{display:"grid",gridTemplateColumns:"22px minmax(90px,1fr) 105px 105px",alignItems:"center",gap:6,padding:"6px 4px",borderBottom:`1px solid ${C.border}55`,fontFamily:"monospace",fontSize:12,color:C.text,cursor:"pointer"}}>
+              <input type="checkbox" aria-label={snTitle(unit)} checked={selected.includes(unit.id)} onChange={()=>toggle(unit.id)} style={{accentColor:C.blue}}/>
+              <strong style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={snTitle(unit)}>{snTitle(unit)}</strong>
+              {status("bonding","Collage / coating",bonding)}
+              {status("facts","Info suivi technique",facts)}
+            </label>;
+          })}
         </div>
       </>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>

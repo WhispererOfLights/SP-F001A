@@ -3853,6 +3853,14 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       consommables: consommables
     });
   };
+  var availableForUnit = function availableForUnit(type, unit) {
+    return operationalLabelTypeAvailable({
+      type: type,
+      ofData: ofData,
+      selectedUnitIds: [unit.id],
+      consommables: consommables
+    });
+  };
   var available = function available(id) {
     return availability(id).available;
   };
@@ -3983,20 +3991,56 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
     }
   }, "Tout d\xE9cocher")), /*#__PURE__*/React.createElement("div", {
     style: {
-      maxHeight: 210,
+      maxHeight: 250,
       overflowY: "auto",
       border: "1px solid ".concat(C.border),
       borderRadius: 4,
       padding: 6,
       marginBottom: 14
     }
-  }, snRows.map(function (unit) {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "22px minmax(90px,1fr) 105px 105px",
+      gap: 6,
+      padding: "2px 4px 6px",
+      color: C.muted,
+      fontSize: 9,
+      fontWeight: 800,
+      textTransform: "uppercase"
+    }
+  }, /*#__PURE__*/React.createElement("span", null), /*#__PURE__*/React.createElement("span", null, "SN / LOT"), /*#__PURE__*/React.createElement("span", null, "Collage"), /*#__PURE__*/React.createElement("span", null, "Suivi tech.")), snRows.map(function (unit) {
+    var bonding = availableForUnit("bonding", unit);
+    var facts = availableForUnit("facts", unit);
+    var status = function status(type, label, isAvailable) {
+      var requested = types.includes(type);
+      var color = isAvailable ? C.green : requested ? C.yellow : C.muted;
+      return /*#__PURE__*/React.createElement("span", {
+        "aria-label": "Disponibilit\xE9 ".concat(label, " pour ").concat(snTitle(unit)),
+        title: isAvailable ? "".concat(label, " disponible") : "".concat(label, " non disponible"),
+        style: {
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 4,
+          minWidth: 0,
+          padding: "2px 5px",
+          border: "1px solid ".concat(color),
+          borderRadius: 3,
+          color: color,
+          fontSize: 9,
+          fontWeight: 800,
+          whiteSpace: "nowrap"
+        }
+      }, /*#__PURE__*/React.createElement("span", null, isAvailable ? "✓" : "—"), /*#__PURE__*/React.createElement("span", null, label === "Collage / coating" ? "Collage" : "Suivi"));
+    };
     return /*#__PURE__*/React.createElement("label", {
       key: unit.id,
       style: {
-        display: "flex",
+        display: "grid",
+        gridTemplateColumns: "22px minmax(90px,1fr) 105px 105px",
         alignItems: "center",
-        gap: 8,
+        gap: 6,
         padding: "6px 4px",
         borderBottom: "1px solid ".concat(C.border, "55"),
         fontFamily: "monospace",
@@ -4006,6 +4050,7 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       }
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
+      "aria-label": snTitle(unit),
       checked: selected.includes(unit.id),
       onChange: function onChange() {
         return toggle(unit.id);
@@ -4013,7 +4058,14 @@ var LabelOptionsModal = function LabelOptionsModal(_ref40) {
       style: {
         accentColor: C.blue
       }
-    }), snTitle(unit));
+    }), /*#__PURE__*/React.createElement("strong", {
+      style: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      },
+      title: snTitle(unit)
+    }, snTitle(unit)), status("bonding", "Collage / coating", bonding), status("facts", "Info suivi technique", facts));
   }))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
