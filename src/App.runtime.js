@@ -21477,7 +21477,7 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
       color: C.red,
       textTransform: "uppercase"
     }
-  }, "\xC9tuvages \xE0 faire"), /*#__PURE__*/React.createElement(Badge, {
+  }, "\xC9tuvages \xE0 faire aujourd'hui"), /*#__PURE__*/React.createElement(Badge, {
     label: String(ovens.length),
     color: ovens.length ? C.red : C.green
   })), /*#__PURE__*/React.createElement("div", {
@@ -21506,7 +21506,9 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
         fontFamily: "monospace",
         color: C.blue
       }
-    }, alert.unit), /*#__PURE__*/React.createElement("span", null, "\xC0 faire depuis ", /*#__PURE__*/React.createElement("strong", null, alert.label)));
+    }, alert.unit), /*#__PURE__*/React.createElement("span", {
+      title: "\xC9ch\xE9ance d\xE9pass\xE9e depuis le ".concat(alert.label)
+    }, /*#__PURE__*/React.createElement("strong", null, alert.daysWithoutOven, " jour", alert.daysWithoutOven > 1 ? "s" : ""), " sans \xE9tuvage"));
   }) : empty)));
 };
 var OFSelector = function OFSelector(_ref132) {
@@ -21922,7 +21924,8 @@ var OFSelector = function OFSelector(_ref132) {
       of: row.of,
       unit: homeUnitName(row),
       label: info.label,
-      nextAt: info.nextAt
+      nextAt: info.nextAt,
+      daysWithoutOven: Math.max(1, Math.ceil((homeNow.getTime() - info.nextAt) / 86400000))
     } : null;
   }).filter(Boolean).sort(function (a, b) {
     return a.nextAt - b.nextAt;

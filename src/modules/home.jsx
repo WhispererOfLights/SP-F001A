@@ -521,13 +521,13 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
     </div>
     <div style={{padding:"8px 10px",minWidth:0}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-        <strong style={{fontSize:11,color:C.red,textTransform:"uppercase"}}>Étuvages à faire</strong>
+        <strong style={{fontSize:11,color:C.red,textTransform:"uppercase"}}>Étuvages à faire aujourd'hui</strong>
         <Badge label={String(ovens.length)} color={ovens.length?C.red:C.green}/>
       </div>
       <div style={listStyle}>{loading?<span style={{color:C.muted,fontSize:11,padding:7}}>Chargement…</span>:ovens.length?ovens.map(alert=><button type="button" key={alert.key}
         aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={itemStyle}>
         <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span style={{fontFamily:"monospace",color:C.blue}}>{alert.unit}</span>
-        <span>À faire depuis <strong>{alert.label}</strong></span>
+        <span title={`Échéance dépassée depuis le ${alert.label}`}><strong>{alert.daysWithoutOven} jour{alert.daysWithoutOven>1?"s":""}</strong> sans étuvage</span>
       </button>):empty}</div>
     </div>
   </section>;
@@ -651,7 +651,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   }).filter(Boolean).sort((a,b)=>a.readyAt-b.readyAt);
   const ovenAlerts=operationalRows.map(row=>{
     const info=nextEtuvageForRow(row);
-    return info.count&&info.overdue?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),label:info.label,nextAt:info.nextAt}:null;
+    return info.count&&info.overdue?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),label:info.label,nextAt:info.nextAt,daysWithoutOven:Math.max(1,Math.ceil((homeNow.getTime()-info.nextAt)/86400000))}:null;
   }).filter(Boolean).sort((a,b)=>a.nextAt-b.nextAt);
   const allHomeRows=columnSort.key?[...baseHomeRows].sort((a,b)=>{
     const av=homeSortValue(a,columnSort.key),bv=homeSortValue(b,columnSort.key);

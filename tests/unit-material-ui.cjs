@@ -68,6 +68,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('region',{name:'Activités en cours sur tous les OF',exact:true}).waitFor();
     await page.getByRole('button',{name:'Ouvrir polymérisation OF 100TEST - SN1',exact:true}).waitFor();
     await page.getByRole('button',{name:'Ouvrir étuvage OF 100TEST - SN1',exact:true}).waitFor();
+    await page.getByText("Étuvages à faire aujourd'hui",{exact:true}).waitFor();
+    await page.getByText(/jours? sans étuvage/).waitFor();
+    assert.ok((await page.getByTitle(/^Échéance dépassée depuis le/).getAttribute('title')).includes('21/09/26 08:00'));
     await page.getByTitle(/Sous vide dès le/).first().waitFor();
     assert.equal(await page.getByRole('columnheader',{name:/Suivi technique/}).count(),1);
     assert.equal(await page.getByRole('columnheader',{name:'Faits',exact:true}).count(),0);
