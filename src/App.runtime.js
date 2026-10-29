@@ -21593,6 +21593,40 @@ var homeFactSearchText = function homeFactSearchText(facts) {
     return [fact.type, fact.numero, fact.commentaires, fact.date, fact.visa, fact.closedDate, fact.closedVisa].filter(Boolean).join(" ");
   }).join(" ");
 };
+var homeOvenAlertTiming = function homeOvenAlertTiming(info) {
+  var referenceDate = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : new Date();
+  if (!(info !== null && info !== void 0 && info.count) || !Number.isFinite(info === null || info === void 0 ? void 0 : info.nextAt)) return {
+    due: false,
+    anticipated: false
+  };
+  var now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  var deadline = new Date(info.nextAt);
+  var overdue = deadline.getTime() < now.getTime();
+  if (overdue) return {
+    due: true,
+    anticipated: false,
+    daysWithoutOven: Math.max(1, Math.ceil((now.getTime() - deadline.getTime()) / 86400000)),
+    text: "sans étuvage",
+    title: "\xC9ch\xE9ance d\xE9pass\xE9e depuis le ".concat(info.label)
+  };
+  if (now.getDay() !== 5) return {
+    due: false,
+    anticipated: false
+  };
+  var saturday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+  var monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3, 0, 0, 0, 0);
+  var anticipated = deadline >= saturday && deadline < monday;
+  return anticipated ? {
+    due: true,
+    anticipated: true,
+    daysWithoutOven: 0,
+    text: "échéance ce week-end",
+    title: "\xC9ch\xE9ance pr\xE9vue le ".concat(info.label, " \u2014 \xE9tuvage anticip\xE9 au vendredi soir")
+  } : {
+    due: false,
+    anticipated: false
+  };
+};
 var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
   var polymerizations = _ref131.polymerizations,
     ovens = _ref131.ovens,
@@ -21748,8 +21782,8 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref131) {
         fontFamily: "monospace"
       }
     }, alert.article || "—"), alert.description ? " \u2014 ".concat(alert.description) : ""), /*#__PURE__*/React.createElement("span", {
-      title: "\xC9ch\xE9ance d\xE9pass\xE9e depuis le ".concat(alert.label)
-    }, /*#__PURE__*/React.createElement("strong", null, alert.daysWithoutOven, " jour", alert.daysWithoutOven > 1 ? "s" : ""), " sans \xE9tuvage"));
+      title: alert.timing.title
+    }, alert.timing.anticipated ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Vendredi soir"), " \xB7 ", alert.timing.text) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, alert.timing.daysWithoutOven, " jour", alert.timing.daysWithoutOven > 1 ? "s" : ""), " ", alert.timing.text)));
   }) : empty)));
 };
 var OFSelector = function OFSelector(_ref132) {
@@ -22158,7 +22192,8 @@ var OFSelector = function OFSelector(_ref132) {
   });
   var ovenAlerts = operationalRows.map(function (row) {
     var info = nextEtuvageForRow(row);
-    return info.count && info.overdue ? {
+    var timing = homeOvenAlertTiming(info, homeNow);
+    return timing.due ? {
       key: "".concat(homeRowKey(row), ":oven"),
       id: row.id,
       unitId: row._homeUnitId,
@@ -22168,7 +22203,7 @@ var OFSelector = function OFSelector(_ref132) {
       description: row.description || "",
       label: info.label,
       nextAt: info.nextAt,
-      daysWithoutOven: Math.max(1, Math.ceil((homeNow.getTime() - info.nextAt) / 86400000))
+      timing: timing
     } : null;
   }).filter(Boolean).sort(function (a, b) {
     return a.nextAt - b.nextAt;

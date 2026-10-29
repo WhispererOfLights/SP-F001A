@@ -502,6 +502,30 @@ const homeFactsForUnit = (data,unitId) => {
 const homeFactSearchText = facts => (facts||[]).map(fact=>[
   fact.type,fact.numero,fact.commentaires,fact.date,fact.visa,fact.closedDate,fact.closedVisa,
 ].filter(Boolean).join(" ")).join(" ");
+const homeOvenAlertTiming = (info,referenceDate=new Date()) => {
+  if(!info?.count||!Number.isFinite(info?.nextAt)) return {due:false,anticipated:false};
+  const now=referenceDate instanceof Date?referenceDate:new Date(referenceDate);
+  const deadline=new Date(info.nextAt);
+  const overdue=deadline.getTime()<now.getTime();
+  if(overdue) return {
+    due:true,
+    anticipated:false,
+    daysWithoutOven:Math.max(1,Math.ceil((now.getTime()-deadline.getTime())/86400000)),
+    text:"sans étuvage",
+    title:`Échéance dépassée depuis le ${info.label}`,
+  };
+  if(now.getDay()!==5) return {due:false,anticipated:false};
+  const saturday=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,0,0);
+  const monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()+3,0,0,0,0);
+  const anticipated=deadline>=saturday&&deadline<monday;
+  return anticipated?{
+    due:true,
+    anticipated:true,
+    daysWithoutOven:0,
+    text:"échéance ce week-end",
+    title:`Échéance prévue le ${info.label} — étuvage anticipé au vendredi soir`,
+  }:{due:false,anticipated:false};
+};
 const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
   const listStyle={display:"flex",flexDirection:"column",gap:3,maxHeight:126,overflowY:"auto"};
   const itemStyle={display:"grid",gridTemplateColumns:"minmax(70px,.55fr) minmax(90px,.7fr) minmax(150px,1fr)",gap:8,alignItems:"center",
@@ -529,7 +553,9 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
         aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={ovenItemStyle}>
         <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span style={{fontFamily:"monospace",color:C.blue}}>{alert.unit}</span>
         <span title={[alert.article,alert.description].filter(Boolean).join(" - ")} style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><strong style={{fontFamily:"monospace"}}>{alert.article||"—"}</strong>{alert.description?` — ${alert.description}`:""}</span>
-        <span title={`Échéance dépassée depuis le ${alert.label}`}><strong>{alert.daysWithoutOven} jour{alert.daysWithoutOven>1?"s":""}</strong> sans étuvage</span>
+        <span title={alert.timing.title}>{alert.timing.anticipated
+          ? <><strong>Vendredi soir</strong> · {alert.timing.text}</>
+          : <><strong>{alert.timing.daysWithoutOven} jour{alert.timing.daysWithoutOven>1?"s":""}</strong> {alert.timing.text}</>}</span>
       </button>):empty}</div>
     </div>
   </section>;
@@ -653,7 +679,8 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   }).filter(Boolean).sort((a,b)=>a.readyAt-b.readyAt);
   const ovenAlerts=operationalRows.map(row=>{
     const info=nextEtuvageForRow(row);
-    return info.count&&info.overdue?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),article:row.codeArticle||row.articleNo||"",description:row.description||"",label:info.label,nextAt:info.nextAt,daysWithoutOven:Math.max(1,Math.ceil((homeNow.getTime()-info.nextAt)/86400000))}:null;
+    const timing=homeOvenAlertTiming(info,homeNow);
+    return timing.due?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),article:row.codeArticle||row.articleNo||"",description:row.description||"",label:info.label,nextAt:info.nextAt,timing}:null;
   }).filter(Boolean).sort((a,b)=>a.nextAt-b.nextAt);
   const allHomeRows=columnSort.key?[...baseHomeRows].sort((a,b)=>{
     const av=homeSortValue(a,columnSort.key),bv=homeSortValue(b,columnSort.key);
