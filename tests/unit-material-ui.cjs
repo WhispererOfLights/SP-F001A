@@ -291,7 +291,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button',{name:'Étiquettes',exact:true}).click();
     const labelOptions=page.getByRole('dialog',{name:'Imprimer des étiquettes',exact:true});
     await labelOptions.waitFor();
-    assert.ok(await labelOptions.getByText('Modèle 76 × 50,8 mm',{exact:true}).isVisible());
+    assert.ok(await labelOptions.getByRole('radio',{name:'Paysage',exact:true}).isChecked());
+    assert.ok(await labelOptions.getByRole('radio',{name:'Portrait',exact:true}).isVisible());
+    assert.ok(await labelOptions.getByText('50,8 × 76 mm · dos classeur',{exact:true}).isVisible());
     assert.ok(await labelOptions.getByRole('checkbox',{name:'Log fab',exact:true}).isChecked());
     await labelOptions.getByRole('checkbox',{name:'Mise en stock',exact:true}).check();
     assert.ok(await labelOptions.getByRole('checkbox',{name:/SN2/}).isChecked());

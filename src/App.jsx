@@ -2595,12 +2595,13 @@ export default function App(){
     try{
       const types=options.types?.length?options.types:["binder"];
       const entries=[{ofData,selectedUnitIds:options.selectedSnIds||null}];
-      const blobs=types.map(type=>buildOperationalLabelsPdf({type,entries,consommables}));
+      const orientation=options.orientation==="portrait"?"portrait":"landscape";
+      const blobs=types.map(type=>buildOperationalLabelsPdf({type,entries,consommables,orientation}));
       const blob=await mergeGeneratedPdfBlobs(blobs);
       const label=types.length===1
         ? OPERATIONAL_LABEL_TYPES.find(item=>item.id===types[0])?.label||"Etiquettes"
         : "Lot d'étiquettes";
-      downloadBlob(blob,fileSafeName(`${label} - OF ${ofData?.header?.of||"OF"}`)+".pdf");
+      downloadBlob(blob,fileSafeName(`${label} ${orientation==="portrait"?"portrait":"paysage"} - OF ${ofData?.header?.of||"OF"}`)+".pdf");
       setShowLabelOptions(false);
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };

@@ -57,6 +57,13 @@ const vm = require('node:vm');
   assert.ok(kitting.includes('Qt\\351 2'));
   fs.writeFileSync(path.join(__dirname,'artifacts/kitting-labels.pdf'),Buffer.from(await kittingBlob.arrayBuffer()));
 
+  const portraitBlob=context.labels({type:'binder',orientation:'portrait',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
+  const portrait=await portraitBlob.text();
+  assert.ok(portrait.includes('/MediaBox [0 0 144.00 215.43]'));
+  for(const expected of ['250001153','Module test','SN001','OF 16000001','OTP 7400-TEST']) assert.ok(portrait.includes(expected),`portrait: ${expected}`);
+  assert.ok(/\/F2 22\.00 Tf [^\n]+\(SN001\)/.test(portrait),'Le SN reste très visible en portrait');
+  fs.writeFileSync(path.join(__dirname,'artifacts/binder-label-portrait.pdf'),Buffer.from(await portraitBlob.arrayBuffer()));
+
   for(const type of ['binder','stock']){
     const blob=context.labels({type,entries:[{ofData,selectedUnitIds:['u1']}],consommables});
     const content=await blob.text();

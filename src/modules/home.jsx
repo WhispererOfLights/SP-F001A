@@ -816,12 +816,13 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const exportBulkLabels=async options=>{
     try{
       const types=options.types?.length?options.types:["kitting"];
-      const blobs=types.map(type=>buildOperationalLabelsPdf({type,entries:bulkLabelEntries||[],consommables}));
+      const orientation=options.orientation==="portrait"?"portrait":"landscape";
+      const blobs=types.map(type=>buildOperationalLabelsPdf({type,entries:bulkLabelEntries||[],consommables,orientation}));
       const blob=await mergeGeneratedPdfBlobs(blobs);
       const ofNumbers=(bulkLabelEntries||[]).map(entry=>entry.ofData?.header?.of).filter(Boolean);
       const suffix=ofNumbers.length===1?`OF ${ofNumbers[0]}`:`${ofNumbers.length} OF`;
       const label=types.length===1?OPERATIONAL_LABEL_TYPES.find(item=>item.id===types[0])?.label||"Étiquettes":"Lot d'étiquettes";
-      downloadBrowserBlob(blob,fileSafeName(`${label} - ${suffix}`)+".pdf");
+      downloadBrowserBlob(blob,fileSafeName(`${label} ${orientation==="portrait"?"portrait":"paysage"} - ${suffix}`)+".pdf");
       setBulkLabelEntries(null);
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };

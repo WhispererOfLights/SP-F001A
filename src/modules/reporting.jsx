@@ -377,10 +377,12 @@ const operationalLabelAvailability = ({type,ofData,selectedUnitIds=null,consomma
 };
 const operationalLabelTypeAvailable = args => operationalLabelAvailability(args).available;
 
-const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
+const buildOperationalLabelsPdf = ({type,entries=[],consommables=[],orientation="landscape"}) => {
   if(!OPERATIONAL_LABEL_TYPES.some(item=>item.id===type)) throw new Error("Type d'étiquette inconnu.");
+  if(!["landscape","portrait"].includes(orientation)) throw new Error("Orientation d'étiquette inconnue.");
   const MM=72/25.4;
-  const width=76*MM,height=50.8*MM;
+  const portrait=orientation==="portrait";
+  const width=(portrait?50.8:76)*MM,height=(portrait?76:50.8)*MM;
   const fit=(value,max,min,maxWidth)=>Math.max(min,Math.min(max,maxWidth/Math.max(1,pdfHelveticaTextWidth(value,1))));
   const txt=(value,x,y,size=7,bold=false,color="0.08 0.10 0.14")=>`BT /${bold?"F2":"F1"} ${size.toFixed(2)} Tf ${color} rg 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfEsc(value)}) Tj ET`;
   const centered=(value,y,max=9,min=5.3,bold=false,color="0.08 0.10 0.14",maxWidth=width-10)=>{
@@ -411,7 +413,13 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
     const of=header.of||"N/A";
     const otp=header.otp||header.projet||"N/A";
     const units=operationalLabelUnits(ofData,entry.selectedUnitIds||null);
-    const commonHeader=(identity,identityMax=10)=>[
+    const commonHeader=(identity,identityMax=10)=>portrait?[
+      {text:article,y:195,max:13,min:8.5,bold:true},
+      {text:description,y:177,max:8,min:5.2},
+      {text:identity,y:142,max:Math.max(identityMax,15),min:8,bold:true},
+      {text:`OF ${of}`,y:116,max:8,min:5.4,bold:true},
+      {text:`OTP ${otp}`,y:102,max:7.3,min:4.8,bold:true},
+    ]:[
       {text:article,y:128,max:10.5,bold:true},
       {text:description,y:114,max:7.6},
       {text:identity,y:87,max:identityMax,min:7.5,bold:true},
@@ -426,15 +434,27 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
         : lots.length===1&&serials.length===0?`LOT ${lots[0]}`
         : units.map(operationalLabelIdentity).join(" / ");
       const quantity=units.reduce((total,unit)=>total+(unit.lot?Number(trackedLotQty(unit)||0):1),0);
-      pages.push(page({footer:"KITTING",dividerY:59,lines:commonHeader(`${identity} - Qté ${quantity||"N/A"}`,13)}));
+      pages.push(page({footer:"KITTING",dividerY:portrait?88:59,lines:commonHeader(`${identity} - Qté ${quantity||"N/A"}`,13)}));
       return;
     }
     units.forEach(unit=>{
       const identity=operationalLabelIdentity(unit);
       if(type==="binder"){
-        pages.push(page({dividerY:59,lines:commonHeader(operationalLabelIdentityWithQuantity(unit),22)}));
+        pages.push(page({dividerY:portrait?0:59,lines:portrait?[
+          {text:article,y:190,max:16,min:10,bold:true},
+          {text:description,y:165,max:9,min:5.6},
+          {text:operationalLabelIdentityWithQuantity(unit),y:115,max:22,min:11,bold:true},
+          {text:`OF ${of}`,y:70,max:10,min:6,bold:true},
+          {text:`OTP ${otp}`,y:45,max:9,min:5.5,bold:true},
+        ]:commonHeader(operationalLabelIdentityWithQuantity(unit),22)}));
       }else if(type==="stock"){
-        pages.push(page({lines:[
+        pages.push(page({lines:portrait?[
+          {text:article,y:190,max:20,min:12,bold:true},
+          {text:description,y:168,max:9,min:5.4},
+          {text:identity,y:122,max:20,min:10,bold:true},
+          {text:`OF ${of}`,y:84,max:9,min:5.8,bold:true},
+          {text:`OTP ${otp}`,y:64,max:8,min:5.2,bold:true},
+        ]:[
           {text:article,y:116,max:18,min:12,bold:true},
           {text:description,y:91,max:9,min:5.8},
           {text:identity,y:54,max:17,min:9,bold:true},
@@ -445,22 +465,23 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[]}) => {
         if(!polymerization) return;
         const category=String(polymerization.consumable?.cat||"").toUpperCase();
         const title=category.includes("COAT")||category.includes("VERNIS")?"COATING":"COLLAGE";
-        pages.push(page({dividerY:59,lines:[
+        pages.push(page({dividerY:portrait?88:59,lines:[
           ...commonHeader(operationalLabelIdentityWithQuantity(unit),10),
-          {text:title,y:48,max:9,bold:true},
-          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:34,max:6.8,bold:true},
-          {text:`Début : ${formatAvailabilityDT(polymerization.start)}  |  Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:18,max:6,min:4.6,bold:true},
+          {text:title,y:portrait?77:48,max:9,bold:true},
+          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:portrait?59:34,max:6.8,bold:true},
+          {text:portrait?`Début : ${formatAvailabilityDT(polymerization.start)}`:`Début : ${formatAvailabilityDT(polymerization.start)}  |  Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:portrait?41:18,max:6,min:4.6,bold:true},
+          ...(portrait?[{text:`Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:27,max:6,min:4.6,bold:true}]:[]),
         ]}));
       }else if(type==="facts"){
         const facts=operationalLabelFacts({ofData,unit});
         if(!facts.length) return;
         for(let index=0;index<facts.length;index+=2){
           const chunk=facts.slice(index,index+2);
-          pages.push(page({footer:"SUIVI TECHNIQUE",dividerY:59,lines:[
+          pages.push(page({footer:"SUIVI TECHNIQUE",dividerY:portrait?88:59,lines:[
             ...commonHeader(operationalLabelIdentityWithQuantity(unit),10),
             ...chunk.map((fact,factIndex)=>({
               text:`${technicalFollowUpLabel(fact)} : ${fact.commentaires||fact.description||"N/A"}`,
-              y:43-factIndex*19,max:7.2,min:4.8,bold:true,
+              y:(portrait?74:43)-factIndex*(portrait?26:19),max:7.2,min:4.8,bold:true,
             })),
           ]}));
         }
@@ -1178,6 +1199,7 @@ const DeleteModal = ({onConfirm, onCancel, godMode=false}) => {
 
 const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,onCancel,onConfirm}) => {
   const [types,setTypes]=useState(["binder"]);
+  const [orientation,setOrientation]=useState("landscape");
   const [selected,setSelected]=useState(()=>defaultSelectedIds?.length?defaultSelectedIds:snRows.map(unit=>unit.id));
   const toggle=id=>setSelected(current=>current.includes(id)?current.filter(value=>value!==id):[...current,id]);
   const availability=id=>operationalLabelAvailability({type:id,ofData,selectedUnitIds:selected,consommables});
@@ -1189,8 +1211,20 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
   return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:320,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
     <div role="dialog" aria-modal="true" aria-labelledby="label-options-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:560,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
       <h2 id="label-options-title" style={{margin:"0 0 14px",fontSize:16,color:C.blue}}>Imprimer des étiquettes</h2>
+      <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 12px"}}>
+        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Orientation</legend>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
+          {[
+            {id:"landscape",label:"Paysage",detail:"76 × 50,8 mm"},
+            {id:"portrait",label:"Portrait",detail:"50,8 × 76 mm · dos classeur"},
+          ].map(option=><label key={option.id} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${orientation===option.id?C.blue:C.border}`,borderRadius:4,color:C.text,fontSize:12,cursor:"pointer",background:orientation===option.id?C.blue+"12":"transparent"}}>
+            <input type="radio" name="label-orientation" aria-label={option.label} value={option.id} checked={orientation===option.id} onChange={()=>setOrientation(option.id)} style={{accentColor:C.blue}}/>
+            <span><strong>{option.label}</strong><br/><span style={{fontSize:10,color:C.muted}}>{option.detail}</span></span>
+          </label>)}
+        </div>
+      </fieldset>
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
-        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
+        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Type d'étiquette</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
           {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.available;const isConditional=["bonding","facts"].includes(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
             <input type="checkbox" aria-label={item.label} checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
@@ -1230,7 +1264,7 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
       </>}
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onCancel} color={C.border} small>Annuler</Btn>
-        <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({types,selectedSnIds:selected})} color={canGenerate?C.green:C.border} small>Générer</Btn>
+        <Btn disabled={!canGenerate} onClick={()=>canGenerate&&onConfirm({types,selectedSnIds:selected,orientation})} color={canGenerate?C.green:C.border} small>Générer</Btn>
       </div>
     </div>
   </div>;
@@ -1238,6 +1272,7 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
 
 const BulkLabelOptionsModal = ({entries,consommables,onCancel,onConfirm}) => {
   const [types,setTypes]=useState(["kitting"]);
+  const [orientation,setOrientation]=useState("landscape");
   const availability=id=>(entries||[]).reduce((result,entry)=>{
     const status=operationalLabelAvailability({type:id,ofData:entry.ofData,selectedUnitIds:entry.selectedUnitIds,consommables});
     result.count+=status.count;
@@ -1252,8 +1287,20 @@ const BulkLabelOptionsModal = ({entries,consommables,onCancel,onConfirm}) => {
     <div role="dialog" aria-modal="true" aria-labelledby="bulk-label-options-title" style={{background:C.surface,border:`2px solid ${C.blue}`,borderRadius:8,padding:20,width:560,maxWidth:"100%",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 12px 40px #0008"}}>
       <h2 id="bulk-label-options-title" style={{margin:"0 0 6px",fontSize:16,color:C.blue}}>Imprimer des étiquettes</h2>
       <div style={{color:C.muted,fontSize:12,marginBottom:14}}>{entries.length} dossier{entries.length>1?"s":""} · {unitCount} SN/lot{unitCount>1?"s":""}</div>
+      <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 12px"}}>
+        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Orientation</legend>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
+          {[
+            {id:"landscape",label:"Paysage",detail:"76 × 50,8 mm"},
+            {id:"portrait",label:"Portrait",detail:"50,8 × 76 mm · dos classeur"},
+          ].map(option=><label key={option.id} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${orientation===option.id?C.blue:C.border}`,borderRadius:4,color:C.text,fontSize:12,cursor:"pointer",background:orientation===option.id?C.blue+"12":"transparent"}}>
+            <input type="radio" name="bulk-label-orientation" aria-label={option.label} value={option.id} checked={orientation===option.id} onChange={()=>setOrientation(option.id)} style={{accentColor:C.blue}}/>
+            <span><strong>{option.label}</strong><br/><span style={{fontSize:10,color:C.muted}}>{option.detail}</span></span>
+          </label>)}
+        </div>
+      </fieldset>
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
-        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Modèle 76 × 50,8 mm</legend>
+        <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Type d'étiquette</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
           {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.count>0;const isConditional=["bonding","facts"].includes(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
             <input type="checkbox" aria-label={item.label} checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
@@ -1264,7 +1311,7 @@ const BulkLabelOptionsModal = ({entries,consommables,onCancel,onConfirm}) => {
       </fieldset>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onCancel} color={C.border} small>Annuler</Btn>
-        <Btn disabled={!types.length} onClick={()=>types.length&&onConfirm({types})} color={types.length?C.green:C.border} small>Générer</Btn>
+        <Btn disabled={!types.length} onClick={()=>types.length&&onConfirm({types,orientation})} color={types.length?C.green:C.border} small>Générer</Btn>
       </div>
     </div>
   </div>;
