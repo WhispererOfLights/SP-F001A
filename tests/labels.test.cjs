@@ -97,6 +97,7 @@ const vm = require('node:vm');
   assert.equal((facts.match(/\(250001153\)/g)||[]).length,2);
   assert.equal((facts.match(/\(SN001\)/g)||[]).length,2);
   assert.ok(facts.includes('OW004'));
+  for(const description of ['Premier fait','Deuxieme fait','Troisieme fait','Quatrieme fait']) assert.ok(!facts.includes(description),`Le texte du fait n'est pas imprimé : ${description}`);
   fs.writeFileSync(path.join(__dirname,'artifacts/facts-labels.pdf'),Buffer.from(await factsBlob.arrayBuffer()));
   console.log('Operational labels: all tests passed.');
 })().catch(error=>{console.error(error);process.exit(1);});

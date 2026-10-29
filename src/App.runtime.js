@@ -2712,7 +2712,7 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref34) {
             dividerY: portrait ? 88 : 59,
             lines: [].concat(_toConsumableArray(commonHeader(operationalLabelIdentityWithQuantity(unit), 10)), _toConsumableArray(chunk.map(function (fact, factIndex) {
               return {
-                text: "".concat(technicalFollowUpLabel(fact), " : ").concat(fact.commentaires || fact.description || "N/A"),
+                text: technicalFollowUpLabel(fact),
                 y: (portrait ? 74 : 43) - factIndex * (portrait ? 26 : 19),
                 max: 7.2,
                 min: 4.8,

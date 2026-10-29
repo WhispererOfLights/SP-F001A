@@ -480,7 +480,7 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[],orientation=
           pages.push(page({footer:"SUIVI TECHNIQUE",dividerY:portrait?88:59,lines:[
             ...commonHeader(operationalLabelIdentityWithQuantity(unit),10),
             ...chunk.map((fact,factIndex)=>({
-              text:`${technicalFollowUpLabel(fact)} : ${fact.commentaires||fact.description||"N/A"}`,
+              text:technicalFollowUpLabel(fact),
               y:(portrait?74:43)-factIndex*(portrait?26:19),max:7.2,min:4.8,bold:true,
             })),
           ]}));
