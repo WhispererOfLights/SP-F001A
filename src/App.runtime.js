@@ -8115,17 +8115,23 @@ var ImportOriginMark = function ImportOriginMark(_ref70) {
     "aria-label": modified ? "Importé, modifié" : "Importé",
     title: title,
     style: {
-      display: "inline-block",
-      marginTop: 3,
-      padding: "1px 4px",
+      display: "inline-flex",
+      width: 16,
+      height: 16,
+      marginLeft: 4,
+      alignItems: "center",
+      justifyContent: "center",
       border: "1px solid ".concat(modified ? C.yellow : C.blue),
       borderRadius: 3,
+      background: (modified ? C.yellow : C.blue) + "12",
       color: modified ? C.yellow : C.blue,
-      fontSize: 8,
-      fontWeight: 800,
-      whiteSpace: "nowrap"
+      fontSize: 11,
+      fontWeight: 900,
+      lineHeight: 1,
+      cursor: "help",
+      verticalAlign: "middle"
     }
-  }, modified ? "Importé · modifié" : "Importé");
+  }, "\u21A7");
 };
 var parseActivityDate = function parseActivityDate(raw) {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw;

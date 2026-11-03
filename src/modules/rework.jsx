@@ -114,9 +114,10 @@ const ImportOriginMark = ({row}) => {
   const title=[`Importé le ${origin.importedAt||"N/A"} par ${origin.importedBy||"N/A"}`,
     modified?`Modifié le ${origin.modifiedAt||"N/A"} par ${origin.modifiedBy||"N/A"}`:"Aucune modification depuis l'import"].join("\n");
   return <span aria-label={modified?"Importé, modifié":"Importé"} title={title}
-    style={{display:"inline-block",marginTop:3,padding:"1px 4px",border:`1px solid ${modified?C.yellow:C.blue}`,
-      borderRadius:3,color:modified?C.yellow:C.blue,fontSize:8,fontWeight:800,whiteSpace:"nowrap"}}>
-    {modified?"Importé · modifié":"Importé"}
+    style={{display:"inline-flex",width:16,height:16,marginLeft:4,alignItems:"center",justifyContent:"center",
+      border:`1px solid ${modified?C.yellow:C.blue}`,borderRadius:3,background:(modified?C.yellow:C.blue)+"12",
+      color:modified?C.yellow:C.blue,fontSize:11,fontWeight:900,lineHeight:1,cursor:"help",verticalAlign:"middle"}}>
+    ↧
   </span>;
 };
 const parseActivityDate = raw => {
