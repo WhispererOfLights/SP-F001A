@@ -8164,18 +8164,25 @@ var dcCheck = function dcCheck(raw, referenceDate) {
   };
   var base = Number(m[1]) * 100 + Number(m[2]);
   var week = Number(m[2]);
-  var relief = Number(m[3] || 0);
+  var relief = m[3] ? Number(m[3]) : null;
   if (week < 1 || week > 53) return {
     ok: false,
     label: "Semaine DC invalide"
   };
-  var max = base - (relief ? 300 : 0) + 700 + relief * 400;
+  if (relief !== null && ![1, 2].includes(relief)) return {
+    ok: false,
+    label: "Relife invalide (R1 ou R2)"
+  };
+  var validityYears = relief === 1 ? 4 : relief === 2 ? 8 : 7;
+  var max = base + validityYears * 100;
   var limit = currentYYWW(referenceDate);
   return {
     ok: max >= limit,
     max: max,
     limit: limit,
-    label: max >= limit ? "OK jusqu'\xE0 ".concat(String(max).padStart(4, "0")) : "Hors date depuis ".concat(String(max).padStart(4, "0"))
+    relief: relief,
+    validityYears: validityYears,
+    label: max >= limit ? "OK jusqu'\xE0 ".concat(String(max).padStart(4, "0")).concat(relief ? " (R".concat(relief, ", DC + ").concat(validityYears, " ans)") : "") : "Hors date depuis ".concat(String(max).padStart(4, "0")).concat(relief ? " (R".concat(relief, ", DC + ").concat(validityYears, " ans)") : "")
   };
 };
 var missingReworkTrace = function missingReworkTrace(row) {
