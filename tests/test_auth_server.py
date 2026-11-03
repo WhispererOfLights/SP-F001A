@@ -37,6 +37,14 @@ class AuthServerTests(unittest.TestCase):
             "trigram": "OPR", "role": "Opérateur", "prenom": "Opérateur",
             "passwordAuth": server.password_record("op-test"),
         })
+        server.save_user(db_path, {
+            "trigram": "CTL", "role": "Contrôleur", "prenom": "Contrôle",
+            "passwordAuth": server.password_record("ctrl-test"),
+        })
+        server.save_user(db_path, {
+            "trigram": "LOG", "role": "Logistique", "prenom": "Logistique",
+            "passwordAuth": server.password_record("log-test"),
+        })
         server.storage_put(db_path, "of-list", json.dumps([{"id": "test", "of": "1000"}]))
         server.storage_put(db_path, "of:test", json.dumps({
             "header": {"id": "test", "of": "1000", "status": "en_cours"},
@@ -334,6 +342,91 @@ class AuthServerTests(unittest.TestCase):
             "/api/storage/of%3Atest", "PUT", purged, {"If-Match": headers["ETag"]}
         )
         self.assertEqual(status, 403)
+
+    def test_operational_visas_and_correction_history_are_enforced_server_side(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+
+        spoofed_control = json.loads(json.dumps(document))
+        spoofed_control["rework"]["rows"][0].update({
+            "visaCtrl": "OTHER", "dateCtrl": "03/11/2026 10:00",
+        })
+        status, _, _ = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "rework", "value": spoofed_control["rework"]},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
+
+        forged_history = json.loads(json.dumps(document))
+        forged_history["rework"]["rows"][0]["visaCorrections"] = [{
+            "id": "fake", "field": "visaCtrl", "from": "", "to": "OTHER",
+        }]
+        status, _, _ = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "rework", "value": forged_history["rework"]},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 403)
+
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "CTL", "password": "ctrl-test"}
+        )
+        self.assertEqual(status, 200)
+        status, controlled, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        controlled["rework"]["rows"][0].update({
+            "visaCtrl": "CTL", "dateCtrl": "03/11/2026 10:05",
+        })
+        status, payload, headers = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "rework", "value": controlled["rework"]},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+
+        cancelled = payload["document"]
+        row = cancelled["rework"]["rows"][0]
+        row.update({"visaCtrl": "", "dateCtrl": ""})
+        row["ctrlCancellationHistory"] = [{
+            "visaCtrl": "CTL", "dateCtrl": "03/11/2026 10:05",
+            "cancelledVisa": "CTL", "cancelledDT": "03/11/2026 10:10",
+        }]
+        status, payload, _ = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "rework", "value": cancelled["rework"]},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["document"]["rework"]["rows"][0]["visaCtrl"], "")
+
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        document["faits"]["rows"][0].update({
+            "closedVisa": "OPR", "closedDate": "03/11/2026 10:15",
+        })
+        status, payload, headers = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "faits", "value": document["faits"]},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+
+        reopened = payload["document"]
+        reopened["faits"]["rows"][0].update({"closedVisa": "", "closedDate": ""})
+        status, _, _ = self.request(
+            "/api/work-orders/update-section", "POST",
+            {"key": "of:test", "section": "faits", "value": reopened["faits"]},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
 
     def test_operator_can_remove_fresh_draft_but_not_write_of_index(self):
         status, _, _ = self.request(

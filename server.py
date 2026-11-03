@@ -55,6 +55,15 @@ AUDIT_FIELDS = {
     "createdVisa", "deletedVisa", "deletedDate", "deletedDT",
     "restoredVisa", "restoredDate", "restoredDT",
 }
+OPERATION_VISA_FIELDS = {
+    "visaOper", "visaCtrl", "visaTraca", "visa", "openVisa",
+    "closedVisa", "entreeVisa", "sortieVisa",
+}
+APPEND_ONLY_HISTORIES = {
+    "editHistory": "visa",
+    "ctrlCancellationHistory": "cancelledVisa",
+    "tracaCancellationHistory": "cancelledVisa",
+}
 
 
 def legacy_hash(value: str) -> str:
@@ -424,6 +433,7 @@ def validate_of_document_update(user: dict, current: dict | None, updated: dict)
         raise PermissionError("Seuls Admin et Manager peuvent modifier l'identité ou le statut d'un OF")
 
     trigram = str(user.get("trigram") or "").strip().upper()
+    role = str(user.get("role") or "").strip().lower()
     new_collections = dict(_business_rows(updated))
     for path, old_rows in _business_rows(current):
         new_rows = new_collections.get(path, [])
@@ -438,6 +448,57 @@ def validate_of_document_update(user: dict, current: dict | None, updated: dict)
 
             old_deleted = bool(old_row.get("deleted"))
             new_deleted = bool(new_row.get("deleted"))
+            if (old_row.get("visaCorrections") or []) != (new_row.get("visaCorrections") or []):
+                raise PermissionError("Les corrections de visa et de date sont réservées aux Admin et Manager")
+
+            appended_histories = {}
+            for history_field, actor_field in APPEND_ONLY_HISTORIES.items():
+                old_history = old_row.get(history_field) or []
+                new_history = new_row.get(history_field) or []
+                if not isinstance(old_history, list) or not isinstance(new_history, list):
+                    raise PermissionError(f"Historique {history_field} invalide")
+                if len(new_history) < len(old_history) or new_history[:len(old_history)] != old_history:
+                    raise PermissionError(f"L'historique {history_field} n'est pas modifiable")
+                additions = new_history[len(old_history):]
+                if any(
+                    not isinstance(item, dict)
+                    or str(item.get(actor_field) or "").strip().upper() != trigram
+                    for item in additions
+                ):
+                    raise PermissionError(f"L'auteur de l'historique {history_field} doit être l'utilisateur connecté")
+                appended_histories[history_field] = additions
+
+            for field in OPERATION_VISA_FIELDS:
+                old_value = str(old_row.get(field) or "").strip().upper()
+                new_value = str(new_row.get(field) or "").strip().upper()
+                if old_value == new_value:
+                    continue
+                if field not in {"visaCtrl", "visaTraca"} and not old_value and new_value == trigram:
+                    continue
+                if field not in {"visaCtrl", "visaTraca"} and old_value == trigram and not new_value:
+                    continue
+                if field == "visaCtrl" and not old_value and new_value == trigram and role in {"contrôleur", "controleur"}:
+                    continue
+                if field == "visaTraca" and not old_value and new_value == trigram and role == "logistique":
+                    continue
+                if field == "visaCtrl" and old_value and not new_value:
+                    action_loses_control = str(new_row.get("action1") or "").upper() not in {"S", "R", "P"}
+                    if appended_histories.get("ctrlCancellationHistory") and (role in {"contrôleur", "controleur"} or action_loses_control):
+                        continue
+                if field == "visaTraca" and old_value and not new_value:
+                    if appended_histories.get("tracaCancellationHistory") and role == "logistique":
+                        continue
+                raise PermissionError(f"Le champ d'audit {field} de la ligne {row_id} n'est pas modifiable")
+
+            if appended_histories.get("ctrlCancellationHistory") and not (
+                old_row.get("visaCtrl") and not new_row.get("visaCtrl")
+            ):
+                raise PermissionError("Une annulation de contrôle doit correspondre au retrait du visa contrôle")
+            if appended_histories.get("tracaCancellationHistory") and not (
+                old_row.get("visaTraca") and not new_row.get("visaTraca")
+            ):
+                raise PermissionError("Une annulation de traçabilité doit correspondre au retrait du visa traçabilité")
+
             for field in AUDIT_FIELDS:
                 if field in {"deletedVisa", "deletedDate", "deletedDT"} and not old_deleted and new_deleted:
                     continue

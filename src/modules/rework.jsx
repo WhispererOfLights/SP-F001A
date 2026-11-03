@@ -1098,7 +1098,6 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                   </td>
                 </tr>
               ),
-              <HistoryTrail key={r.id+"_hist"} row={r} open={forceShowDeleted}/>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
                   <td colSpan={99} style={{padding:"3px 10px 6px",background:"#da363325",borderBottom:`2px solid #da363355`}}>

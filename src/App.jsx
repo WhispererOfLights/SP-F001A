@@ -683,24 +683,6 @@ const auditHistoryEntries = row => {
   return entries.sort((a,b)=>(appDateTimestamp(a.dt)||0)-(appDateTimestamp(b.dt)||0));
 };
 
-const HistoryNote = ({row,open=false}) => auditHistoryEntries(row).length>0&&(
-  <details className="edit-history" open={open} style={{color:C.blue,fontSize:10,fontFamily:"monospace"}}>
-    <summary style={{cursor:"pointer",fontWeight:800,listStyle:"none",display:"inline-flex",
-      alignItems:"center",gap:5,border:`1px solid ${C.blue}`,borderRadius:6,padding:"2px 6px",
-      background:C.blue+"12"}}>
-      ✎ Historique modifs ({auditHistoryEntries(row).length})
-    </summary>
-    <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:4}}>
-      {auditHistoryEntries(row).slice(-3).reverse().map(h=>(
-        <span key={h.id} style={{color:C.muted}}>
-          le <strong>{h.dt}</strong> par <strong>{h.actor}</strong> — {h.text}
-        </span>
-      ))}
-    </div>
-  </details>
-);
-
-const HistoryTrail = () => null;
 const HistoryBtn = ({row, mini=false}) => {
   const hist=auditHistoryEntries(row);
   const disabled=hist.length===0;
@@ -1792,8 +1774,6 @@ const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null})
 
 // @include modules/mating.jsx
 
-// @include modules/legacy-open-work.jsx
-
 // @include modules/auth.jsx
 
 // @include modules/home.jsx
@@ -2477,7 +2457,7 @@ export default function App(){
   };
 
   const save=useCallback(async data=>{
-    if(!currentId)return;
+    if(!currentId)return false;
     data=withUnitMetadata(data);
     setSaving(true);
     try{
@@ -2496,11 +2476,14 @@ export default function App(){
         if(!window.storage.relational) window.storage.set("of-list",JSON.stringify(updated),true).catch(()=>{});
         return updated;
       });
+      return true;
     }catch(error){
       setPendingSave(data);
       setSaveError(error?.message||"La modification n'a pas été enregistrée.");
+      return false;
+    }finally{
+      setSaving(false);
     }
-    setSaving(false);
   },[currentId]);
 
   const closeWorkItem=useCallback(async (tab,rowId,closed)=>{
@@ -2576,7 +2559,7 @@ export default function App(){
 
   const saveSections=async (tabs,updated)=>{
     const names=[...new Set(tabs)].filter(name=>Object.hasOwn(updated,name));
-    if(!currentId||!names.length||!window.storage.updateWorkOrderSections){save(updated);return;}
+    if(!currentId||!names.length||!window.storage.updateWorkOrderSections) return save(updated);
     setSaving(true);
     try{
       const sections=Object.fromEntries(names.map(name=>[name,updated[name]]));

@@ -814,8 +814,6 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                     {rowDeleted&&<IconBtn onClick={()=>opDeleted?setRestoreOpTarget(oid):setRestoreItemTarget({oid,iid})} color={C.yellow} title="Réactiver">↩</IconBtn>}
                   </td>
                 </tr>,
-                <HistoryTrail key={rowKey+"_ophist"} row={o} open={forceShowDeleted}/>,
-                <HistoryTrail key={rowKey+"_hist"} row={it} open={forceShowDeleted}/>,
                 rowDeleted&&(
                   <tr key={rowKey+"_ann"}>
                     <td colSpan={99} style={{padding:"3px 10px 5px",background:"#da363325",borderBottom:"1px solid #da363355"}}>
