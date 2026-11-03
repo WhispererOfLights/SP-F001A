@@ -8173,7 +8173,8 @@ var dcCheck = function dcCheck(raw, referenceDate) {
     ok: false,
     label: "Relife invalide (R1 ou R2)"
   };
-  var validityYears = relief === 1 ? 4 : relief === 2 ? 8 : 7;
+  var extensionYears = (relief || 0) * 4;
+  var validityYears = 7 + extensionYears;
   var max = base + validityYears * 100;
   var limit = currentYYWW(referenceDate);
   return {
@@ -8181,8 +8182,9 @@ var dcCheck = function dcCheck(raw, referenceDate) {
     max: max,
     limit: limit,
     relief: relief,
+    extensionYears: extensionYears,
     validityYears: validityYears,
-    label: max >= limit ? "OK jusqu'\xE0 ".concat(String(max).padStart(4, "0")).concat(relief ? " (R".concat(relief, ", DC + ").concat(validityYears, " ans)") : "") : "Hors date depuis ".concat(String(max).padStart(4, "0")).concat(relief ? " (R".concat(relief, ", DC + ").concat(validityYears, " ans)") : "")
+    label: max >= limit ? "OK jusqu'\xE0 ".concat(String(max).padStart(4, "0")).concat(relief ? " (7 ans + relife ".concat(extensionYears, " ans)") : "") : "Hors date depuis ".concat(String(max).padStart(4, "0")).concat(relief ? " (7 ans + relife ".concat(extensionYears, " ans)") : "")
   };
 };
 var missingReworkTrace = function missingReworkTrace(row) {

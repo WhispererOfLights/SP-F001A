@@ -152,7 +152,8 @@ const dcCheck = (raw,referenceDate) => {
   const relief = m[3]?Number(m[3]):null;
   if(week<1||week>53) return {ok:false,label:"Semaine DC invalide"};
   if(relief!==null&&![1,2].includes(relief)) return {ok:false,label:"Relife invalide (R1 ou R2)"};
-  const validityYears=relief===1?4:relief===2?8:7;
+  const extensionYears=(relief||0)*4;
+  const validityYears=7+extensionYears;
   const max = base + validityYears*100;
   const limit = currentYYWW(referenceDate);
   return {
@@ -160,10 +161,11 @@ const dcCheck = (raw,referenceDate) => {
     max,
     limit,
     relief,
+    extensionYears,
     validityYears,
     label:max>=limit
-      ? `OK jusqu'à ${String(max).padStart(4,"0")}${relief?` (R${relief}, DC + ${validityYears} ans)`:""}`
-      : `Hors date depuis ${String(max).padStart(4,"0")}${relief?` (R${relief}, DC + ${validityYears} ans)`:""}`
+      ? `OK jusqu'à ${String(max).padStart(4,"0")}${relief?` (7 ans + relife ${extensionYears} ans)`:""}`
+      : `Hors date depuis ${String(max).padStart(4,"0")}${relief?` (7 ans + relife ${extensionYears} ans)`:""}`
   };
 };
 
