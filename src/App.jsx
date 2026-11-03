@@ -1786,6 +1786,103 @@ const SettingsModal = ({user,onClose,onUsers,onStatuses,onConsumables}) => {
   </div>;
 };
 
+const ADMIN_VISA_FIELDS = {
+  createdVisa:"Visa création",visaOper:"Visa opérateur",visaCtrl:"Visa contrôle",
+  visaTraca:"Visa traçabilité",visa:"Visa opération",openVisa:"Visa ouverture",
+  closedVisa:"Visa clôture",entreeVisa:"Visa entrée",sortieVisa:"Visa sortie",
+};
+const ADMIN_VISA_SECTION_LABELS = {
+  units:"SN / lots",rework:"Adjust / Rework",consommables:"Consommables",
+  etuvage:"Étuvages",testequip:"Test équipement",faits:"Suivi technique",
+  openwork:"Open Work",demating:"Mating / Demating",
+};
+const adminVisaEntries = data => {
+  const entries=[];
+  const skipped=new Set(["comments","editHistory","visaCorrections","ctrlCancellationHistory","tracaCancellationHistory","quantityHistory","kindHistory"]);
+  const contextOf=(value,fallback="")=>{
+    if(!value||typeof value!=="object"||Array.isArray(value)) return fallback;
+    return value.repere||value.numero||value.nOW||value.nInv||value.designation||value.fourN||value.sn||value.lot||value.type||fallback;
+  };
+  const walk=(value,path,context="")=>{
+    if(Array.isArray(value)){value.forEach((item,index)=>walk(item,[...path,index],contextOf(item,context)));return;}
+    if(!value||typeof value!=="object") return;
+    const nextContext=contextOf(value,context);
+    Object.entries(value).forEach(([key,item])=>{
+      if(skipped.has(key)) return;
+      if(ADMIN_VISA_FIELDS[key]&&String(item||"").trim()){
+        entries.push({path:[...path,key],section:path[0],field:key,visa:String(item).trim().toUpperCase(),context:nextContext});
+        return;
+      }
+      if(typeof item==="object"&&item!==null) walk(item,[...path,key],nextContext);
+    });
+  };
+  Object.keys(ADMIN_VISA_SECTION_LABELS).forEach(section=>walk(data?.[section],[section],""));
+  return entries;
+};
+const applyAdminVisaCorrection = (data,entry,nextVisa,reason,user) => {
+  const updated=JSON.parse(JSON.stringify(data));
+  let parent=updated;
+  entry.path.slice(0,-1).forEach(part=>{parent=parent?.[part];});
+  if(!parent||typeof parent!=="object") throw new Error("La ligne à corriger n'existe plus.");
+  const field=entry.path.at(-1);
+  const previous=String(parent[field]||"").trim().toUpperCase();
+  parent[field]=String(nextVisa||"").trim().toUpperCase();
+  parent.visaCorrections=[...(parent.visaCorrections||[]),{
+    id:uid(),field,from:previous,to:parent[field],reason:String(reason||"").trim(),
+    dt:nowDT(),admin:user?.trigram||"?",
+  }];
+  return updated;
+};
+const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
+  const entries=adminVisaEntries(data);
+  const [query,setQuery]=useState("");
+  const [selectedKey,setSelectedKey]=useState("");
+  const [nextVisa,setNextVisa]=useState("");
+  const [reason,setReason]=useState("");
+  const [busy,setBusy]=useState(false);
+  const filtered=entries.filter(entry=>`${ADMIN_VISA_SECTION_LABELS[entry.section]} ${ADMIN_VISA_FIELDS[entry.field]} ${entry.visa} ${entry.context}`.toUpperCase().includes(query.trim().toUpperCase()));
+  const keyOf=entry=>JSON.stringify(entry.path);
+  const selected=entries.find(entry=>keyOf(entry)===selectedKey);
+  const submit=async()=>{
+    const clean=nextVisa.trim().toUpperCase();
+    if(!selected||!clean||clean===selected.visa||!reason.trim()) return;
+    setBusy(true);
+    try{await onConfirm(selected,clean,reason.trim());onClose();}
+    catch(error){window.alert(`Visa non corrigé : ${error?.message||error}`);setBusy(false);}
+  };
+  return <div role="dialog" aria-modal="true" aria-label="Corriger un visa" style={{position:"fixed",inset:0,zIndex:520,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{width:760,maxWidth:"96vw",maxHeight:"90vh",overflow:"hidden",background:C.surface,border:`1px solid ${C.red}`,borderRadius:8,display:"flex",flexDirection:"column"}}>
+      <div style={{padding:"16px 18px 10px",borderBottom:`1px solid ${C.border}`}}>
+        <div style={{fontSize:18,fontWeight:800,color:C.text}}>Corriger un visa</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:4}}>Réservé aux Admin et Manager. L'ancien visa, le nouveau, le motif et l'auteur de la correction sont conservés.</div>
+      </div>
+      <div style={{padding:14,display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
+        <Input value={query} onChange={setQuery} placeholder="Rechercher un visa, un repère, un numéro..."/>
+        <div style={{border:`1px solid ${C.border}`,borderRadius:4,overflowY:"auto",maxHeight:330}}>
+          {filtered.length===0?<div style={{padding:18,color:C.muted,textAlign:"center"}}>Aucun visa trouvé</div>:filtered.map(entry=>{
+            const key=keyOf(entry),active=key===selectedKey;
+            return <button key={key} type="button" onClick={()=>{setSelectedKey(key);setNextVisa(entry.visa);}}
+              style={{width:"100%",display:"grid",gridTemplateColumns:"150px 130px 70px 1fr",gap:8,alignItems:"center",padding:"8px 10px",border:0,borderBottom:`1px solid ${C.border}`,background:active?C.blue+"22":"transparent",color:C.text,textAlign:"left",cursor:"pointer",fontSize:11}}>
+              <strong>{ADMIN_VISA_SECTION_LABELS[entry.section]}</strong>
+              <span>{ADMIN_VISA_FIELDS[entry.field]}</span>
+              <span style={{fontFamily:"monospace",fontWeight:800,color:C.accent}}>{entry.visa}</span>
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.muted}}>{entry.context||"—"}</span>
+            </button>;
+          })}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10}}>
+          <Input value={nextVisa} onChange={value=>setNextVisa(value.toUpperCase())} placeholder="Nouveau visa" disabled={!selected||busy}/>
+          <Input value={reason} onChange={setReason} placeholder="Motif obligatoire de la correction" disabled={!selected||busy}/>
+        </div>
+      </div>
+      <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
+        <Btn onClick={onClose} color={C.border} disabled={busy}>Annuler</Btn>
+        <Btn onClick={submit} color={C.red} disabled={busy||!selected||!nextVisa.trim()||nextVisa.trim().toUpperCase()===selected?.visa||!reason.trim()}>{busy?"Enregistrement...":"Corriger le visa"}</Btn>
+      </div>
+    </div>
+  </div>;
+};
+
 export default function App(){
   const [,setThemeRevision] = useState(0);
   useEffect(()=>{
@@ -1831,6 +1928,7 @@ export default function App(){
   const [openHistory,setOpenHistory] = useState([]); // IDs des OF récemment ouverts
   const [showAdminUsers,setShowAdminUsers] = useState(false);
   const [showSettings,setShowSettings] = useState(false);
+  const [showAdminVisaEditor,setShowAdminVisaEditor] = useState(false);
   const [copyAcrossRow,setCopyAcrossRow] = useState(null);
   const [copiedOfInfo,setCopiedOfInfo] = useState(false);
   const [copiedFolderLink,setCopiedFolderLink] = useState(false);
@@ -2334,11 +2432,13 @@ export default function App(){
         const last=rows.length?rows.reduce((a,b)=>sortable(b.entreeDT)>sortable(a.entreeDT)?b:a).entreeDT:null;
         setOfList(list=>list.map(entry=>entry.id===currentId?{...entry,lastEtuvageDT:last}:entry));
       }
+      return true;
     }catch(error){
       setPendingSave(updated);
       setSaveError(error?.message||"La modification n'a pas été enregistrée.");
+      return false;
     }
-    setSaving(false);
+    finally{setSaving(false);}
   };
   const saveSection=(tab,updated)=>saveSections([tab],updated);
 
@@ -2355,6 +2455,13 @@ export default function App(){
     }
     const updated=withUnitMetadata({...ofData,[tab]:tabData});
     setOfData(updated);saveSection(tab,updated);
+  };
+  const correctAdminVisa=async (entry,nextVisa,reason)=>{
+    if(!isAdminManager(user)) throw new Error("Cette fonction est réservée aux Admin et Manager.");
+    const updated=applyAdminVisaCorrection(ofData,entry,nextVisa,reason,user);
+    setOfData(updated);
+    const saved=await saveSection(entry.section,updated);
+    if(!saved) throw new Error("Le serveur a refusé la correction.");
   };
 
   const copyReworkAcross = async (requestedRows,targets,includeChecks,copyMode="new",reuseSample=false) => {
@@ -2792,6 +2899,7 @@ export default function App(){
           <ThemeButton/>
           <Btn onClick={()=>setShowPdfOptions(true)} color={C.green} small>Rapport</Btn>
           <Btn onClick={()=>setShowLabelOptions(true)} color={C.blue} small>Étiquettes</Btn>
+          {isAdminManager(user)&&<Btn onClick={()=>setShowAdminVisaEditor(true)} color={C.red} small>Corriger visa</Btn>}
           {isAdminManager(user)&&<>
             <label title="Suppression définitive des prochaines lignes annulées" style={{display:"flex",alignItems:"center",gap:4,color:godMode?C.red:C.muted,fontSize:11}}>
               <input type="checkbox" checked={godMode} onChange={e=>setGodMode(e.target.checked)}/>God mode
@@ -2823,6 +2931,7 @@ export default function App(){
       </div>}
 
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={handleSaveProfile}/>}
+      {showAdminVisaEditor&&isAdminManager(user)&&<AdminVisaModal data={ofData} user={user} onClose={()=>setShowAdminVisaEditor(false)} onConfirm={correctAdminVisa}/>}
       {copyAcrossRow&&<CopyReworkModal row={copyAcrossRow.row} sourceRows={copySourcesForTab(copyAcrossRow.tab,ofData,workHeader,activeUnitChoice)} tab={copyAcrossRow.tab} ofList={ofList} user={user} busy={saving} sourceOfId={currentId} sourceHeader={ofData.header} defaultUnitIds={entryUnit?[entryUnit.id]:[]} onCopy={copyReworkAcross} onClose={()=>setCopyAcrossRow(null)}/>}
       {showPdfOptions&&<PdfOptionsModal
         snRows={snRows}
