@@ -44,22 +44,27 @@ const accounts = [
     await page.getByText('Soudé · Repère R101',{exact:true}).first().waitFor();
     await page.getByText('10 kOhm · Article 250009999',{exact:true}).first().waitFor();
     await page.getByText('03/11/2026 08:15',{exact:true}).first().waitFor();
+    await page.getByText('Contrôle : CTL',{exact:true}).waitFor();
+    await page.getByText('Claire Test · Contrôleur',{exact:true}).waitFor();
     await page.getByText('Soudé · Repère R101',{exact:true}).first().click();
+    await page.getByText('Soudé · Repère R101',{exact:true}).nth(1).click();
+    await page.getByText('2 visas sélectionnés',{exact:true}).waitFor();
 
     const select=page.getByRole('combobox',{name:'Nouveau visa'});
     const optionTexts=await select.locator('option').allTextContents();
     assert.ok(optionTexts.some(text=>text.includes('MGR')&&text.includes('Marie Manager')));
     assert.ok(optionTexts.some(text=>text.includes('CTL')&&text.includes('Contrôleur')));
     assert.ok(!optionTexts.some(text=>text.includes('OLD')),'Un compte désactivé ne doit pas être proposé');
-    assert.ok(!optionTexts.some(text=>text.startsWith('JGR')),'Le visa actuel ne doit pas être proposé');
+    assert.ok(optionTexts.some(text=>text.startsWith('JGR')),'Un visa actuel peut rester une cible lors d’une correction multiple');
 
     await select.selectOption('MGR');
     await page.getByPlaceholder('Motif obligatoire de la correction').fill('Correction après vérification');
-    await page.getByRole('button',{name:'Corriger le visa',exact:true}).click();
-    await page.waitForFunction(()=>window.savedVisaDocument?.rework?.rows?.[0]?.createdVisa==='MGR');
+    await page.getByRole('button',{name:'Corriger 2 visas',exact:true}).click();
+    await page.waitForFunction(()=>window.savedVisaDocument?.rework?.rows?.[0]?.createdVisa==='MGR'&&window.savedVisaDocument?.rework?.rows?.[0]?.visaCtrl==='MGR');
     const saved=await page.evaluate(()=>window.savedVisaDocument.rework.rows[0]);
-    assert.equal(saved.visaCorrections.at(-1).from,'JGR');
-    assert.equal(saved.visaCorrections.at(-1).to,'MGR');
+    assert.deepEqual(saved.visaCorrections.map(item=>item.from).sort(),['CTL','JGR']);
+    assert.ok(saved.visaCorrections.every(item=>item.to==='MGR'));
+    assert.equal(new Set(saved.visaCorrections.map(item=>item.batchId)).size,1);
     assert.deepEqual(errors,[]);
     console.log('Admin/Manager visa correction: visual action context and existing active users passed.');
   }finally{await browser.close();}

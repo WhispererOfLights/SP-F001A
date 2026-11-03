@@ -1809,6 +1809,11 @@ const ADMIN_VISA_FIELDS = {
   visaTraca:"Visa traçabilité",visa:"Visa opération",openVisa:"Visa ouverture",
   closedVisa:"Visa clôture",entreeVisa:"Visa entrée",sortieVisa:"Visa sortie",
 };
+const ADMIN_VISA_ACTOR_LABELS = {
+  createdVisa:"Auteur",visaOper:"Opérateur",visaCtrl:"Contrôle",
+  visaTraca:"Traçabilité",visa:"Intervenant",openVisa:"Ouverture",
+  closedVisa:"Clôture",entreeVisa:"Entrée",sortieVisa:"Sortie",
+};
 const ADMIN_VISA_SECTION_LABELS = {
   units:"SN / lots",rework:"Adjust / Rework",consommables:"Consommables",
   etuvage:"Étuvages",testequip:"Test équipement",faits:"Suivi technique",
@@ -1861,24 +1866,29 @@ const adminVisaEntries = data => {
   Object.keys(ADMIN_VISA_SECTION_LABELS).forEach(section=>walk(data?.[section],[section],""));
   return entries;
 };
-const applyAdminVisaCorrection = (data,entry,nextVisa,reason,user) => {
+const applyAdminVisaCorrections = (data,entries,nextVisa,reason,user) => {
   const updated=JSON.parse(JSON.stringify(data));
-  let parent=updated;
-  entry.path.slice(0,-1).forEach(part=>{parent=parent?.[part];});
-  if(!parent||typeof parent!=="object") throw new Error("La ligne à corriger n'existe plus.");
-  const field=entry.path.at(-1);
-  const previous=String(parent[field]||"").trim().toUpperCase();
-  parent[field]=String(nextVisa||"").trim().toUpperCase();
-  parent.visaCorrections=[...(parent.visaCorrections||[]),{
-    id:uid(),field,from:previous,to:parent[field],reason:String(reason||"").trim(),
-    dt:nowDT(),admin:user?.trigram||"?",
-  }];
+  const targetVisa=String(nextVisa||"").trim().toUpperCase();
+  const batchId=entries.length>1?uid():"";
+  entries.forEach(entry=>{
+    let parent=updated;
+    entry.path.slice(0,-1).forEach(part=>{parent=parent?.[part];});
+    if(!parent||typeof parent!=="object") throw new Error("Une ligne à corriger n'existe plus.");
+    const field=entry.path.at(-1);
+    const previous=String(parent[field]||"").trim().toUpperCase();
+    if(previous===targetVisa) return;
+    parent[field]=targetVisa;
+    parent.visaCorrections=[...(parent.visaCorrections||[]),{
+      id:uid(),...(batchId?{batchId}:{}),field,from:previous,to:targetVisa,
+      reason:String(reason||"").trim(),dt:nowDT(),admin:user?.trigram||"?",
+    }];
+  });
   return updated;
 };
 const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
   const entries=adminVisaEntries(data);
   const [query,setQuery]=useState("");
-  const [selectedKey,setSelectedKey]=useState("");
+  const [selectedKeys,setSelectedKeys]=useState([]);
   const [nextVisa,setNextVisa]=useState("");
   const [reason,setReason]=useState("");
   const [busy,setBusy]=useState(false);
@@ -1896,12 +1906,15 @@ const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
   },[]);
   const filtered=entries.filter(entry=>`${ADMIN_VISA_SECTION_LABELS[entry.section]} ${ADMIN_VISA_FIELDS[entry.field]} ${entry.visa} ${entry.context} ${entry.summary} ${entry.details} ${entry.date}`.toUpperCase().includes(query.trim().toUpperCase()));
   const keyOf=entry=>JSON.stringify(entry.path);
-  const selected=entries.find(entry=>keyOf(entry)===selectedKey);
+  const selectedEntries=entries.filter(entry=>selectedKeys.includes(keyOf(entry)));
+  const effectiveEntries=selectedEntries.filter(entry=>entry.visa!==nextVisa);
+  const accountByVisa=Object.fromEntries(accounts.map(account=>[String(account.trigram||"").toUpperCase(),account]));
+  const toggleEntry=key=>setSelectedKeys(keys=>keys.includes(key)?keys.filter(item=>item!==key):[...keys,key]);
   const submit=async()=>{
     const clean=nextVisa.trim().toUpperCase();
-    if(!selected||!clean||clean===selected.visa||!reason.trim()) return;
+    if(!effectiveEntries.length||!clean||!reason.trim()) return;
     setBusy(true);
-    try{await onConfirm(selected,clean,reason.trim());onClose();}
+    try{await onConfirm(effectiveEntries,clean,reason.trim());onClose();}
     catch(error){window.alert(`Visa non corrigé : ${error?.message||error}`);setBusy(false);}
   };
   return <div role="dialog" aria-modal="true" aria-label="Corriger un visa" style={{position:"fixed",inset:0,zIndex:520,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -1912,30 +1925,42 @@ const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
       </div>
       <div style={{padding:14,display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
         <Input value={query} onChange={setQuery} displayPlaceholder="Rechercher une action, un repère, une valeur, une date ou un visa..."/>
+        <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
+          <Btn small color={C.border} disabled={!filtered.length||busy} onClick={()=>setSelectedKeys(keys=>[...new Set([...keys,...filtered.map(keyOf)])])}>Tout sélectionner ({filtered.length})</Btn>
+          <Btn small color={C.border} disabled={!selectedKeys.length||busy} onClick={()=>setSelectedKeys([])}>Tout désélectionner</Btn>
+          <strong style={{marginLeft:"auto",color:selectedEntries.length?C.blue:C.muted}}>{selectedEntries.length} visa{selectedEntries.length>1?"s":""} sélectionné{selectedEntries.length>1?"s":""}</strong>
+        </div>
         <div style={{border:`1px solid ${C.border}`,borderRadius:4,overflowY:"auto",maxHeight:330}}>
           {filtered.length===0?<div style={{padding:18,color:C.muted,textAlign:"center"}}>Aucun visa trouvé</div>:filtered.map(entry=>{
-            const key=keyOf(entry),active=key===selectedKey;
-            return <button key={key} type="button" onClick={()=>{setSelectedKey(key);setNextVisa("");}}
-              style={{width:"100%",display:"grid",gridTemplateColumns:"145px minmax(220px,1fr) 105px",gap:10,alignItems:"center",padding:"9px 10px",border:0,borderBottom:`1px solid ${C.border}`,borderLeft:`4px solid ${active?C.blue:"transparent"}`,background:active?C.blue+"22":"transparent",color:C.text,textAlign:"left",cursor:"pointer",fontSize:11}}>
+            const key=keyOf(entry),active=selectedKeys.includes(key);
+            const account=accountByVisa[entry.visa];
+            const accountName=[account?.prenom,account?.nom].filter(Boolean).join(" ");
+            return <button key={key} type="button" aria-pressed={active} onClick={()=>toggleEntry(key)}
+              style={{width:"100%",display:"grid",gridTemplateColumns:"24px 145px minmax(220px,1fr) 180px",gap:10,alignItems:"center",padding:"9px 10px",border:0,borderBottom:`1px solid ${C.border}`,borderLeft:`4px solid ${active?C.blue:"transparent"}`,background:active?C.blue+"22":"transparent",color:C.text,textAlign:"left",cursor:"pointer",fontSize:11}}>
+              <input type="checkbox" tabIndex={-1} readOnly checked={active} aria-label={`Sélectionner ${entry.summary||entry.context||"la ligne"}`} style={{width:15,height:15,pointerEvents:"none"}}/>
               <div><strong style={{display:"block"}}>{ADMIN_VISA_SECTION_LABELS[entry.section]}</strong><span style={{color:C.muted}}>{ADMIN_VISA_FIELDS[entry.field]}</span></div>
               <div style={{minWidth:0}}><strong style={{display:"block",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.summary||entry.context||"Ligne"}</strong>{entry.details&&<span style={{display:"block",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>{entry.details}</span>}</div>
-              <div style={{textAlign:"right"}}><span style={{display:"block",fontFamily:"monospace",fontWeight:800,color:C.accent}}>{entry.visa}</span><span style={{display:"block",color:C.muted,marginTop:2}}>{entry.date||"—"}</span></div>
+              <div style={{textAlign:"right",minWidth:0}}>
+                <span style={{display:"block",fontWeight:800,color:C.accent}}>{ADMIN_VISA_ACTOR_LABELS[entry.field]||"Visa"} : <span style={{fontFamily:"monospace"}}>{entry.visa}</span></span>
+                {accountName&&<span style={{display:"block",color:C.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:1}}>{accountName}{account?.role?` · ${account.role}`:""}</span>}
+                <span style={{display:"block",color:C.muted,marginTop:2}}>{entry.date||"—"}</span>
+              </div>
             </button>;
           })}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:10}}>
-          <select aria-label="Nouveau visa" value={nextVisa} onChange={event=>setNextVisa(event.target.value)} disabled={!selected||busy||!!accountsError}
+          <select aria-label="Nouveau visa" value={nextVisa} onChange={event=>setNextVisa(event.target.value)} disabled={!selectedEntries.length||busy||!!accountsError}
             style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:12}}>
             <option value="">Choisir un utilisateur existant...</option>
-            {accounts.filter(account=>account.trigram!==selected?.visa).map(account=><option key={account.trigram} value={account.trigram}>{account.trigram} — {[account.prenom,account.nom].filter(Boolean).join(" ")||account.role||"Utilisateur"}{account.role?` (${account.role})`:""}</option>)}
+            {accounts.map(account=><option key={account.trigram} value={account.trigram}>{account.trigram} — {[account.prenom,account.nom].filter(Boolean).join(" ")||account.role||"Utilisateur"}{account.role?` (${account.role})`:""}</option>)}
           </select>
-          <Input value={reason} onChange={setReason} displayPlaceholder="Motif obligatoire de la correction" readOnly={!selected||busy}/>
+          <Input value={reason} onChange={setReason} displayPlaceholder="Motif obligatoire de la correction" readOnly={!selectedEntries.length||busy}/>
         </div>
         {accountsError&&<div role="alert" style={{fontSize:11,color:C.red}}>Impossible de charger les visas existants : {accountsError}</div>}
       </div>
       <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onClose} color={C.border} disabled={busy}>Annuler</Btn>
-        <Btn onClick={submit} color={C.red} disabled={busy||!selected||!nextVisa.trim()||nextVisa.trim().toUpperCase()===selected?.visa||!reason.trim()}>{busy?"Enregistrement...":"Corriger le visa"}</Btn>
+        <Btn onClick={submit} color={C.red} disabled={busy||!effectiveEntries.length||!nextVisa.trim()||!reason.trim()}>{busy?"Enregistrement...":`Corriger ${effectiveEntries.length} visa${effectiveEntries.length>1?"s":""}`}</Btn>
       </div>
     </div>
   </div>;
@@ -2514,11 +2539,12 @@ export default function App(){
     const updated=withUnitMetadata({...ofData,[tab]:tabData});
     setOfData(updated);saveSection(tab,updated);
   };
-  const correctAdminVisa=async (entry,nextVisa,reason)=>{
+  const correctAdminVisa=async (entries,nextVisa,reason)=>{
     if(!isAdminManager(user)) throw new Error("Cette fonction est réservée aux Admin et Manager.");
-    const updated=applyAdminVisaCorrection(ofData,entry,nextVisa,reason,user);
+    const selected=Array.isArray(entries)?entries:[entries];
+    const updated=applyAdminVisaCorrections(ofData,selected,nextVisa,reason,user);
     setOfData(updated);
-    const saved=await saveSection(entry.section,updated);
+    const saved=await saveSections([...new Set(selected.map(entry=>entry.section))],updated);
     if(!saved) throw new Error("Le serveur a refusé la correction.");
   };
 

@@ -24336,6 +24336,17 @@ var ADMIN_VISA_FIELDS = {
   entreeVisa: "Visa entrée",
   sortieVisa: "Visa sortie"
 };
+var ADMIN_VISA_ACTOR_LABELS = {
+  createdVisa: "Auteur",
+  visaOper: "Opérateur",
+  visaCtrl: "Contrôle",
+  visaTraca: "Traçabilité",
+  visa: "Intervenant",
+  openVisa: "Ouverture",
+  closedVisa: "Clôture",
+  entreeVisa: "Entrée",
+  sortieVisa: "Sortie"
+};
 var ADMIN_VISA_SECTION_LABELS = {
   units: "SN / lots",
   rework: "Adjust / Rework",
@@ -24462,26 +24473,34 @@ var adminVisaEntries = function adminVisaEntries(data) {
   });
   return entries;
 };
-var applyAdminVisaCorrection = function applyAdminVisaCorrection(data, entry, nextVisa, reason, user) {
+var applyAdminVisaCorrections = function applyAdminVisaCorrections(data, entries, nextVisa, reason, user) {
   var updated = JSON.parse(JSON.stringify(data));
-  var parent = updated;
-  entry.path.slice(0, -1).forEach(function (part) {
-    var _parent;
-    parent = (_parent = parent) === null || _parent === void 0 ? void 0 : _parent[part];
+  var targetVisa = String(nextVisa || "").trim().toUpperCase();
+  var batchId = entries.length > 1 ? uid() : "";
+  entries.forEach(function (entry) {
+    var parent = updated;
+    entry.path.slice(0, -1).forEach(function (part) {
+      var _parent;
+      parent = (_parent = parent) === null || _parent === void 0 ? void 0 : _parent[part];
+    });
+    if (!parent || _typeof(parent) !== "object") throw new Error("Une ligne à corriger n'existe plus.");
+    var field = entry.path.at(-1);
+    var previous = String(parent[field] || "").trim().toUpperCase();
+    if (previous === targetVisa) return;
+    parent[field] = targetVisa;
+    parent.visaCorrections = [].concat(_toConsumableArray(parent.visaCorrections || []), [_objectSpread(_objectSpread({
+      id: uid()
+    }, batchId ? {
+      batchId: batchId
+    } : {}), {}, {
+      field: field,
+      from: previous,
+      to: targetVisa,
+      reason: String(reason || "").trim(),
+      dt: nowDT(),
+      admin: (user === null || user === void 0 ? void 0 : user.trigram) || "?"
+    })]);
   });
-  if (!parent || _typeof(parent) !== "object") throw new Error("La ligne à corriger n'existe plus.");
-  var field = entry.path.at(-1);
-  var previous = String(parent[field] || "").trim().toUpperCase();
-  parent[field] = String(nextVisa || "").trim().toUpperCase();
-  parent.visaCorrections = [].concat(_toConsumableArray(parent.visaCorrections || []), [{
-    id: uid(),
-    field: field,
-    from: previous,
-    to: parent[field],
-    reason: String(reason || "").trim(),
-    dt: nowDT(),
-    admin: (user === null || user === void 0 ? void 0 : user.trigram) || "?"
-  }]);
   return updated;
 };
 var AdminVisaModal = function AdminVisaModal(_ref152) {
@@ -24494,10 +24513,10 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
     _useState308 = _slicedToArray(_useState307, 2),
     query = _useState308[0],
     setQuery = _useState308[1];
-  var _useState309 = useState(""),
+  var _useState309 = useState([]),
     _useState310 = _slicedToArray(_useState309, 2),
-    selectedKey = _useState310[0],
-    setSelectedKey = _useState310[1];
+    selectedKeys = _useState310[0],
+    setSelectedKeys = _useState310[1];
   var _useState311 = useState(""),
     _useState312 = _slicedToArray(_useState311, 2),
     nextVisa = _useState312[0],
@@ -24566,9 +24585,22 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
   var keyOf = function keyOf(entry) {
     return JSON.stringify(entry.path);
   };
-  var selected = entries.find(function (entry) {
-    return keyOf(entry) === selectedKey;
+  var selectedEntries = entries.filter(function (entry) {
+    return selectedKeys.includes(keyOf(entry));
   });
+  var effectiveEntries = selectedEntries.filter(function (entry) {
+    return entry.visa !== nextVisa;
+  });
+  var accountByVisa = Object.fromEntries(accounts.map(function (account) {
+    return [String(account.trigram || "").toUpperCase(), account];
+  }));
+  var toggleEntry = function toggleEntry(key) {
+    return setSelectedKeys(function (keys) {
+      return keys.includes(key) ? keys.filter(function (item) {
+        return item !== key;
+      }) : [].concat(_toConsumableArray(keys), [key]);
+    });
+  };
   var submit = /*#__PURE__*/function () {
     var _submit = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee39() {
       var clean, _t51;
@@ -24576,7 +24608,7 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
         while (1) switch (_context39.p = _context39.n) {
           case 0:
             clean = nextVisa.trim().toUpperCase();
-            if (!(!selected || !clean || clean === selected.visa || !reason.trim())) {
+            if (!(!effectiveEntries.length || !clean || !reason.trim())) {
               _context39.n = 1;
               break;
             }
@@ -24585,7 +24617,7 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
             setBusy(true);
             _context39.p = 2;
             _context39.n = 3;
-            return onConfirm(selected, clean, reason.trim());
+            return onConfirm(effectiveEntries, clean, reason.trim());
           case 3:
             onClose();
             _context39.n = 5;
@@ -24662,6 +24694,34 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
     displayPlaceholder: "Rechercher une action, un rep\xE8re, une valeur, une date ou un visa..."
   }), /*#__PURE__*/React.createElement("div", {
     style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    color: C.border,
+    disabled: !filtered.length || busy,
+    onClick: function onClick() {
+      return setSelectedKeys(function (keys) {
+        return _toConsumableArray(new Set([].concat(_toConsumableArray(keys), _toConsumableArray(filtered.map(keyOf)))));
+      });
+    }
+  }, "Tout s\xE9lectionner (", filtered.length, ")"), /*#__PURE__*/React.createElement(Btn, {
+    small: true,
+    color: C.border,
+    disabled: !selectedKeys.length || busy,
+    onClick: function onClick() {
+      return setSelectedKeys([]);
+    }
+  }, "Tout d\xE9s\xE9lectionner"), /*#__PURE__*/React.createElement("strong", {
+    style: {
+      marginLeft: "auto",
+      color: selectedEntries.length ? C.blue : C.muted
+    }
+  }, selectedEntries.length, " visa", selectedEntries.length > 1 ? "s" : "", " s\xE9lectionn\xE9", selectedEntries.length > 1 ? "s" : "")), /*#__PURE__*/React.createElement("div", {
+    style: {
       border: "1px solid ".concat(C.border),
       borderRadius: 4,
       overflowY: "auto",
@@ -24675,18 +24735,20 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
     }
   }, "Aucun visa trouv\xE9") : filtered.map(function (entry) {
     var key = keyOf(entry),
-      active = key === selectedKey;
+      active = selectedKeys.includes(key);
+    var account = accountByVisa[entry.visa];
+    var accountName = [account === null || account === void 0 ? void 0 : account.prenom, account === null || account === void 0 ? void 0 : account.nom].filter(Boolean).join(" ");
     return /*#__PURE__*/React.createElement("button", {
       key: key,
       type: "button",
+      "aria-pressed": active,
       onClick: function onClick() {
-        setSelectedKey(key);
-        setNextVisa("");
+        return toggleEntry(key);
       },
       style: {
         width: "100%",
         display: "grid",
-        gridTemplateColumns: "145px minmax(220px,1fr) 105px",
+        gridTemplateColumns: "24px 145px minmax(220px,1fr) 180px",
         gap: 10,
         alignItems: "center",
         padding: "9px 10px",
@@ -24699,7 +24761,18 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
         cursor: "pointer",
         fontSize: 11
       }
-    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", {
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      tabIndex: -1,
+      readOnly: true,
+      checked: active,
+      "aria-label": "S\xE9lectionner ".concat(entry.summary || entry.context || "la ligne"),
+      style: {
+        width: 15,
+        height: 15,
+        pointerEvents: "none"
+      }
+    }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", {
       style: {
         display: "block"
       }
@@ -24730,16 +24803,29 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
       }
     }, entry.details)), /*#__PURE__*/React.createElement("div", {
       style: {
-        textAlign: "right"
+        textAlign: "right",
+        minWidth: 0
       }
     }, /*#__PURE__*/React.createElement("span", {
       style: {
         display: "block",
-        fontFamily: "monospace",
         fontWeight: 800,
         color: C.accent
       }
-    }, entry.visa), /*#__PURE__*/React.createElement("span", {
+    }, ADMIN_VISA_ACTOR_LABELS[entry.field] || "Visa", " : ", /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: "monospace"
+      }
+    }, entry.visa)), accountName && /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "block",
+        color: C.text,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        marginTop: 1
+      }
+    }, accountName, account !== null && account !== void 0 && account.role ? " \xB7 ".concat(account.role) : ""), /*#__PURE__*/React.createElement("span", {
       style: {
         display: "block",
         color: C.muted,
@@ -24758,7 +24844,7 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
     onChange: function onChange(event) {
       return setNextVisa(event.target.value);
     },
-    disabled: !selected || busy || !!accountsError,
+    disabled: !selectedEntries.length || busy || !!accountsError,
     style: {
       width: "100%",
       background: C.input,
@@ -24770,9 +24856,7 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "Choisir un utilisateur existant..."), accounts.filter(function (account) {
-    return account.trigram !== (selected === null || selected === void 0 ? void 0 : selected.visa);
-  }).map(function (account) {
+  }, "Choisir un utilisateur existant..."), accounts.map(function (account) {
     return /*#__PURE__*/React.createElement("option", {
       key: account.trigram,
       value: account.trigram
@@ -24781,7 +24865,7 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
     value: reason,
     onChange: setReason,
     displayPlaceholder: "Motif obligatoire de la correction",
-    readOnly: !selected || busy
+    readOnly: !selectedEntries.length || busy
   })), accountsError && /*#__PURE__*/React.createElement("div", {
     role: "alert",
     style: {
@@ -24803,8 +24887,8 @@ var AdminVisaModal = function AdminVisaModal(_ref152) {
   }, "Annuler"), /*#__PURE__*/React.createElement(Btn, {
     onClick: submit,
     color: C.red,
-    disabled: busy || !selected || !nextVisa.trim() || nextVisa.trim().toUpperCase() === (selected === null || selected === void 0 ? void 0 : selected.visa) || !reason.trim()
-  }, busy ? "Enregistrement..." : "Corriger le visa"))));
+    disabled: busy || !effectiveEntries.length || !nextVisa.trim() || !reason.trim()
+  }, busy ? "Enregistrement..." : "Corriger ".concat(effectiveEntries.length, " visa").concat(effectiveEntries.length > 1 ? "s" : "")))));
 };
 function App() {
   var _ofData$units0, _ofData$etuvage2, _ofData$testequip3;
@@ -26594,8 +26678,8 @@ function App() {
     saveSection(tab, updated);
   };
   var correctAdminVisa = /*#__PURE__*/function () {
-    var _correctAdminVisa = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee63(entry, nextVisa, reason) {
-      var updated, saved;
+    var _correctAdminVisa = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee63(entries, nextVisa, reason) {
+      var selected, updated, saved;
       return _regenerator().w(function (_context64) {
         while (1) switch (_context64.n) {
           case 0:
@@ -26605,10 +26689,13 @@ function App() {
             }
             throw new Error("Cette fonction est réservée aux Admin et Manager.");
           case 1:
-            updated = applyAdminVisaCorrection(ofData, entry, nextVisa, reason, user);
+            selected = Array.isArray(entries) ? entries : [entries];
+            updated = applyAdminVisaCorrections(ofData, selected, nextVisa, reason, user);
             setOfData(updated);
             _context64.n = 2;
-            return saveSection(entry.section, updated);
+            return saveSections(_toConsumableArray(new Set(selected.map(function (entry) {
+              return entry.section;
+            }))), updated);
           case 2:
             saved = _context64.v;
             if (saved) {
