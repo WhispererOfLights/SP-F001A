@@ -655,17 +655,45 @@ const withEditHistory = (row, user, fields) => {
   };
 };
 
-const HistoryNote = ({row,open=false}) => (row?.editHistory||[]).length>0&&(
+const historyFieldLabel = field => ({
+  createdVisa:"Visa création",visaOper:"Visa opérateur",visaCtrl:"Visa contrôle",visaTraca:"Visa traçabilité",
+  visa:"Visa opération",openVisa:"Visa ouverture",closedVisa:"Visa clôture",entreeVisa:"Visa entrée",sortieVisa:"Visa sortie",
+  createdDT:"Date création",dateOper:"Date opération",dateCtrl:"Date contrôle",dateTraca:"Date traçabilité",
+  date:"Date opération",openDate:"Date ouverture",closedDate:"Date clôture",entreeDT:"Date entrée",sortieDT:"Date sortie",
+}[field]||field||"Valeur");
+const auditHistoryEntries = row => {
+  const sources=[row,...(row?.items||[]),...(row?.events||[])].filter(Boolean);
+  const entries=[];
+  sources.forEach(source=>{
+    (source.editHistory||[]).forEach(item=>entries.push({
+      id:item.id,dt:item.dt,actor:item.visa||"?",
+      text:(item.changes||[]).map(change=>`${change.label} "${change.from||"—"}" → "${change.to||"—"}"`).join(" ; "),
+    }));
+    (source.visaCorrections||[]).forEach(item=>{
+      const changes=[];
+      if(item.type==="date") changes.push(`${historyFieldLabel(item.field)} "${item.fromDate||"—"}" → "${item.toDate||"—"}" (visa ${item.visa||"—"} conservé)`);
+      else {
+        changes.push(`${historyFieldLabel(item.field)} "${item.from||"—"}" → "${item.to||"—"}"`);
+        if(item.toDate) changes.push(`${historyFieldLabel(item.dateField)} "${item.fromDate||"—"}" → "${item.toDate}"`);
+      }
+      if(item.reason) changes.push(`Motif : ${item.reason}`);
+      entries.push({id:item.id,dt:item.dt,actor:item.admin||"?",text:changes.join(" ; ")});
+    });
+  });
+  return entries.sort((a,b)=>(appDateTimestamp(a.dt)||0)-(appDateTimestamp(b.dt)||0));
+};
+
+const HistoryNote = ({row,open=false}) => auditHistoryEntries(row).length>0&&(
   <details className="edit-history" open={open} style={{color:C.blue,fontSize:10,fontFamily:"monospace"}}>
     <summary style={{cursor:"pointer",fontWeight:800,listStyle:"none",display:"inline-flex",
       alignItems:"center",gap:5,border:`1px solid ${C.blue}`,borderRadius:6,padding:"2px 6px",
       background:C.blue+"12"}}>
-      ✎ Historique modifs ({(row.editHistory||[]).length})
+      ✎ Historique modifs ({auditHistoryEntries(row).length})
     </summary>
     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginTop:4}}>
-      {[...(row.editHistory||[])].slice(-3).reverse().map(h=>(
+      {auditHistoryEntries(row).slice(-3).reverse().map(h=>(
         <span key={h.id} style={{color:C.muted}}>
-          le <strong>{h.dt}</strong> par <strong>{h.visa}</strong> — {(h.changes||[]).map(c=>`${c.label} "${c.from||"—"}" → "${c.to||"—"}"`).join(" ; ")}
+          le <strong>{h.dt}</strong> par <strong>{h.actor}</strong> — {h.text}
         </span>
       ))}
     </div>
@@ -674,14 +702,13 @@ const HistoryNote = ({row,open=false}) => (row?.editHistory||[]).length>0&&(
 
 const HistoryTrail = () => null;
 const HistoryBtn = ({row, mini=false}) => {
-  const hist=row?.editHistory||[];
+  const hist=auditHistoryEntries(row);
   const disabled=hist.length===0;
   const show=e=>{
     e?.stopPropagation?.();
     if(disabled) return;
     window.alert(hist.slice().reverse().map(h=>
-      `${h.dt} - ${h.visa}\n`+
-      (h.changes||[]).map(c=>`• ${c.label}: "${c.from||"—"}" → "${c.to||"—"}"`).join("\n")
+      `${h.dt} - ${h.actor}\n• ${h.text}`
     ).join("\n\n"));
   };
   const BtnCmp=mini?MiniIconBtn:IconBtn;

@@ -1597,11 +1597,66 @@ var withEditHistory = function withEditHistory(row, user, fields) {
     }]) : row.editHistory || []
   });
 };
+var historyFieldLabel = function historyFieldLabel(field) {
+  return {
+    createdVisa: "Visa création",
+    visaOper: "Visa opérateur",
+    visaCtrl: "Visa contrôle",
+    visaTraca: "Visa traçabilité",
+    visa: "Visa opération",
+    openVisa: "Visa ouverture",
+    closedVisa: "Visa clôture",
+    entreeVisa: "Visa entrée",
+    sortieVisa: "Visa sortie",
+    createdDT: "Date création",
+    dateOper: "Date opération",
+    dateCtrl: "Date contrôle",
+    dateTraca: "Date traçabilité",
+    date: "Date opération",
+    openDate: "Date ouverture",
+    closedDate: "Date clôture",
+    entreeDT: "Date entrée",
+    sortieDT: "Date sortie"
+  }[field] || field || "Valeur";
+};
+var auditHistoryEntries = function auditHistoryEntries(row) {
+  var sources = [row].concat(_toConsumableArray((row === null || row === void 0 ? void 0 : row.items) || []), _toConsumableArray((row === null || row === void 0 ? void 0 : row.events) || [])).filter(Boolean);
+  var entries = [];
+  sources.forEach(function (source) {
+    (source.editHistory || []).forEach(function (item) {
+      return entries.push({
+        id: item.id,
+        dt: item.dt,
+        actor: item.visa || "?",
+        text: (item.changes || []).map(function (change) {
+          return "".concat(change.label, " \"").concat(change.from || "—", "\" \u2192 \"").concat(change.to || "—", "\"");
+        }).join(" ; ")
+      });
+    });
+    (source.visaCorrections || []).forEach(function (item) {
+      var changes = [];
+      if (item.type === "date") changes.push("".concat(historyFieldLabel(item.field), " \"").concat(item.fromDate || "—", "\" \u2192 \"").concat(item.toDate || "—", "\" (visa ").concat(item.visa || "—", " conserv\xE9)"));else {
+        changes.push("".concat(historyFieldLabel(item.field), " \"").concat(item.from || "—", "\" \u2192 \"").concat(item.to || "—", "\""));
+        if (item.toDate) changes.push("".concat(historyFieldLabel(item.dateField), " \"").concat(item.fromDate || "—", "\" \u2192 \"").concat(item.toDate, "\""));
+      }
+      if (item.reason) changes.push("Motif : ".concat(item.reason));
+      entries.push({
+        id: item.id,
+        dt: item.dt,
+        actor: item.admin || "?",
+        text: changes.join(" ; ")
+      });
+    });
+  });
+  return entries.sort(function (a, b) {
+    return (appDateTimestamp(a.dt) || 0) - (appDateTimestamp(b.dt) || 0);
+  });
+};
 var HistoryNote = function HistoryNote(_ref22) {
   var row = _ref22.row,
     _ref22$open = _ref22.open,
     open = _ref22$open === void 0 ? false : _ref22$open;
-  return ((row === null || row === void 0 ? void 0 : row.editHistory) || []).length > 0 && /*#__PURE__*/React.createElement("details", {
+  return auditHistoryEntries(row).length > 0 && /*#__PURE__*/React.createElement("details", {
     className: "edit-history",
     open: open,
     style: {
@@ -1622,7 +1677,7 @@ var HistoryNote = function HistoryNote(_ref22) {
       padding: "2px 6px",
       background: C.blue + "12"
     }
-  }, "\u270E Historique modifs (", (row.editHistory || []).length, ")"), /*#__PURE__*/React.createElement("div", {
+  }, "\u270E Historique modifs (", auditHistoryEntries(row).length, ")"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -1630,15 +1685,13 @@ var HistoryNote = function HistoryNote(_ref22) {
       alignItems: "center",
       marginTop: 4
     }
-  }, _toConsumableArray(row.editHistory || []).slice(-3).reverse().map(function (h) {
+  }, auditHistoryEntries(row).slice(-3).reverse().map(function (h) {
     return /*#__PURE__*/React.createElement("span", {
       key: h.id,
       style: {
         color: C.muted
       }
-    }, "le ", /*#__PURE__*/React.createElement("strong", null, h.dt), " par ", /*#__PURE__*/React.createElement("strong", null, h.visa), " \u2014 ", (h.changes || []).map(function (c) {
-      return "".concat(c.label, " \"").concat(c.from || "—", "\" \u2192 \"").concat(c.to || "—", "\"");
-    }).join(" ; "));
+    }, "le ", /*#__PURE__*/React.createElement("strong", null, h.dt), " par ", /*#__PURE__*/React.createElement("strong", null, h.actor), " \u2014 ", h.text);
   })));
 };
 var HistoryTrail = function HistoryTrail() {
@@ -1648,16 +1701,14 @@ var HistoryBtn = function HistoryBtn(_ref23) {
   var row = _ref23.row,
     _ref23$mini = _ref23.mini,
     mini = _ref23$mini === void 0 ? false : _ref23$mini;
-  var hist = (row === null || row === void 0 ? void 0 : row.editHistory) || [];
+  var hist = auditHistoryEntries(row);
   var disabled = hist.length === 0;
   var show = function show(e) {
     var _e$stopPropagation2;
     e === null || e === void 0 || (_e$stopPropagation2 = e.stopPropagation) === null || _e$stopPropagation2 === void 0 || _e$stopPropagation2.call(e);
     if (disabled) return;
     window.alert(hist.slice().reverse().map(function (h) {
-      return "".concat(h.dt, " - ").concat(h.visa, "\n") + (h.changes || []).map(function (c) {
-        return "\u2022 ".concat(c.label, ": \"").concat(c.from || "—", "\" \u2192 \"").concat(c.to || "—", "\"");
-      }).join("\n");
+      return "".concat(h.dt, " - ").concat(h.actor, "\n\u2022 ").concat(h.text);
     }).join("\n\n"));
   };
   var BtnCmp = mini ? MiniIconBtn : IconBtn;
@@ -13694,9 +13745,9 @@ var TabConsommables = function TabConsommables(_ref85) {
       color: C.blue,
       title: "Dupliquer"
     }, "\u29C9"), /*#__PURE__*/React.createElement(HistoryBtn, {
-      row: {
-        editHistory: [].concat(_toConsumableArray(o.editHistory || []), _toConsumableArray(it.editHistory || []))
-      }
+      row: _objectSpread(_objectSpread({}, o), {}, {
+        items: [it]
+      })
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return o.editBase || it.editBase ? cancelLineEdit(oid, iid) : delItem(oid, iid);
@@ -13716,9 +13767,9 @@ var TabConsommables = function TabConsommables(_ref85) {
       color: C.blue,
       title: "Dupliquer"
     }, "\u29C9"), /*#__PURE__*/React.createElement(HistoryBtn, {
-      row: {
-        editHistory: [].concat(_toConsumableArray(o.editHistory || []), _toConsumableArray(it.editHistory || []))
-      }
+      row: _objectSpread(_objectSpread({}, o), {}, {
+        items: [it]
+      })
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return delItem(oid, iid);
@@ -13732,9 +13783,9 @@ var TabConsommables = function TabConsommables(_ref85) {
       color: C.blue,
       title: "Dupliquer"
     }, "\u29C9"), /*#__PURE__*/React.createElement(HistoryBtn, {
-      row: {
-        editHistory: [].concat(_toConsumableArray(o.editHistory || []), _toConsumableArray(it.editHistory || []))
-      }
+      row: _objectSpread(_objectSpread({}, o), {}, {
+        items: [it]
+      })
     })), rowDeleted && /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return opDeleted ? setRestoreOpTarget(oid) : setRestoreItemTarget({

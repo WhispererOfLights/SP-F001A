@@ -793,7 +793,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                       <ActionGroup>
                         <IconBtn onClick={()=>validateLine(oid,iid)} color={C.green} title="Valider">✓</IconBtn>
                         <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={{editHistory:[...(o.editHistory||[]),...(it.editHistory||[])]}}/>
+                        <HistoryBtn row={{...o,items:[it]}}/>
                         <IconBtn onClick={()=>(o.editBase||it.editBase)?cancelLineEdit(oid,iid):delItem(oid,iid)} color={(o.editBase||it.editBase)?C.red:C.border} title={(o.editBase||it.editBase)?"Annuler les modifications":"Supprimer"}>×</IconBtn>
                       </ActionGroup>
                     )}
@@ -801,14 +801,14 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                       <ActionGroup>
                         <IconBtn onClick={()=>unlockLine(oid,iid)} color={C.yellow} title="Modifier">✎</IconBtn>
                         <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={{editHistory:[...(o.editHistory||[]),...(it.editHistory||[])]}}/>
+                        <HistoryBtn row={{...o,items:[it]}}/>
                         <IconBtn onClick={()=>delItem(oid,iid)} color={C.red} title="Annuler">×</IconBtn>
                       </ActionGroup>
                     )}
                     {!rowDeleted&&!editable&&perms.canWrite&&(
                       <ActionGroup>
                         <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={{editHistory:[...(o.editHistory||[]),...(it.editHistory||[])]}}/>
+                        <HistoryBtn row={{...o,items:[it]}}/>
                       </ActionGroup>
                     )}
                     {rowDeleted&&<IconBtn onClick={()=>opDeleted?setRestoreOpTarget(oid):setRestoreItemTarget({oid,iid})} color={C.yellow} title="Réactiver">↩</IconBtn>}

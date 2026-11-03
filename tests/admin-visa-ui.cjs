@@ -70,6 +70,12 @@ const accounts = [
     assert.equal(saved.dateCtrl,'03/11/2026 10:00');
     assert.ok(saved.visaCorrections.every(item=>item.toDate==='03/11/2026 10:00'));
     assert.equal(new Set(saved.visaCorrections.map(item=>item.batchId)).size,1);
+    let firstHistoryMessage='';
+    page.once('dialog',async dialog=>{firstHistoryMessage=dialog.message();await dialog.dismiss();});
+    await page.getByTitle('Historique des modifications').first().click();
+    assert.ok(firstHistoryMessage.includes('Visa création "JGR" → "MGR"'));
+    assert.ok(firstHistoryMessage.includes('Visa contrôle "CTL" → "MGR"'));
+    assert.ok(firstHistoryMessage.includes('Motif : Correction après vérification'));
 
     await page.getByRole('button',{name:'Corriger visa',exact:true}).click();
     await page.getByRole('button',{name:'Corriger la date',exact:true}).click();
@@ -85,6 +91,10 @@ const accounts = [
     assert.equal(dateHistory.visa,'MGR');
     assert.equal(dateHistory.fromDate,'03/11/2026 10:00');
     assert.equal(dateHistory.toDate,'02/11/2026 07:30');
+    let dateHistoryMessage='';
+    page.once('dialog',async dialog=>{dateHistoryMessage=dialog.message();await dialog.dismiss();});
+    await page.getByTitle('Historique des modifications').first().click();
+    assert.ok(dateHistoryMessage.includes('Date création "03/11/2026 10:00" → "02/11/2026 07:30" (visa MGR conservé)'));
     assert.deepEqual(errors,[]);
     console.log('Admin/Manager visa correction: visual action context and existing active users passed.');
   }finally{await browser.close();}
