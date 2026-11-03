@@ -448,14 +448,20 @@ def validate_of_document_update(user: dict, current: dict | None, updated: dict)
                     and not str(old_row.get("createdVisa") or "").strip()
                     and isinstance(old_row.get("importOrigin"), dict)
                     and not old_row.get("validated")
-                    and bool(new_row.get("validated"))
                     and str(new_row.get("createdVisa") or "").strip().upper() == trigram
                 ):
                     # An imported work-plan row has no author until an operator
-                    # validates and takes responsibility for the operation.
+                    # takes responsibility for the operation. The browser may
+                    # persist that attribution just before the final lock.
                     continue
-                if old_row.get(field) != new_row.get(field):
-                    raise PermissionError("Les visas et dates d'audit existants ne sont pas modifiables")
+                old_value = old_row.get(field)
+                new_value = new_row.get(field)
+                if old_value in (None, "") and new_value in (None, ""):
+                    continue
+                if old_value != new_value:
+                    raise PermissionError(
+                        f"Le champ d'audit {field} de la ligne {row_id} n'est pas modifiable"
+                    )
             if not old_deleted and new_deleted and str(new_row.get("deletedVisa") or "").upper() != trigram:
                 raise PermissionError("Le visa d'annulation doit être celui de l'utilisateur connecté")
             if old_deleted and not new_deleted and str(new_row.get("restoredVisa") or "").upper() != trigram:

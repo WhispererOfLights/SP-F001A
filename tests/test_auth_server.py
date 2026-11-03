@@ -368,6 +368,7 @@ class AuthServerTests(unittest.TestCase):
         imported = {
             "id": "imported-1", "createdVisa": "", "createdDT": "",
             "validated": False, "deleted": False, "repere": "R42",
+            "deletedVisa": None, "restoredVisa": None,
             "importOrigin": {
                 "source": "clipboard", "batchId": "batch-1", "rowNumber": 2,
                 "importedBy": "JGR", "importedAt": "03/11/2026 08:00",
@@ -385,12 +386,23 @@ class AuthServerTests(unittest.TestCase):
         rework = json.loads(json.dumps(payload["document"]["rework"]))
         claimed = next(row for row in rework["rows"] if row["id"] == "imported-1")
         claimed.update({
-            "createdVisa": "OPR", "createdDT": "03/11/2026 08:15", "validated": True,
+            "createdVisa": "OPR", "createdDT": "03/11/2026 08:15",
+            "deletedVisa": "", "restoredVisa": "",
         })
         status, payload, _ = self.request(
             "/api/work-orders/update-sections", "POST",
             {"key": "of:test", "sections": {"rework": rework}},
             {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+
+        rework = json.loads(json.dumps(payload["document"]["rework"]))
+        claimed = next(row for row in rework["rows"] if row["id"] == "imported-1")
+        claimed["validated"] = True
+        status, payload, _ = self.request(
+            "/api/work-orders/update-sections", "POST",
+            {"key": "of:test", "sections": {"rework": rework}},
+            {"If-Match": payload.get("revision", 0)},
         )
         self.assertEqual(status, 200)
         saved = next(row for row in payload["document"]["rework"]["rows"] if row["id"] == "imported-1")
