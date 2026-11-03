@@ -1551,7 +1551,7 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
 
 // ─── Système de commentaires threadés ────────────────────────────────────
 // comments = [{id, dt, visa, text, replyTo}]
-const CommentBtn = ({comments, onChange, user, disabled=false}) => {
+const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null}) => {
   const [open, setOpen]     = React.useState(false);
   const [draft, setDraft]   = React.useState("");
   const [replyTo, setReplyTo] = React.useState(null); // {id, visa, text}
@@ -1605,10 +1605,13 @@ const CommentBtn = ({comments, onChange, user, disabled=false}) => {
 
   return (
     <>
-      <span onClick={openModal} title={count?`${count} commentaire${count>1?"s":""}` : "Ajouter un commentaire"}
-        style={{cursor:"pointer",fontSize:15,opacity:count?1:.35,userSelect:"none",
+      <span onClick={openModal} title={count?`${count} commentaire${count>1?"s":""}` : systemInfo?.buttonTitle||"Ajouter un commentaire"}
+        style={{cursor:"pointer",fontSize:15,opacity:(count||systemInfo)?1:.35,userSelect:"none",
           position:"relative",display:"inline-block"}}>
         💬
+        {systemInfo&&<span aria-label={systemInfo.ariaLabel} title={systemInfo.buttonTitle}
+          style={{position:"absolute",left:-1,bottom:0,width:6,height:6,borderRadius:"50%",
+            background:systemInfo.color||C.blue,border:`1px solid ${C.surface}`}}/>}
         {count>0&&<span style={{position:"absolute",top:-5,right:-7,
           background:C.accent,color:"#fff",borderRadius:10,fontSize:8,fontWeight:700,
           padding:"1px 4px",minWidth:14,textAlign:"center",lineHeight:"14px"}}>
@@ -1635,8 +1638,13 @@ const CommentBtn = ({comments, onChange, user, disabled=false}) => {
 
             {/* Thread */}
             <div ref={listRef} style={{flex:1,overflowY:"auto",padding:"12px 16px",display:"flex",flexDirection:"column",gap:10}}>
+              {systemInfo&&<div style={{background:(systemInfo.color||C.blue)+"12",border:`1px solid ${systemInfo.color||C.blue}`,
+                borderRadius:5,padding:"8px 10px",fontSize:11,color:C.text}}>
+                <div style={{fontWeight:800,color:systemInfo.color||C.blue,marginBottom:3}}>{systemInfo.label}</div>
+                {(systemInfo.lines||[]).map((line,index)=><div key={index} style={{color:C.muted,lineHeight:1.45}}>{line}</div>)}
+              </div>}
               {list.length===0&&(
-                <div style={{textAlign:"center",color:C.muted,padding:32,fontSize:12}}>
+                <div style={{textAlign:"center",color:C.muted,padding:systemInfo?16:32,fontSize:12}}>
                   Aucun commentaire — soyez le premier !
                 </div>
               )}

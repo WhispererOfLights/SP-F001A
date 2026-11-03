@@ -107,18 +107,18 @@ const IMPORTED_REWORK_COMPARE_FIELDS = REWORK_EDIT_FIELDS.filter(field=>field.ke
 const importedReworkChanges = row => row?.importOrigin?.originalFields
   ? changedFields(row.importOrigin.originalFields,row,IMPORTED_REWORK_COMPARE_FIELDS)
   : [];
-const ImportOriginMark = ({row}) => {
+const importOriginCommentInfo = row => {
   if(!row?.importOrigin) return null;
   const modified=importedReworkChanges(row).length>0;
   const origin=row.importOrigin;
-  const title=[`Importé le ${origin.importedAt||"N/A"} par ${origin.importedBy||"N/A"}`,
-    modified?`Modifié le ${origin.modifiedAt||"N/A"} par ${origin.modifiedBy||"N/A"}`:"Aucune modification depuis l'import"].join("\n");
-  return <span aria-label={modified?"Importé, modifié":"Importé"} title={title}
-    style={{display:"inline-flex",width:16,height:16,marginLeft:4,alignItems:"center",justifyContent:"center",
-      border:`1px solid ${modified?C.yellow:C.blue}`,borderRadius:3,background:(modified?C.yellow:C.blue)+"12",
-      color:modified?C.yellow:C.blue,fontSize:11,fontWeight:900,lineHeight:1,cursor:"help",verticalAlign:"middle"}}>
-    ↧
-  </span>;
+  const lines=[`Importé le ${origin.importedAt||"N/A"} par ${origin.importedBy||"N/A"}`,
+    modified?`Modifié le ${origin.modifiedAt||"N/A"} par ${origin.modifiedBy||"N/A"}`:"Aucune modification depuis l'import"];
+  return {
+    ariaLabel:modified?"Importé, modifié":"Importé",
+    buttonTitle:modified?"Remarques et provenance de l'import modifié":"Remarques et provenance de l'import",
+    label:modified?"Ligne importée puis modifiée":"Ligne importée",
+    lines,color:modified?C.yellow:C.blue,
+  };
 };
 const parseActivityDate = raw => {
   if(raw instanceof Date&&!Number.isNaN(raw.getTime())) return raw;
@@ -985,7 +985,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 pointerEvents:r.deleted?"none":undefined,
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                 <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
-                <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/><ImportOriginMark row={r}/></TD>
+                <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                 <TD><Input entryField="repere" value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
                 <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
@@ -1050,7 +1050,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                         disabled={r.deleted||!perms.canTraceability}/>}
                 </TD>
                 {perms.canWrite&&!forceShowDeleted&&<TD center><input type="checkbox" aria-label={`Demander la matière ${r.repere||"ligne"} ${r.codeERP||""}`} title={["S","M"].includes(r.action1)?"Sélectionner pour la demande matière":"Demande matière réservée aux actions S et M"} disabled={!!r.deleted||!["S","M"].includes(r.action1)} checked={!r.deleted&&["S","M"].includes(r.action1)&&requestIds.includes(r.id)} onChange={()=>{if(!r.deleted&&["S","M"].includes(r.action1)) setRequestIds(ids=>ids.includes(r.id)?ids.filter(id=>id!==r.id):[...ids,r.id]);}}/></TD>}
-                <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!canCommentRow()}/></TD>
+                <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!canCommentRow()} systemInfo={importOriginCommentInfo(r)}/></TD>
                 <TD center style={{pointerEvents:"all"}}>
                   {!r.deleted&&!r.validated&&editable&&(
                     <ActionGroup>
