@@ -1814,6 +1814,30 @@ const ADMIN_VISA_SECTION_LABELS = {
   etuvage:"Étuvages",testequip:"Test équipement",faits:"Suivi technique",
   openwork:"Open Work",demating:"Mating / Demating",
 };
+const ADMIN_VISA_DATE_FIELDS = {
+  createdVisa:["createdDT","dateOper","openDate","date"],
+  visaOper:["dateOper","createdDT","date"],
+  visaCtrl:["dateCtrl"],visaTraca:["dateTraca"],
+  visa:["date","createdDT","dateOper"],openVisa:["openDate","createdDT"],
+  closedVisa:["closedDate","closedDT"],entreeVisa:["entreeDT","entreeDate"],
+  sortieVisa:["sortieDT","sortieDate"],
+};
+const adminVisaRowPresentation = (row,section,field,fallback="") => {
+  const first=(...values)=>values.map(value=>String(value??"").trim()).find(Boolean)||"";
+  const date=first(...(ADMIN_VISA_DATE_FIELDS[field]||[]).map(key=>row?.[key]));
+  if(!row||typeof row!=="object") return {summary:fallback||"Ligne",details:"",date};
+  if(section==="rework"){
+    const action=ACTION_LABELS?.[row.action1]||row.action1||"Action";
+    return {summary:[action,row.repere&&`Repère ${row.repere}`].filter(Boolean).join(" · "),details:[row.valeur,row.codeERP&&`Article ${row.codeERP}`,row.sn&&`SN ${row.sn}`,row.lot&&`Lot ${row.lot}`].filter(Boolean).join(" · "),date};
+  }
+  if(section==="consommables") return {summary:first(row.designation,row.type,row.article,"Consommable"),details:[row.lot&&`Lot ${row.lot}`,row.nEchantillon&&`Échantillon ${row.nEchantillon}`,row.qty&&`Qté ${row.qty}`].filter(Boolean).join(" · "),date};
+  if(section==="etuvage") return {summary:["Étuvage",first(row.fourN,row.nInv,row.designation)].filter(Boolean).join(" · "),details:[row.temperature&&`${row.temperature} °C`,row.duree&&`${row.duree} h`].filter(Boolean).join(" · "),date};
+  if(section==="testequip") return {summary:first(row.nInv,row.designation,row.type,"Test équipement"),details:[row.type,row.designation].filter((value,index,list)=>value&&list.indexOf(value)===index).join(" · "),date};
+  if(section==="faits"||section==="openwork") return {summary:[first(row.type,section==="openwork"?"OW":"Fait"),first(row.numero,row.nOW)].filter(Boolean).join(" · "),details:first(row.description,row.designation,row.remarque),date};
+  if(section==="demating") return {summary:first(row.nom,row.connecteur,row.designation,row.type,"Mating / Demating"),details:first(row.action,row.etat,row.cycle),date};
+  if(section==="units") return {summary:row.sn?`SN ${row.sn}`:row.lot?`LOT ${row.lot}`:"SN / Lot",details:row.qteActuelle?`Qté ${row.qteActuelle}`:"",date};
+  return {summary:first(fallback,row.repere,row.numero,row.designation,row.type,"Ligne"),details:"",date};
+};
 const adminVisaEntries = data => {
   const entries=[];
   const skipped=new Set(["comments","editHistory","visaCorrections","ctrlCancellationHistory","tracaCancellationHistory","quantityHistory","kindHistory"]);
@@ -1828,7 +1852,7 @@ const adminVisaEntries = data => {
     Object.entries(value).forEach(([key,item])=>{
       if(skipped.has(key)) return;
       if(ADMIN_VISA_FIELDS[key]&&String(item||"").trim()){
-        entries.push({path:[...path,key],section:path[0],field:key,visa:String(item).trim().toUpperCase(),context:nextContext});
+        entries.push({path:[...path,key],section:path[0],field:key,visa:String(item).trim().toUpperCase(),context:nextContext,...adminVisaRowPresentation(value,path[0],key,nextContext)});
         return;
       }
       if(typeof item==="object"&&item!==null) walk(item,[...path,key],nextContext);
@@ -1858,7 +1882,19 @@ const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
   const [nextVisa,setNextVisa]=useState("");
   const [reason,setReason]=useState("");
   const [busy,setBusy]=useState(false);
-  const filtered=entries.filter(entry=>`${ADMIN_VISA_SECTION_LABELS[entry.section]} ${ADMIN_VISA_FIELDS[entry.field]} ${entry.visa} ${entry.context}`.toUpperCase().includes(query.trim().toUpperCase()));
+  const [accounts,setAccounts]=useState([]);
+  const [accountsError,setAccountsError]=useState("");
+  useEffect(()=>{
+    let active=true;
+    (async()=>{
+      try{
+        const rows=window.authApi?.users?await window.authApi.users():[];
+        if(active) setAccounts((rows||[]).filter(account=>account?.active!==false&&String(account?.trigram||"").trim()).sort((a,b)=>String(a.trigram).localeCompare(String(b.trigram))));
+      }catch(error){if(active)setAccountsError(error?.message||"Liste des utilisateurs indisponible");}
+    })();
+    return()=>{active=false;};
+  },[]);
+  const filtered=entries.filter(entry=>`${ADMIN_VISA_SECTION_LABELS[entry.section]} ${ADMIN_VISA_FIELDS[entry.field]} ${entry.visa} ${entry.context} ${entry.summary} ${entry.details} ${entry.date}`.toUpperCase().includes(query.trim().toUpperCase()));
   const keyOf=entry=>JSON.stringify(entry.path);
   const selected=entries.find(entry=>keyOf(entry)===selectedKey);
   const submit=async()=>{
@@ -1875,23 +1911,27 @@ const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
         <div style={{fontSize:11,color:C.muted,marginTop:4}}>Réservé aux Admin et Manager. L'ancien visa, le nouveau, le motif et l'auteur de la correction sont conservés.</div>
       </div>
       <div style={{padding:14,display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
-        <Input value={query} onChange={setQuery} placeholder="Rechercher un visa, un repère, un numéro..."/>
+        <Input value={query} onChange={setQuery} displayPlaceholder="Rechercher une action, un repère, une valeur, une date ou un visa..."/>
         <div style={{border:`1px solid ${C.border}`,borderRadius:4,overflowY:"auto",maxHeight:330}}>
           {filtered.length===0?<div style={{padding:18,color:C.muted,textAlign:"center"}}>Aucun visa trouvé</div>:filtered.map(entry=>{
             const key=keyOf(entry),active=key===selectedKey;
-            return <button key={key} type="button" onClick={()=>{setSelectedKey(key);setNextVisa(entry.visa);}}
-              style={{width:"100%",display:"grid",gridTemplateColumns:"150px 130px 70px 1fr",gap:8,alignItems:"center",padding:"8px 10px",border:0,borderBottom:`1px solid ${C.border}`,background:active?C.blue+"22":"transparent",color:C.text,textAlign:"left",cursor:"pointer",fontSize:11}}>
-              <strong>{ADMIN_VISA_SECTION_LABELS[entry.section]}</strong>
-              <span>{ADMIN_VISA_FIELDS[entry.field]}</span>
-              <span style={{fontFamily:"monospace",fontWeight:800,color:C.accent}}>{entry.visa}</span>
-              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.muted}}>{entry.context||"—"}</span>
+            return <button key={key} type="button" onClick={()=>{setSelectedKey(key);setNextVisa("");}}
+              style={{width:"100%",display:"grid",gridTemplateColumns:"145px minmax(220px,1fr) 105px",gap:10,alignItems:"center",padding:"9px 10px",border:0,borderBottom:`1px solid ${C.border}`,borderLeft:`4px solid ${active?C.blue:"transparent"}`,background:active?C.blue+"22":"transparent",color:C.text,textAlign:"left",cursor:"pointer",fontSize:11}}>
+              <div><strong style={{display:"block"}}>{ADMIN_VISA_SECTION_LABELS[entry.section]}</strong><span style={{color:C.muted}}>{ADMIN_VISA_FIELDS[entry.field]}</span></div>
+              <div style={{minWidth:0}}><strong style={{display:"block",fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.summary||entry.context||"Ligne"}</strong>{entry.details&&<span style={{display:"block",color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginTop:2}}>{entry.details}</span>}</div>
+              <div style={{textAlign:"right"}}><span style={{display:"block",fontFamily:"monospace",fontWeight:800,color:C.accent}}>{entry.visa}</span><span style={{display:"block",color:C.muted,marginTop:2}}>{entry.date||"—"}</span></div>
             </button>;
           })}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"160px 1fr",gap:10}}>
-          <Input value={nextVisa} onChange={value=>setNextVisa(value.toUpperCase())} placeholder="Nouveau visa" disabled={!selected||busy}/>
-          <Input value={reason} onChange={setReason} placeholder="Motif obligatoire de la correction" disabled={!selected||busy}/>
+        <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:10}}>
+          <select aria-label="Nouveau visa" value={nextVisa} onChange={event=>setNextVisa(event.target.value)} disabled={!selected||busy||!!accountsError}
+            style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:12}}>
+            <option value="">Choisir un utilisateur existant...</option>
+            {accounts.filter(account=>account.trigram!==selected?.visa).map(account=><option key={account.trigram} value={account.trigram}>{account.trigram} — {[account.prenom,account.nom].filter(Boolean).join(" ")||account.role||"Utilisateur"}{account.role?` (${account.role})`:""}</option>)}
+          </select>
+          <Input value={reason} onChange={setReason} displayPlaceholder="Motif obligatoire de la correction" readOnly={!selected||busy}/>
         </div>
+        {accountsError&&<div role="alert" style={{fontSize:11,color:C.red}}>Impossible de charger les visas existants : {accountsError}</div>}
       </div>
       <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onClose} color={C.border} disabled={busy}>Annuler</Btn>
