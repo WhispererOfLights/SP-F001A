@@ -847,7 +847,9 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       }
       onChange({rows:scopedRowsPatch(rows,id,header,x=>{
         const finalized=withEditHistory(x,user,REWORK_EDIT_FIELDS);
-        return x.importOrigin?{...finalized,createdVisa:user?.trigram||"",createdDT:nowDT()}:finalized;
+        return x.importOrigin&&!String(x.createdVisa||"").trim()
+          ? {...finalized,createdVisa:user?.trigram||"",createdDT:x.createdDT||nowDT()}
+          : finalized;
       })});
     }
   };

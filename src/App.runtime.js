@@ -10505,9 +10505,9 @@ var TabRework = function TabRework(_ref79) {
       onChange({
         rows: scopedRowsPatch(rows, id, header, function (x) {
           var finalized = withEditHistory(x, user, REWORK_EDIT_FIELDS);
-          return x.importOrigin ? _objectSpread(_objectSpread({}, finalized), {}, {
+          return x.importOrigin && !String(x.createdVisa || "").trim() ? _objectSpread(_objectSpread({}, finalized), {}, {
             createdVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
-            createdDT: nowDT()
+            createdDT: x.createdDT || nowDT()
           }) : finalized;
         })
       });

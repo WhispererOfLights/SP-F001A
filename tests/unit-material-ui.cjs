@@ -7,6 +7,7 @@ const units = [{id: 'u1', sn: 'SN1', status: 'en_cours'}, {id: 'u2', sn: 'SN2', 
 const entry = {id: 'test-of', of: '100TEST', status: 'en_cours', codeArticle: '250001163', description: 'Article de test', otp: '7400-TEST', createdBy: 'JGR', _snRows: units};
 const data = {header: entry, units: {mode: 'multi', rows: units}, rework: {rows: [
   {id: 'r1', createdVisa: 'OTHER', createdDT: '17/09/2026 10:00', validated: true, repere: 'R96', action1: 'S', qty: '2', codeERP: '225222333', valeur: '10K', lot: 'N/A', dc: 'N/A', fiche: 'DOC', etape: '10', snScope: 'custom', snIds: ['u1', 'u2']},
+  {id:'imported-existing',createdVisa:'OTHER',createdDT:'17/09/2026 11:00',validated:true,repere:'R-IMPORTED',action1:'S',qty:'1',codeERP:'225222333',valeur:'22K',lot:'N/A',dc:'N/A',fiche:'DOC',etape:'10',snScope:'custom',snIds:['u2'],importOrigin:{source:'legacy-import',importedBy:'JGR',importedAt:'16/09/2026 08:00'}},
   ...['D','P','R'].map(action1=>({id:'blocked-'+action1,createdVisa:'OTHER',validated:true,repere:'R'+action1,action1,codeERP:'123',snScope:'custom',snIds:['u2']})),
   {id:'cancelled-pdf',createdVisa:'OTHER',createdDT:'16/09/2026 08:30',validated:true,repere:'R99',action1:'S',codeERP:'999',valeur:'1K',snScope:'custom',snIds:['u2'],deleted:true,deletedVisa:'JGR',deletedDate:'18/09/2026 09:00',deletedReason:'Test ligne annulée'},
 ]}, consommables: {}, testequip: {}, faits: {rows:[{id:'fact-u1',type:'FT',numero:'F-001',commentaires:'Contrôle visuel',closedDate:'18/09/2026',snScope:'custom',snIds:['u1']}]}, etuvage: {}, openwork: {}, demating: {connectors:[
@@ -396,6 +397,16 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       return row?.validated&&!row.deleted&&row.valeur==='12K'&&!row.editBase;
     });
     assert.equal(await importedMain.locator('[data-entry-field="valeur"]').inputValue(),'12K');
+    const importedExisting=page.locator('[data-rework-row]').filter({has:page.locator('[data-entry-field="repere"][value="R-IMPORTED"]')});
+    await importedExisting.getByTitle('Modifier',{exact:true}).click();
+    await importedExisting.getByLabel("Date de l'opération",{exact:true}).fill('2026-10-30T14:15');
+    await importedExisting.getByTitle('Valider',{exact:true}).click();
+    await page.waitForFunction(()=>{
+      const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.id==='imported-existing');
+      return row?.validated&&row.createdDT==='30/10/2026 14:15'&&!row.editBase;
+    });
+    const importedExistingSaved=await page.evaluate(()=>window.testRecords['of:test-of'].rework.rows.find(item=>item.id==='imported-existing'));
+    assert.equal(importedExistingSaved.createdVisa,'OTHER','Modifier la date d’une ligne importée existante ne doit pas réattribuer son visa');
     for(const action of ['S','M','P']) {
       await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
       const focused=page.locator('[data-entry-field="repere"]:focus');
