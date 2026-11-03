@@ -43,6 +43,7 @@ const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,
   ];
   const validateRow=id=>{ const r=rows.find(x=>x.id===id); if(!canEdit(r)) return; const miss=checkRequired(r,REQUIRED); if(miss.length) { upd(id,"validError","Champs requis : "+miss.join(", ")); } else { onChange({rows:scopedRowsPatch(rows,id,header,x=>withEditHistory(x,user,OPENWORK_EDIT_FIELDS))}); } };
   const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(r,OPENWORK_EDIT_FIELDS)}:r)}); };
+  const cancelEdit=id=>onChange({rows:rows.map(r=>r.id===id?restoreEditSnapshot(r):r)});
   const setClosed=(id,closed)=>{
     const row=rows.find(x=>x.id===id);
     if(!canClose(row)) return;
@@ -131,7 +132,7 @@ const TabOpenWork = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                     <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider">✓</IconBtn>
                     <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                     <HistoryBtn row={r}/>
-                    <IconBtn onClick={()=>del(r.id)} color={C.border} title="Supprimer">×</IconBtn>
+                    <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={r.editBase?C.red:C.border} title={r.editBase?"Annuler les modifications":"Supprimer"}>×</IconBtn>
                   </ActionGroup>
                 )}
                 {!r.deleted&&r.validated&&editable&&(

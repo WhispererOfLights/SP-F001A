@@ -116,8 +116,9 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
   };
   const unlockConn = cid => {
     const c=connectors.find(x=>x.id===cid);
-    if(canEdit(c)) onChange({connectors:connectors.map(c=>c.id===cid?{...c,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(c,CONNECTOR_EDIT_FIELDS)}:c)});
+    if(canEdit(c)) onChange({connectors:connectors.map(c=>c.id===cid?{...c,validated:false,_scopeEditConfirmed:false,editBase:{...snapshotFields(c,CONNECTOR_EDIT_FIELDS),events:JSON.parse(JSON.stringify(c.events||[]))}}:c)});
   };
+  const cancelConnEdit=cid=>onChange({connectors:connectors.map(c=>c.id===cid?restoreEditSnapshot(c):c)});
   const restoreC   = reason => {
     onChange({connectors:connectors.map(c=>c.id===restoreConnTarget?{...c,deleted:false,restoredReason:reason,restoredVisa:user?.trigram||"?",restoredDate:nowDT()}:c)});
     setRestoreConnTarget(null);
@@ -390,7 +391,7 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                   {!c.deleted&&!c.validated&&editable&&<>
                     <MiniIconBtn onClick={()=>validateConn(c.id)} color={C.green} title="Valider">✓</MiniIconBtn>
                     <HistoryBtn row={c} mini/>
-                    <MiniIconBtn onClick={()=>delConn(c.id)} color={C.border} title="Supprimer">×</MiniIconBtn>
+                    <MiniIconBtn onClick={()=>c.editBase?cancelConnEdit(c.id):delConn(c.id)} color={c.editBase?C.red:C.border} title={c.editBase?"Annuler les modifications":"Supprimer"}>×</MiniIconBtn>
                   </>}
                   {!c.deleted&&c.validated&&editable&&<>
                     <MiniIconBtn onClick={()=>unlockConn(c.id)} color={C.yellow} title="Modifier">✎</MiniIconBtn>

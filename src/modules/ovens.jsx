@@ -67,6 +67,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
     onChange({rows:scopedRowsPatch(rows,id,header,x=>withEditHistory({...x,validated:true,validError:""},user,ETUVAGE_EDIT_FIELDS))});
   };
   const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(x=>x.id===id?{...x,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(x,ETUVAGE_EDIT_FIELDS)}:x)}); };
+  const cancelEdit=id=>onChange({rows:rows.map(r=>r.id===id?restoreEditSnapshot(r):r)});
   const stamp=(id,field)=>{
     const row=rows.find(x=>x.id===id);
     if(!canEdit(row)) return;
@@ -222,7 +223,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                         <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider les modifications">✓</IconBtn>
                         <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                         <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>del(r.id)} color={C.red} title="Annuler">×</IconBtn>
+                        <IconBtn onClick={()=>cancelEdit(r.id)} color={C.red} title="Annuler les modifications">×</IconBtn>
                       </ActionGroup>
                     )}
                     {!r.deleted&&inFour&&r.validated&&editable&&(
@@ -230,7 +231,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                         <IconBtn onClick={()=>unlockRow(r.id)} color={C.yellow} title="Modifier">✎</IconBtn>
                         <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                         <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>del(r.id)} color={C.red} title="Annuler">×</IconBtn>
+                        <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={C.red} title={r.editBase?"Annuler les modifications":"Annuler la ligne"}>×</IconBtn>
                       </ActionGroup>
                     )}
                     {!r.deleted&&inFour&&!r.validated&&editable&&(
@@ -238,7 +239,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                         <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider les modifications">✓</IconBtn>
                         <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                         <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>del(r.id)} color={C.red} title="Annuler">×</IconBtn>
+                        <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={C.red} title={r.editBase?"Annuler les modifications":"Annuler la ligne"}>×</IconBtn>
                       </ActionGroup>
                     )}
                     {!r.deleted&&!editable&&perms.canWrite&&(

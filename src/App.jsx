@@ -626,6 +626,16 @@ const CopyOriginMark = ({origin}) => origin?<span aria-label="Provenance de la c
 const snapshotFields = (row, fields) =>
   fields.reduce((a,f)=>({...a,[f.key]:row?.[f.key]??""}),{});
 
+const restoreEditSnapshot = row => row?.editBase ? {
+  ...row,
+  ...row.editBase,
+  validated:true,
+  validError:"",
+  connError:"",
+  editBase:undefined,
+  _scopeEditConfirmed:undefined,
+} : row;
+
 const changedFields = (before, after, fields) =>
   fields
     .map(f=>({label:f.label,from:String(before?.[f.key]??""),to:String(after?.[f.key]??"")}))

@@ -388,6 +388,14 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       return row?.validated&&row.createdVisa==='JGR'&&!!row.createdDT&&row.importOrigin?.modifiedBy==='JGR';
     });
     assert.equal(await importedMain.getByLabel('Importé, modifié',{exact:true}).count(),1);
+    await importedMain.getByTitle('Modifier',{exact:true}).click();
+    await importedMain.locator('[data-entry-field="valeur"]').fill('99K');
+    await importedMain.getByTitle('Annuler les modifications',{exact:true}).click();
+    await page.waitForFunction(()=>{
+      const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.repere==='R-IMP1');
+      return row?.validated&&!row.deleted&&row.valeur==='12K'&&!row.editBase;
+    });
+    assert.equal(await importedMain.locator('[data-entry-field="valeur"]').inputValue(),'12K');
     for(const action of ['S','M','P']) {
       await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
       const focused=page.locator('[data-entry-field="repere"]:focus');
@@ -780,11 +788,13 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       ['Consommables','tr:has(input[value="DRAFT-LOT"])','consommables','ops','draft-conso-op']
     ]){
       await page.getByRole('button',{name:label,exact:true}).click();
-      await page.locator(selector).getByTitle('Supprimer',{exact:true}).click();
+      await page.locator(selector).getByTitle('Annuler les modifications',{exact:true}).click();
       assert.equal(await page.getByText("Motif de l'annulation *",{exact:true}).count(),0);
       await page.waitForFunction(({tab,collection,id})=>{
         const row=window.testRecords['of:test-of'][tab][collection].find(row=>row.id===id);
-        return tab==='consommables'?row?.items?.find(item=>item.id==='draft-conso-item')?.deleted===true:row?.deleted===true;
+        return tab==='consommables'
+          ? row?.validated===true&&row?.items?.find(item=>item.id==='draft-conso-item')?.validated===true&&!row?.editBase
+          : row?.validated===true&&!row?.deleted&&!row?.editBase;
       },{tab,collection,id});
     }
     await page.evaluate(()=>{
@@ -807,9 +817,12 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       ['Mating','[role="group"][aria-label="Connecteur J-DELETE"]','demating','connectors','draft-connector-delete']
     ]){
       await page.getByRole('button',{name:label,exact:true}).click();
-      await page.locator(selector).getByTitle(tab==='etuvage'?'Annuler':'Supprimer',{exact:true}).click();
+      await page.locator(selector).getByTitle('Annuler les modifications',{exact:true}).click();
       assert.equal(await page.getByText("Motif de l'annulation *",{exact:true}).count(),0);
-      await page.waitForFunction(({tab,collection,id})=>window.testRecords['of:test-of'][tab][collection].find(row=>row.id===id)?.deleted===true,{tab,collection,id});
+      await page.waitForFunction(({tab,collection,id})=>{
+        const row=window.testRecords['of:test-of'][tab][collection].find(row=>row.id===id);
+        return row?.validated===true&&!row?.deleted&&!row?.editBase;
+      },{tab,collection,id});
     }
     await page.evaluate(()=>{
       const of=window.testRecords['of:test-of'];

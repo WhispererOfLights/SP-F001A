@@ -570,6 +570,10 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
     items:(o.items||[]).map(it=>it.id===iid?{...it,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(it,CONSO_ITEM_EDIT_FIELDS)}:it)
   })});
   };
+  const cancelLineEdit = (oid,iid) => onChange({ops:ops.map(o=>o.id!==oid?o:{
+    ...restoreEditSnapshot(o),
+    items:(o.items||[]).map(it=>it.id===iid?restoreEditSnapshot(it):it)
+  })});
 
   const totalDelOps = ops.filter(o=>o.deleted).length;
   const flatRows = ops.flatMap(o=>{
@@ -790,7 +794,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                         <IconBtn onClick={()=>validateLine(oid,iid)} color={C.green} title="Valider">✓</IconBtn>
                         <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                         <HistoryBtn row={{editHistory:[...(o.editHistory||[]),...(it.editHistory||[])]}}/>
-                        <IconBtn onClick={()=>delItem(oid,iid)} color={C.border} title="Supprimer">×</IconBtn>
+                        <IconBtn onClick={()=>(o.editBase||it.editBase)?cancelLineEdit(oid,iid):delItem(oid,iid)} color={(o.editBase||it.editBase)?C.red:C.border} title={(o.editBase||it.editBase)?"Annuler les modifications":"Supprimer"}>×</IconBtn>
                       </ActionGroup>
                     )}
                     {!rowDeleted&&valid&&editable&&(

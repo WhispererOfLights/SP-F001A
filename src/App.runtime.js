@@ -1561,6 +1561,15 @@ var snapshotFields = function snapshotFields(row, fields) {
     return _objectSpread(_objectSpread({}, a), {}, _defineProperty({}, f.key, (_row$f$key = row === null || row === void 0 ? void 0 : row[f.key]) !== null && _row$f$key !== void 0 ? _row$f$key : ""));
   }, {});
 };
+var restoreEditSnapshot = function restoreEditSnapshot(row) {
+  return row !== null && row !== void 0 && row.editBase ? _objectSpread(_objectSpread(_objectSpread({}, row), row.editBase), {}, {
+    validated: true,
+    validError: "",
+    connError: "",
+    editBase: undefined,
+    _scopeEditConfirmed: undefined
+  }) : row;
+};
 var changedFields = function changedFields(before, after, fields) {
   return fields.map(function (f) {
     var _before$f$key, _after$f$key;
@@ -10513,8 +10522,23 @@ var TabRework = function TabRework(_ref79) {
         return r.id === id ? _objectSpread(_objectSpread({}, r), {}, {
           validated: false,
           _scopeEditConfirmed: false,
-          editBase: snapshotFields(r, REWORK_EDIT_FIELDS)
+          editBase: _objectSpread(_objectSpread({}, snapshotFields(r, REWORK_EDIT_FIELDS)), {}, {
+            visaCtrl: r.visaCtrl || "",
+            dateCtrl: r.dateCtrl || "",
+            tracaOk: !!r.tracaOk,
+            visaTraca: r.visaTraca || "",
+            dateTraca: r.dateTraca || "",
+            ctrlCancellationHistory: _toConsumableArray(r.ctrlCancellationHistory || []),
+            tracaCancellationHistory: _toConsumableArray(r.tracaCancellationHistory || [])
+          })
         }) : r;
+      })
+    });
+  };
+  var cancelEdit = function cancelEdit(id) {
+    return onChange({
+      rows: rows.map(function (r) {
+        return r.id === id ? restoreEditSnapshot(r) : r;
       })
     });
   };
@@ -11262,10 +11286,10 @@ var TabRework = function TabRework(_ref79) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return r.editBase ? cancelEdit(r.id) : del(r.id);
       },
-      color: C.border,
-      title: "Supprimer"
+      color: r.editBase ? C.red : C.border,
+      title: r.editBase ? "Annuler les modifications" : "Supprimer"
     }, "\xD7")), !r.deleted && r.validated && editable && /*#__PURE__*/React.createElement(ActionGroup, null, labelPrintButton(r), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return unlockRow(r.id);
@@ -12919,6 +12943,17 @@ var TabConsommables = function TabConsommables(_ref85) {
       })
     });
   };
+  var cancelLineEdit = function cancelLineEdit(oid, iid) {
+    return onChange({
+      ops: ops.map(function (o) {
+        return o.id !== oid ? o : _objectSpread(_objectSpread({}, restoreEditSnapshot(o)), {}, {
+          items: (o.items || []).map(function (it) {
+            return it.id === iid ? restoreEditSnapshot(it) : it;
+          })
+        });
+      })
+    });
+  };
   var totalDelOps = ops.filter(function (o) {
     return o.deleted;
   }).length;
@@ -13664,10 +13699,10 @@ var TabConsommables = function TabConsommables(_ref85) {
       }
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return delItem(oid, iid);
+        return o.editBase || it.editBase ? cancelLineEdit(oid, iid) : delItem(oid, iid);
       },
-      color: C.border,
-      title: "Supprimer"
+      color: o.editBase || it.editBase ? C.red : C.border,
+      title: o.editBase || it.editBase ? "Annuler les modifications" : "Supprimer"
     }, "\xD7")), !rowDeleted && valid && editable && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return unlockLine(oid, iid);
@@ -14039,6 +14074,13 @@ var TabTestEquip = function TabTestEquip(_ref92) {
       })
     });
   };
+  var cancelEdit = function cancelEdit(id) {
+    return onChange({
+      rows: rows.map(function (r) {
+        return r.id === id ? restoreEditSnapshot(r) : r;
+      })
+    });
+  };
   var horsCalib = effectiveScopedRows({
     header: header,
     testequip: {
@@ -14291,10 +14333,10 @@ var TabTestEquip = function TabTestEquip(_ref92) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return r.editBase ? cancelEdit(r.id) : del(r.id);
       },
-      color: C.border,
-      title: "Supprimer"
+      color: r.editBase ? C.red : C.border,
+      title: r.editBase ? "Annuler les modifications" : "Supprimer"
     }, "\xD7")), !r.deleted && r.validated && editable && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return unlockRow(r.id);
@@ -15158,6 +15200,13 @@ var TabFaits = function TabFaits(_ref95) {
       })
     });
   };
+  var cancelEdit = function cancelEdit(id) {
+    return onChange({
+      rows: rows.map(function (r) {
+        return r.id === id ? restoreEditSnapshot(r) : r;
+      })
+    });
+  };
   var setClosed = function setClosed(id, closed) {
     var row = rows.find(function (x) {
       return x.id === id;
@@ -15527,10 +15576,10 @@ var TabFaits = function TabFaits(_ref95) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return r.editBase ? cancelEdit(r.id) : del(r.id);
       },
-      color: C.border,
-      title: "Supprimer"
+      color: r.editBase ? C.red : C.border,
+      title: r.editBase ? "Annuler les modifications" : "Supprimer"
     }, "\xD7")), !r.deleted && r.validated && editable && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return unlockRow(r.id);
@@ -15886,6 +15935,13 @@ var TabEtuvage = function TabEtuvage(_ref96) {
           _scopeEditConfirmed: false,
           editBase: snapshotFields(x, ETUVAGE_EDIT_FIELDS)
         }) : x;
+      })
+    });
+  };
+  var cancelEdit = function cancelEdit(id) {
+    return onChange({
+      rows: rows.map(function (r) {
+        return r.id === id ? restoreEditSnapshot(r) : r;
       })
     });
   };
@@ -16360,10 +16416,10 @@ var TabEtuvage = function TabEtuvage(_ref96) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return cancelEdit(r.id);
       },
       color: C.red,
-      title: "Annuler"
+      title: "Annuler les modifications"
     }, "\xD7")), !r.deleted && inFour && r.validated && editable && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return unlockRow(r.id);
@@ -16380,10 +16436,10 @@ var TabEtuvage = function TabEtuvage(_ref96) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return r.editBase ? cancelEdit(r.id) : del(r.id);
       },
       color: C.red,
-      title: "Annuler"
+      title: r.editBase ? "Annuler les modifications" : "Annuler la ligne"
     }, "\xD7")), !r.deleted && inFour && !r.validated && editable && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return validateRow(r.id);
@@ -16400,10 +16456,10 @@ var TabEtuvage = function TabEtuvage(_ref96) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return r.editBase ? cancelEdit(r.id) : del(r.id);
       },
       color: C.red,
-      title: "Annuler"
+      title: r.editBase ? "Annuler les modifications" : "Annuler la ligne"
     }, "\xD7")), !r.deleted && !editable && perms.canWrite && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return dup(r.id);
@@ -16801,8 +16857,17 @@ var TabDeMating = function TabDeMating(_ref98) {
         return c.id === cid ? _objectSpread(_objectSpread({}, c), {}, {
           validated: false,
           _scopeEditConfirmed: false,
-          editBase: snapshotFields(c, CONNECTOR_EDIT_FIELDS)
+          editBase: _objectSpread(_objectSpread({}, snapshotFields(c, CONNECTOR_EDIT_FIELDS)), {}, {
+            events: JSON.parse(JSON.stringify(c.events || []))
+          })
         }) : c;
+      })
+    });
+  };
+  var cancelConnEdit = function cancelConnEdit(cid) {
+    return onChange({
+      connectors: connectors.map(function (c) {
+        return c.id === cid ? restoreEditSnapshot(c) : c;
       })
     });
   };
@@ -17420,10 +17485,10 @@ var TabDeMating = function TabDeMating(_ref98) {
         mini: true
       }), /*#__PURE__*/React.createElement(MiniIconBtn, {
         onClick: function onClick() {
-          return delConn(c.id);
+          return c.editBase ? cancelConnEdit(c.id) : delConn(c.id);
         },
-        color: C.border,
-        title: "Supprimer"
+        color: c.editBase ? C.red : C.border,
+        title: c.editBase ? "Annuler les modifications" : "Supprimer"
       }, "\xD7")), !c.deleted && c.validated && editable && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(MiniIconBtn, {
         onClick: function onClick() {
           return unlockConn(c.id);
@@ -17929,6 +17994,13 @@ var TabOpenWork = function TabOpenWork(_ref103) {
       })
     });
   };
+  var cancelEdit = function cancelEdit(id) {
+    return onChange({
+      rows: rows.map(function (r) {
+        return r.id === id ? restoreEditSnapshot(r) : r;
+      })
+    });
+  };
   var setClosed = function setClosed(id, closed) {
     var row = rows.find(function (x) {
       return x.id === id;
@@ -18170,10 +18242,10 @@ var TabOpenWork = function TabOpenWork(_ref103) {
       row: r
     }), /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
-        return del(r.id);
+        return r.editBase ? cancelEdit(r.id) : del(r.id);
       },
-      color: C.border,
-      title: "Supprimer"
+      color: r.editBase ? C.red : C.border,
+      title: r.editBase ? "Annuler les modifications" : "Supprimer"
     }, "\xD7")), !r.deleted && r.validated && editable && /*#__PURE__*/React.createElement(ActionGroup, null, /*#__PURE__*/React.createElement(IconBtn, {
       onClick: function onClick() {
         return unlockRow(r.id);

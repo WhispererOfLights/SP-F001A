@@ -851,7 +851,12 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       })});
     }
   };
-  const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:snapshotFields(r,REWORK_EDIT_FIELDS)}:r)}); };
+  const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:{
+    ...snapshotFields(r,REWORK_EDIT_FIELDS),visaCtrl:r.visaCtrl||"",dateCtrl:r.dateCtrl||"",tracaOk:!!r.tracaOk,
+    visaTraca:r.visaTraca||"",dateTraca:r.dateTraca||"",ctrlCancellationHistory:[...(r.ctrlCancellationHistory||[])],
+    tracaCancellationHistory:[...(r.tracaCancellationHistory||[])]
+  }}:r)}); };
+  const cancelEdit=id=>onChange({rows:rows.map(r=>r.id===id?restoreEditSnapshot(r):r)});
   return (
     <div style={{maxWidth:1520}}>
       {desoudes.length>0&&(
@@ -1057,7 +1062,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                       <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider">✓</IconBtn>
                       <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
                       <HistoryBtn row={r}/>
-                      <IconBtn onClick={()=>del(r.id)} color={C.border} title="Supprimer">×</IconBtn>
+                      <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={r.editBase?C.red:C.border} title={r.editBase?"Annuler les modifications":"Supprimer"}>×</IconBtn>
                     </ActionGroup>
                   )}
                   {!r.deleted&&r.validated&&editable&&(
