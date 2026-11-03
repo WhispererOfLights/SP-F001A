@@ -1829,19 +1829,22 @@ const ADMIN_VISA_DATE_FIELDS = {
 };
 const adminVisaRowPresentation = (row,section,field,fallback="") => {
   const first=(...values)=>values.map(value=>String(value??"").trim()).find(Boolean)||"";
-  const date=first(...(ADMIN_VISA_DATE_FIELDS[field]||[]).map(key=>row?.[key]));
-  if(!row||typeof row!=="object") return {summary:fallback||"Ligne",details:"",date};
+  const dateFields=ADMIN_VISA_DATE_FIELDS[field]||[];
+  const dateField=dateFields.find(key=>String(row?.[key]??"").trim())||dateFields[0]||"";
+  const date=first(...dateFields.map(key=>row?.[key]));
+  const stamp={date,dateField};
+  if(!row||typeof row!=="object") return {summary:fallback||"Ligne",details:"",...stamp};
   if(section==="rework"){
     const action=ACTION_LABELS?.[row.action1]||row.action1||"Action";
-    return {summary:[action,row.repere&&`Repère ${row.repere}`].filter(Boolean).join(" · "),details:[row.valeur,row.codeERP&&`Article ${row.codeERP}`,row.sn&&`SN ${row.sn}`,row.lot&&`Lot ${row.lot}`].filter(Boolean).join(" · "),date};
+    return {summary:[action,row.repere&&`Repère ${row.repere}`].filter(Boolean).join(" · "),details:[row.valeur,row.codeERP&&`Article ${row.codeERP}`,row.sn&&`SN ${row.sn}`,row.lot&&`Lot ${row.lot}`].filter(Boolean).join(" · "),...stamp};
   }
-  if(section==="consommables") return {summary:first(row.designation,row.type,row.article,"Consommable"),details:[row.lot&&`Lot ${row.lot}`,row.nEchantillon&&`Échantillon ${row.nEchantillon}`,row.qty&&`Qté ${row.qty}`].filter(Boolean).join(" · "),date};
-  if(section==="etuvage") return {summary:["Étuvage",first(row.fourN,row.nInv,row.designation)].filter(Boolean).join(" · "),details:[row.temperature&&`${row.temperature} °C`,row.duree&&`${row.duree} h`].filter(Boolean).join(" · "),date};
-  if(section==="testequip") return {summary:first(row.nInv,row.designation,row.type,"Test équipement"),details:[row.type,row.designation].filter((value,index,list)=>value&&list.indexOf(value)===index).join(" · "),date};
-  if(section==="faits"||section==="openwork") return {summary:[first(row.type,section==="openwork"?"OW":"Fait"),first(row.numero,row.nOW)].filter(Boolean).join(" · "),details:first(row.description,row.designation,row.remarque),date};
-  if(section==="demating") return {summary:first(row.nom,row.connecteur,row.designation,row.type,"Mating / Demating"),details:first(row.action,row.etat,row.cycle),date};
-  if(section==="units") return {summary:row.sn?`SN ${row.sn}`:row.lot?`LOT ${row.lot}`:"SN / Lot",details:row.qteActuelle?`Qté ${row.qteActuelle}`:"",date};
-  return {summary:first(fallback,row.repere,row.numero,row.designation,row.type,"Ligne"),details:"",date};
+  if(section==="consommables") return {summary:first(row.designation,row.type,row.article,"Consommable"),details:[row.lot&&`Lot ${row.lot}`,row.nEchantillon&&`Échantillon ${row.nEchantillon}`,row.qty&&`Qté ${row.qty}`].filter(Boolean).join(" · "),...stamp};
+  if(section==="etuvage") return {summary:["Étuvage",first(row.fourN,row.nInv,row.designation)].filter(Boolean).join(" · "),details:[row.temperature&&`${row.temperature} °C`,row.duree&&`${row.duree} h`].filter(Boolean).join(" · "),...stamp};
+  if(section==="testequip") return {summary:first(row.nInv,row.designation,row.type,"Test équipement"),details:[row.type,row.designation].filter((value,index,list)=>value&&list.indexOf(value)===index).join(" · "),...stamp};
+  if(section==="faits"||section==="openwork") return {summary:[first(row.type,section==="openwork"?"OW":"Fait"),first(row.numero,row.nOW)].filter(Boolean).join(" · "),details:first(row.description,row.designation,row.remarque),...stamp};
+  if(section==="demating") return {summary:first(row.nom,row.connecteur,row.designation,row.type,"Mating / Demating"),details:first(row.action,row.etat,row.cycle),...stamp};
+  if(section==="units") return {summary:row.sn?`SN ${row.sn}`:row.lot?`LOT ${row.lot}`:"SN / Lot",details:row.qteActuelle?`Qté ${row.qteActuelle}`:"",...stamp};
+  return {summary:first(fallback,row.repere,row.numero,row.designation,row.type,"Ligne"),details:"",...stamp};
 };
 const adminVisaEntries = data => {
   const entries=[];
@@ -1866,7 +1869,7 @@ const adminVisaEntries = data => {
   Object.keys(ADMIN_VISA_SECTION_LABELS).forEach(section=>walk(data?.[section],[section],""));
   return entries;
 };
-const applyAdminVisaCorrections = (data,entries,nextVisa,reason,user) => {
+const applyAdminVisaCorrections = (data,entries,nextVisa,reason,user,nextDate="") => {
   const updated=JSON.parse(JSON.stringify(data));
   const targetVisa=String(nextVisa||"").trim().toUpperCase();
   const batchId=entries.length>1?uid():"";
@@ -1876,20 +1879,47 @@ const applyAdminVisaCorrections = (data,entries,nextVisa,reason,user) => {
     if(!parent||typeof parent!=="object") throw new Error("Une ligne à corriger n'existe plus.");
     const field=entry.path.at(-1);
     const previous=String(parent[field]||"").trim().toUpperCase();
-    if(previous===targetVisa) return;
+    const previousDate=entry.dateField?String(parent[entry.dateField]||"").trim():"";
+    const dateChanges=!!nextDate&&!!entry.dateField&&previousDate!==nextDate;
+    if(previous===targetVisa&&!dateChanges) return;
     parent[field]=targetVisa;
+    if(dateChanges) parent[entry.dateField]=nextDate;
     parent.visaCorrections=[...(parent.visaCorrections||[]),{
       id:uid(),...(batchId?{batchId}:{}),field,from:previous,to:targetVisa,
+      ...(dateChanges?{dateField:entry.dateField,fromDate:previousDate,toDate:nextDate}:{}),
       reason:String(reason||"").trim(),dt:nowDT(),admin:user?.trigram||"?",
     }];
   });
   return updated;
 };
-const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
+const applyAdminDateCorrections = (data,entries,nextDate,reason,user) => {
+  const updated=JSON.parse(JSON.stringify(data));
+  const batchId=entries.length>1?uid():"";
+  entries.forEach(entry=>{
+    let parent=updated;
+    entry.path.slice(0,-1).forEach(part=>{parent=parent?.[part];});
+    if(!parent||typeof parent!=="object") throw new Error("Une ligne à corriger n'existe plus.");
+    const dateField=entry.dateField;
+    if(!dateField) throw new Error("Cette trace ne possède pas de champ date corrigeable.");
+    const previous=String(parent[dateField]||"").trim();
+    if(previous===nextDate) return;
+    parent[dateField]=nextDate;
+    parent.visaCorrections=[...(parent.visaCorrections||[]),{
+      id:uid(),...(batchId?{batchId}:{}),type:"date",field:dateField,visaField:entry.field,
+      visa:String(parent[entry.field]||entry.visa||"").trim().toUpperCase(),fromDate:previous,toDate:nextDate,
+      reason:String(reason||"").trim(),dt:nowDT(),admin:user?.trigram||"?",
+    }];
+  });
+  return updated;
+};
+const AdminVisaModal = ({data,user,onClose,onConfirm,onConfirmDate}) => {
   const entries=adminVisaEntries(data);
+  const [mode,setMode]=useState("visa");
   const [query,setQuery]=useState("");
   const [selectedKeys,setSelectedKeys]=useState([]);
   const [nextVisa,setNextVisa]=useState("");
+  const [nextDate,setNextDate]=useState("");
+  const [updateDateWithVisa,setUpdateDateWithVisa]=useState(false);
   const [reason,setReason]=useState("");
   const [busy,setBusy]=useState(false);
   const [accounts,setAccounts]=useState([]);
@@ -1907,28 +1937,38 @@ const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
   const filtered=entries.filter(entry=>`${ADMIN_VISA_SECTION_LABELS[entry.section]} ${ADMIN_VISA_FIELDS[entry.field]} ${entry.visa} ${entry.context} ${entry.summary} ${entry.details} ${entry.date}`.toUpperCase().includes(query.trim().toUpperCase()));
   const keyOf=entry=>JSON.stringify(entry.path);
   const selectedEntries=entries.filter(entry=>selectedKeys.includes(keyOf(entry)));
-  const effectiveEntries=selectedEntries.filter(entry=>entry.visa!==nextVisa);
+  const formattedNextDate=operationDateFromInput(nextDate);
+  const effectiveEntries=mode==="date"
+    ? selectedEntries.filter(entry=>entry.dateField&&entry.date!==formattedNextDate)
+    : selectedEntries.filter(entry=>entry.visa!==nextVisa||(updateDateWithVisa&&entry.dateField&&entry.date!==formattedNextDate));
   const accountByVisa=Object.fromEntries(accounts.map(account=>[String(account.trigram||"").toUpperCase(),account]));
   const toggleEntry=key=>setSelectedKeys(keys=>keys.includes(key)?keys.filter(item=>item!==key):[...keys,key]);
   const submit=async()=>{
     const clean=nextVisa.trim().toUpperCase();
-    if(!effectiveEntries.length||!clean||!reason.trim()) return;
+    if(!effectiveEntries.length||!reason.trim()||(mode==="visa"&&(!clean||(updateDateWithVisa&&!formattedNextDate)))||(mode==="date"&&!formattedNextDate)) return;
     setBusy(true);
-    try{await onConfirm(effectiveEntries,clean,reason.trim());onClose();}
-    catch(error){window.alert(`Visa non corrigé : ${error?.message||error}`);setBusy(false);}
+    try{
+      if(mode==="date") await onConfirmDate(effectiveEntries,formattedNextDate,reason.trim());
+      else await onConfirm(effectiveEntries,clean,reason.trim(),updateDateWithVisa?formattedNextDate:"");
+      onClose();
+    }catch(error){window.alert(`Correction non enregistrée : ${error?.message||error}`);setBusy(false);}
   };
-  return <div role="dialog" aria-modal="true" aria-label="Corriger un visa" style={{position:"fixed",inset:0,zIndex:520,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+  return <div role="dialog" aria-modal="true" aria-label="Corriger un visa ou une date" style={{position:"fixed",inset:0,zIndex:520,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:760,maxWidth:"96vw",maxHeight:"90vh",overflow:"hidden",background:C.surface,border:`1px solid ${C.red}`,borderRadius:8,display:"flex",flexDirection:"column"}}>
       <div style={{padding:"16px 18px 10px",borderBottom:`1px solid ${C.border}`}}>
-        <div style={{fontSize:18,fontWeight:800,color:C.text}}>Corriger un visa</div>
-        <div style={{fontSize:11,color:C.muted,marginTop:4}}>Réservé aux Admin et Manager. L'ancien visa, le nouveau, le motif et l'auteur de la correction sont conservés.</div>
+        <div style={{fontSize:18,fontWeight:800,color:C.text}}>Corriger un visa ou une date</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:4}}>Réservé aux Admin et Manager. Les anciennes valeurs, le motif et l'auteur de la correction sont conservés.</div>
       </div>
       <div style={{padding:14,display:"flex",flexDirection:"column",gap:10,minHeight:0}}>
+        <div style={{display:"flex",gap:6}}>
+          <Btn small color={mode==="visa"?C.blue:C.border} onClick={()=>{setMode("visa");setNextDate("");}}>Corriger le visa</Btn>
+          <Btn small color={mode==="date"?C.yellow:C.border} onClick={()=>{setMode("date");setNextVisa("");setUpdateDateWithVisa(false);}}>Corriger la date</Btn>
+        </div>
         <Input value={query} onChange={setQuery} displayPlaceholder="Rechercher une action, un repère, une valeur, une date ou un visa..."/>
         <div style={{display:"flex",alignItems:"center",gap:8,fontSize:11}}>
           <Btn small color={C.border} disabled={!filtered.length||busy} onClick={()=>setSelectedKeys(keys=>[...new Set([...keys,...filtered.map(keyOf)])])}>Tout sélectionner ({filtered.length})</Btn>
           <Btn small color={C.border} disabled={!selectedKeys.length||busy} onClick={()=>setSelectedKeys([])}>Tout désélectionner</Btn>
-          <strong style={{marginLeft:"auto",color:selectedEntries.length?C.blue:C.muted}}>{selectedEntries.length} visa{selectedEntries.length>1?"s":""} sélectionné{selectedEntries.length>1?"s":""}</strong>
+          <strong style={{marginLeft:"auto",color:selectedEntries.length?C.blue:C.muted}}>{selectedEntries.length} trace{selectedEntries.length>1?"s":""} sélectionnée{selectedEntries.length>1?"s":""}</strong>
         </div>
         <div style={{border:`1px solid ${C.border}`,borderRadius:4,overflowY:"auto",maxHeight:330}}>
           {filtered.length===0?<div style={{padding:18,color:C.muted,textAlign:"center"}}>Aucun visa trouvé</div>:filtered.map(entry=>{
@@ -1949,18 +1989,27 @@ const AdminVisaModal = ({data,user,onClose,onConfirm}) => {
           })}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"260px 1fr",gap:10}}>
-          <select aria-label="Nouveau visa" value={nextVisa} onChange={event=>setNextVisa(event.target.value)} disabled={!selectedEntries.length||busy||!!accountsError}
+          {mode==="visa"?<select aria-label="Nouveau visa" value={nextVisa} onChange={event=>setNextVisa(event.target.value)} disabled={!selectedEntries.length||busy||!!accountsError}
             style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:12}}>
             <option value="">Choisir un utilisateur existant...</option>
             {accounts.map(account=><option key={account.trigram} value={account.trigram}>{account.trigram} — {[account.prenom,account.nom].filter(Boolean).join(" ")||account.role||"Utilisateur"}{account.role?` (${account.role})`:""}</option>)}
-          </select>
+          </select>:<input type="datetime-local" aria-label="Nouvelle date et heure" value={nextDate} max={operationDateInputValue(nowDT())} onChange={event=>setNextDate(event.target.value)} disabled={!selectedEntries.length||busy}
+            style={{width:"100%",background:C.input,border:`1px solid ${C.yellow}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:12,fontFamily:"monospace",boxSizing:"border-box"}}/>}
           <Input value={reason} onChange={setReason} displayPlaceholder="Motif obligatoire de la correction" readOnly={!selectedEntries.length||busy}/>
         </div>
-        {accountsError&&<div role="alert" style={{fontSize:11,color:C.red}}>Impossible de charger les visas existants : {accountsError}</div>}
+        {mode==="visa"&&<div style={{display:"flex",alignItems:"center",gap:8,minHeight:32}}>
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:C.text,cursor:selectedEntries.length?"pointer":"default"}}>
+            <input type="checkbox" checked={updateDateWithVisa} disabled={!selectedEntries.length||busy} onChange={event=>{setUpdateDateWithVisa(event.target.checked);if(!event.target.checked)setNextDate("");}}/>
+            Modifier aussi la date et l'heure
+          </label>
+          {updateDateWithVisa&&<input type="datetime-local" aria-label="Nouvelle date et heure avec le visa" value={nextDate} max={operationDateInputValue(nowDT())} onChange={event=>setNextDate(event.target.value)} disabled={busy}
+            style={{width:220,background:C.input,border:`1px solid ${C.yellow}`,borderRadius:4,color:C.text,padding:"5px 8px",fontSize:12,fontFamily:"monospace"}}/>}
+        </div>}
+        {mode==="visa"&&accountsError&&<div role="alert" style={{fontSize:11,color:C.red}}>Impossible de charger les visas existants : {accountsError}</div>}
       </div>
       <div style={{padding:"10px 14px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
         <Btn onClick={onClose} color={C.border} disabled={busy}>Annuler</Btn>
-        <Btn onClick={submit} color={C.red} disabled={busy||!effectiveEntries.length||!nextVisa.trim()||!reason.trim()}>{busy?"Enregistrement...":`Corriger ${effectiveEntries.length} visa${effectiveEntries.length>1?"s":""}`}</Btn>
+        <Btn onClick={submit} color={C.red} disabled={busy||!effectiveEntries.length||!reason.trim()||(mode==="visa"&&(!nextVisa.trim()||(updateDateWithVisa&&!formattedNextDate)))||(mode==="date"&&!formattedNextDate)}>{busy?"Enregistrement...":`Corriger ${effectiveEntries.length} ${mode==="date"?`date${effectiveEntries.length>1?"s":""}`:`visa${effectiveEntries.length>1?"s":""}`}`}</Btn>
       </div>
     </div>
   </div>;
@@ -2539,10 +2588,18 @@ export default function App(){
     const updated=withUnitMetadata({...ofData,[tab]:tabData});
     setOfData(updated);saveSection(tab,updated);
   };
-  const correctAdminVisa=async (entries,nextVisa,reason)=>{
+  const correctAdminVisa=async (entries,nextVisa,reason,nextDate="")=>{
     if(!isAdminManager(user)) throw new Error("Cette fonction est réservée aux Admin et Manager.");
     const selected=Array.isArray(entries)?entries:[entries];
-    const updated=applyAdminVisaCorrections(ofData,selected,nextVisa,reason,user);
+    const updated=applyAdminVisaCorrections(ofData,selected,nextVisa,reason,user,nextDate);
+    setOfData(updated);
+    const saved=await saveSections([...new Set(selected.map(entry=>entry.section))],updated);
+    if(!saved) throw new Error("Le serveur a refusé la correction.");
+  };
+  const correctAdminDate=async (entries,nextDate,reason)=>{
+    if(!isAdminManager(user)) throw new Error("Cette fonction est réservée aux Admin et Manager.");
+    const selected=Array.isArray(entries)?entries:[entries];
+    const updated=applyAdminDateCorrections(ofData,selected,nextDate,reason,user);
     setOfData(updated);
     const saved=await saveSections([...new Set(selected.map(entry=>entry.section))],updated);
     if(!saved) throw new Error("Le serveur a refusé la correction.");
@@ -3015,7 +3072,7 @@ export default function App(){
       </div>}
 
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={handleSaveProfile}/>}
-      {showAdminVisaEditor&&isAdminManager(user)&&<AdminVisaModal data={ofData} user={user} onClose={()=>setShowAdminVisaEditor(false)} onConfirm={correctAdminVisa}/>}
+      {showAdminVisaEditor&&isAdminManager(user)&&<AdminVisaModal data={ofData} user={user} onClose={()=>setShowAdminVisaEditor(false)} onConfirm={correctAdminVisa} onConfirmDate={correctAdminDate}/>}
       {copyAcrossRow&&<CopyReworkModal row={copyAcrossRow.row} sourceRows={copySourcesForTab(copyAcrossRow.tab,ofData,workHeader,activeUnitChoice)} tab={copyAcrossRow.tab} ofList={ofList} user={user} busy={saving} sourceOfId={currentId} sourceHeader={ofData.header} defaultUnitIds={entryUnit?[entryUnit.id]:[]} onCopy={copyReworkAcross} onClose={()=>setCopyAcrossRow(null)}/>}
       {showPdfOptions&&<PdfOptionsModal
         snRows={snRows}

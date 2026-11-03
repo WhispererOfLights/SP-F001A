@@ -48,7 +48,7 @@ const accounts = [
     await page.getByText('Claire Test · Contrôleur',{exact:true}).waitFor();
     await page.getByText('Soudé · Repère R101',{exact:true}).first().click();
     await page.getByText('Soudé · Repère R101',{exact:true}).nth(1).click();
-    await page.getByText('2 visas sélectionnés',{exact:true}).waitFor();
+    await page.getByText('2 traces sélectionnées',{exact:true}).waitFor();
 
     const select=page.getByRole('combobox',{name:'Nouveau visa'});
     const optionTexts=await select.locator('option').allTextContents();
@@ -58,13 +58,33 @@ const accounts = [
     assert.ok(optionTexts.some(text=>text.startsWith('JGR')),'Un visa actuel peut rester une cible lors d’une correction multiple');
 
     await select.selectOption('MGR');
+    await page.getByText("Modifier aussi la date et l'heure",{exact:true}).click();
+    await page.getByLabel('Nouvelle date et heure avec le visa').fill('2026-11-03T10:00');
     await page.getByPlaceholder('Motif obligatoire de la correction').fill('Correction après vérification');
     await page.getByRole('button',{name:'Corriger 2 visas',exact:true}).click();
     await page.waitForFunction(()=>window.savedVisaDocument?.rework?.rows?.[0]?.createdVisa==='MGR'&&window.savedVisaDocument?.rework?.rows?.[0]?.visaCtrl==='MGR');
     const saved=await page.evaluate(()=>window.savedVisaDocument.rework.rows[0]);
     assert.deepEqual(saved.visaCorrections.map(item=>item.from).sort(),['CTL','JGR']);
     assert.ok(saved.visaCorrections.every(item=>item.to==='MGR'));
+    assert.equal(saved.createdDT,'03/11/2026 10:00');
+    assert.equal(saved.dateCtrl,'03/11/2026 10:00');
+    assert.ok(saved.visaCorrections.every(item=>item.toDate==='03/11/2026 10:00'));
     assert.equal(new Set(saved.visaCorrections.map(item=>item.batchId)).size,1);
+
+    await page.getByRole('button',{name:'Corriger visa',exact:true}).click();
+    await page.getByRole('button',{name:'Corriger la date',exact:true}).click();
+    await page.getByText('Auteur : MGR',{exact:true}).click();
+    await page.getByLabel('Nouvelle date et heure').fill('2026-11-02T07:30');
+    await page.getByPlaceholder('Motif obligatoire de la correction').fill('Correction de la date uniquement');
+    await page.getByRole('button',{name:'Corriger 1 date',exact:true}).click();
+    await page.waitForFunction(()=>window.savedVisaDocument?.rework?.rows?.[0]?.createdDT==='02/11/2026 07:30');
+    const dateCorrected=await page.evaluate(()=>window.savedVisaDocument.rework.rows[0]);
+    assert.equal(dateCorrected.createdVisa,'MGR','La correction de date ne doit pas modifier le visa');
+    const dateHistory=dateCorrected.visaCorrections.at(-1);
+    assert.equal(dateHistory.type,'date');
+    assert.equal(dateHistory.visa,'MGR');
+    assert.equal(dateHistory.fromDate,'03/11/2026 10:00');
+    assert.equal(dateHistory.toDate,'02/11/2026 07:30');
     assert.deepEqual(errors,[]);
     console.log('Admin/Manager visa correction: visual action context and existing active users passed.');
   }finally{await browser.close();}
