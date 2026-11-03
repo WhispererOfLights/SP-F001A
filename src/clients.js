@@ -64,9 +64,14 @@ window.storage = {
   _writes: new Map(),
   async _failure(res) {
     if (res.status === 401) window.dispatchEvent(new CustomEvent("sp-f001-session-expired"));
-    const message = res.status === 409
+    let serverMessage = "";
+    try {
+      const payload = await res.clone().json();
+      serverMessage = String(payload?.error || "").trim();
+    } catch {}
+    const message = serverMessage || (res.status === 409
       ? "Sauvegarde refusée : ces données ont changé ou la page doit être actualisée. Rechargez le dossier avant de recommencer. Votre modification n'est pas enregistrée."
-      : "Le serveur n'a pas enregistré les données. Vérifiez la connexion avant de recommencer.";
+      : "Le serveur n'a pas enregistré les données. Vérifiez la connexion avant de recommencer.");
     window.alert(message);
     throw new Error(message);
   },

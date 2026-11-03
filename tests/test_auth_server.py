@@ -357,6 +357,46 @@ class AuthServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 403)
 
+    def test_operator_can_claim_imported_rework_draft_on_validation(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, document, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+
+        imported = {
+            "id": "imported-1", "createdVisa": "", "createdDT": "",
+            "validated": False, "deleted": False, "repere": "R42",
+            "importOrigin": {
+                "source": "clipboard", "batchId": "batch-1", "rowNumber": 2,
+                "importedBy": "JGR", "importedAt": "03/11/2026 08:00",
+            },
+        }
+        rework = json.loads(json.dumps(document["rework"]))
+        rework["rows"].append(imported)
+        status, payload, headers = self.request(
+            "/api/work-orders/update-sections", "POST",
+            {"key": "of:test", "sections": {"rework": rework}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+
+        rework = json.loads(json.dumps(payload["document"]["rework"]))
+        claimed = next(row for row in rework["rows"] if row["id"] == "imported-1")
+        claimed.update({
+            "createdVisa": "OPR", "createdDT": "03/11/2026 08:15", "validated": True,
+        })
+        status, payload, _ = self.request(
+            "/api/work-orders/update-sections", "POST",
+            {"key": "of:test", "sections": {"rework": rework}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        saved = next(row for row in payload["document"]["rework"]["rows"] if row["id"] == "imported-1")
+        self.assertEqual(saved["createdVisa"], "OPR")
+        self.assertTrue(saved["validated"])
+
     def test_cutover_read_only_keeps_reads_and_rejects_writes(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "jgr", "password": "ancien"}

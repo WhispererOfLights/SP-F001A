@@ -443,6 +443,17 @@ def validate_of_document_update(user: dict, current: dict | None, updated: dict)
                     continue
                 if field in {"restoredVisa", "restoredDate", "restoredDT"} and old_deleted and not new_deleted:
                     continue
+                if (
+                    field == "createdVisa"
+                    and not str(old_row.get("createdVisa") or "").strip()
+                    and isinstance(old_row.get("importOrigin"), dict)
+                    and not old_row.get("validated")
+                    and bool(new_row.get("validated"))
+                    and str(new_row.get("createdVisa") or "").strip().upper() == trigram
+                ):
+                    # An imported work-plan row has no author until an operator
+                    # validates and takes responsibility for the operation.
+                    continue
                 if old_row.get(field) != new_row.get(field):
                     raise PermissionError("Les visas et dates d'audit existants ne sont pas modifiables")
             if not old_deleted and new_deleted and str(new_row.get("deletedVisa") or "").upper() != trigram:
