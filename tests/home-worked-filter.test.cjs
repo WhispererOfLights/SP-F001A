@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const ctx={React:{createElement:()=>({})},ReactDOM:{createRoot:()=>({render:()=>{}})},document:{documentElement:{style:{}},body:{style:{}},getElementById:()=>({})},localStorage:{getItem:()=>null},Blob,TextEncoder};
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.filterHome=homeWorkedFilter;globalThis.activityVisas=activityVisasOf;globalThis.searchHome=homeSearchMatches;globalThis.ovenAlertTiming=homeOvenAlertTiming;',ctx);
+vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.filterHome=homeWorkedFilter;globalThis.activityVisas=activityVisasOf;globalThis.searchHome=homeSearchMatches;globalThis.ovenAlertTiming=homeOvenAlertTiming;globalThis.groupOvens=groupHomeOvenAlerts;',ctx);
 const rows=[{id:'mine'},{id:'other'}];
 assert.equal(ctx.filterHome(rows,[],true,false).rows.length,2);
 assert.equal(ctx.filterHome(rows,[],true,false).active,false);
@@ -27,6 +27,18 @@ assert.equal(ctx.ovenAlertTiming(monday,friday).due,false);
 assert.equal(ctx.ovenAlertTiming(saturday,new Date(2026,9,29,8,0)).due,false);
 const dueTonight=ctx.ovenAlertTiming({count:1,nextAt:new Date(2026,10,4,20,0).getTime(),label:'mer 04/11/26 20:00'},new Date(2026,10,4,9,0));
 assert.deepEqual({...dueTonight},{due:true,anticipated:false,today:true,daysWithoutOven:0,text:'échéance à 20:00',title:"Échéance prévue aujourd'hui le mer 04/11/26 20:00"});
+const grouped=[...ctx.groupOvens([
+  {id:'of-1',unitId:'sn-1',of:'1000',unit:'SN001',nextAt:20,label:'20:00',timing:{today:true}},
+  {id:'of-1',unitId:'sn-2',of:'1000',unit:'SN002',nextAt:18,label:'18:00',timing:{today:true}},
+  {id:'of-2',unitId:'sn-3',of:'2000',unit:'SN003',nextAt:19,label:'19:00',timing:{today:true}},
+])];
+assert.equal(grouped.length,2);
+assert.equal(grouped[0].id,'of-1');
+assert.equal(grouped[0].unitId,'all');
+assert.equal(grouped[0].unitCount,2);
+assert.equal(grouped[0].unit,'SN001 · SN002');
+assert.equal(grouped[0].nextAt,18);
+assert.equal(grouped[0].unitTitle,'SN002 : 18:00\nSN001 : 20:00');
 const overdue=ctx.ovenAlertTiming({count:1,nextAt:new Date(2026,9,29,8,0).getTime(),label:'jeu 29/10/26 08:00'},friday);
 assert.equal(overdue.due,true);
 assert.equal(overdue.anticipated,false);

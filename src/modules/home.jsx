@@ -539,6 +539,28 @@ const homeOvenAlertTiming = (info,referenceDate=new Date()) => {
     title:`Échéance prévue le ${info.label} — étuvage anticipé au vendredi soir`,
   }:{due:false,anticipated:false};
 };
+const groupHomeOvenAlerts = alerts => {
+  const groups=[];
+  (alerts||[]).forEach(alert=>{
+    let group=groups.find(item=>item.id===alert.id);
+    if(!group){
+      group={...alert,key:`${alert.id}:oven`,unitId:alert.unitId,units:[],deadlines:[]};
+      groups.push(group);
+    }
+    if(!group.units.includes(alert.unit)) group.units.push(alert.unit);
+    group.deadlines.push({unit:alert.unit,label:alert.label,nextAt:alert.nextAt});
+    if(alert.nextAt<group.nextAt){
+      Object.assign(group,{label:alert.label,nextAt:alert.nextAt,timing:alert.timing});
+    }
+  });
+  return groups.map(group=>({
+    ...group,
+    unitId:group.units.length>1?"all":group.unitId,
+    unitCount:group.units.length,
+    unit:group.units.join(" · "),
+    unitTitle:group.deadlines.sort((a,b)=>a.nextAt-b.nextAt).map(item=>`${item.unit} : ${item.label}`).join("\n"),
+  })).sort((a,b)=>a.nextAt-b.nextAt);
+};
 const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
   const listStyle={display:"flex",flexDirection:"column",gap:3,maxHeight:126,overflowY:"auto"};
   const itemStyle={display:"grid",gridTemplateColumns:"minmax(70px,.55fr) minmax(90px,.7fr) minmax(150px,1fr)",gap:8,alignItems:"center",
@@ -564,7 +586,7 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
       </div>
       <div style={listStyle}>{loading?<span style={{color:C.muted,fontSize:11,padding:7}}>Chargement…</span>:ovens.length?ovens.map(alert=><button type="button" key={alert.key}
         aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={ovenItemStyle}>
-        <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span style={{fontFamily:"monospace",color:C.blue}}>{alert.unit}</span>
+        <strong style={{fontFamily:"monospace"}}>OF {alert.of}</strong><span title={alert.unitTitle||alert.unit} style={{fontFamily:"monospace",color:C.blue,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{alert.unitCount>1?<><strong>{alert.unitCount} SN / LOT</strong> · {alert.unit}</>:alert.unit}</span>
         <span title={[alert.article,alert.description].filter(Boolean).join(" - ")} style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><strong style={{fontFamily:"monospace"}}>{alert.article||"—"}</strong>{alert.description?` — ${alert.description}`:""}</span>
         <span title={alert.timing.title}>{alert.timing.anticipated
           ? <><strong>Vendredi soir</strong> · {alert.timing.text}</>
@@ -692,11 +714,11 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     const status=pendingHomePolymerization(dataById[row.id],consommables,row._homeUnitId,homeNow);
     return status?{key:`${homeRowKey(row)}:poly`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),readyAt:status.readyAt}:null;
   }).filter(Boolean).sort((a,b)=>a.readyAt-b.readyAt);
-  const ovenAlerts=operationalRows.map(row=>{
+  const ovenAlerts=groupHomeOvenAlerts(operationalRows.map(row=>{
     const info=nextEtuvageForRow(row);
     const timing=homeOvenAlertTiming(info,homeNow);
     return timing.due?{key:`${homeRowKey(row)}:oven`,id:row.id,unitId:row._homeUnitId,of:row.of,unit:homeUnitName(row),article:row.codeArticle||row.articleNo||"",description:row.description||"",label:info.label,nextAt:info.nextAt,timing}:null;
-  }).filter(Boolean).sort((a,b)=>a.nextAt-b.nextAt);
+  }).filter(Boolean));
   const allHomeRows=columnSort.key?[...baseHomeRows].sort((a,b)=>{
     const av=homeSortValue(a,columnSort.key),bv=homeSortValue(b,columnSort.key);
     const aBlank=av===null||av===undefined||String(av).trim()==="",bBlank=bv===null||bv===undefined||String(bv).trim()==="";
@@ -1173,10 +1195,13 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     </TD>
                     <TD center onClick={e=>e.stopPropagation()}>{(()=>{
                       try{
-                        const nei=nextEtuvageForRow(collapsed?{...o,_homeUnitId:null}:o);
+                        const groupedAlert=collapsed?ovenAlerts.find(alert=>alert.id===o.id):null;
+                        const nei=groupedAlert?{count:1,label:groupedAlert.label,nextAt:groupedAlert.nextAt}:nextEtuvageForRow(o);
                         if(!nei.count) return <span style={{color:C.muted,fontSize:10}}>—</span>;
-                        return <span style={{fontFamily:"monospace",fontSize:10,color:nei.overdue?C.red:C.blue,fontWeight:nei.overdue?700:400}}>
-                          {nei.overdue?"🔴 ":"🕐 "}{nei.label}
+                        const timing=groupedAlert?.timing||homeOvenAlertTiming(nei,homeNow);
+                        const warning=!!timing.due;
+                        return <span title={warning?`Alerte étuvage : ${timing.title}`:undefined} style={{fontFamily:"monospace",fontSize:10,color:warning?C.red:C.blue,fontWeight:warning?800:400}}>
+                          {warning?"🔥 ":"🕐 "}{nei.label}
                         </span>;
                       }catch(e){return <span style={{color:C.muted,fontSize:10}}>—</span>;}
                     })()}</TD>

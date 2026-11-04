@@ -21169,6 +21169,50 @@ var homeOvenAlertTiming = function homeOvenAlertTiming(info) {
     anticipated: false
   };
 };
+var groupHomeOvenAlerts = function groupHomeOvenAlerts(alerts) {
+  var groups = [];
+  (alerts || []).forEach(function (alert) {
+    var group = groups.find(function (item) {
+      return item.id === alert.id;
+    });
+    if (!group) {
+      group = _objectSpread(_objectSpread({}, alert), {}, {
+        key: "".concat(alert.id, ":oven"),
+        unitId: alert.unitId,
+        units: [],
+        deadlines: []
+      });
+      groups.push(group);
+    }
+    if (!group.units.includes(alert.unit)) group.units.push(alert.unit);
+    group.deadlines.push({
+      unit: alert.unit,
+      label: alert.label,
+      nextAt: alert.nextAt
+    });
+    if (alert.nextAt < group.nextAt) {
+      Object.assign(group, {
+        label: alert.label,
+        nextAt: alert.nextAt,
+        timing: alert.timing
+      });
+    }
+  });
+  return groups.map(function (group) {
+    return _objectSpread(_objectSpread({}, group), {}, {
+      unitId: group.units.length > 1 ? "all" : group.unitId,
+      unitCount: group.units.length,
+      unit: group.units.join(" · "),
+      unitTitle: group.deadlines.sort(function (a, b) {
+        return a.nextAt - b.nextAt;
+      }).map(function (item) {
+        return "".concat(item.unit, " : ").concat(item.label);
+      }).join("\n")
+    });
+  }).sort(function (a, b) {
+    return a.nextAt - b.nextAt;
+  });
+};
 var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
   var polymerizations = _ref128.polymerizations,
     ovens = _ref128.ovens,
@@ -21308,11 +21352,15 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
         fontFamily: "monospace"
       }
     }, "OF ", alert.of), /*#__PURE__*/React.createElement("span", {
+      title: alert.unitTitle || alert.unit,
       style: {
         fontFamily: "monospace",
-        color: C.blue
+        color: C.blue,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
       }
-    }, alert.unit), /*#__PURE__*/React.createElement("span", {
+    }, alert.unitCount > 1 ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, alert.unitCount, " SN / LOT"), " \xB7 ", alert.unit) : alert.unit), /*#__PURE__*/React.createElement("span", {
       title: [alert.article, alert.description].filter(Boolean).join(" - "),
       style: {
         overflow: "hidden",
@@ -21732,7 +21780,7 @@ var OFSelector = function OFSelector(_ref129) {
   }).filter(Boolean).sort(function (a, b) {
     return a.readyAt - b.readyAt;
   });
-  var ovenAlerts = operationalRows.map(function (row) {
+  var ovenAlerts = groupHomeOvenAlerts(operationalRows.map(function (row) {
     var info = nextEtuvageForRow(row);
     var timing = homeOvenAlertTiming(info, homeNow);
     return timing.due ? {
@@ -21747,9 +21795,7 @@ var OFSelector = function OFSelector(_ref129) {
       nextAt: info.nextAt,
       timing: timing
     } : null;
-  }).filter(Boolean).sort(function (a, b) {
-    return a.nextAt - b.nextAt;
-  });
+  }).filter(Boolean));
   var allHomeRows = columnSort.key ? _toConsumableArray(baseHomeRows).sort(function (a, b) {
     var av = homeSortValue(a, columnSort.key),
       bv = homeSortValue(b, columnSort.key);
@@ -23390,23 +23436,31 @@ var OFSelector = function OFSelector(_ref129) {
       }
     }, function () {
       try {
-        var nei = nextEtuvageForRow(collapsed ? _objectSpread(_objectSpread({}, o), {}, {
-          _homeUnitId: null
-        }) : o);
+        var groupedAlert = collapsed ? ovenAlerts.find(function (alert) {
+          return alert.id === o.id;
+        }) : null;
+        var nei = groupedAlert ? {
+          count: 1,
+          label: groupedAlert.label,
+          nextAt: groupedAlert.nextAt
+        } : nextEtuvageForRow(o);
         if (!nei.count) return /*#__PURE__*/React.createElement("span", {
           style: {
             color: C.muted,
             fontSize: 10
           }
         }, "\u2014");
+        var timing = (groupedAlert === null || groupedAlert === void 0 ? void 0 : groupedAlert.timing) || homeOvenAlertTiming(nei, homeNow);
+        var warning = !!timing.due;
         return /*#__PURE__*/React.createElement("span", {
+          title: warning ? "Alerte \xE9tuvage : ".concat(timing.title) : undefined,
           style: {
             fontFamily: "monospace",
             fontSize: 10,
-            color: nei.overdue ? C.red : C.blue,
-            fontWeight: nei.overdue ? 700 : 400
+            color: warning ? C.red : C.blue,
+            fontWeight: warning ? 800 : 400
           }
-        }, nei.overdue ? "🔴 " : "🕐 ", nei.label);
+        }, warning ? "🔥 " : "🕐 ", nei.label);
       } catch (e) {
         return /*#__PURE__*/React.createElement("span", {
           style: {
