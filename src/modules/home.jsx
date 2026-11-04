@@ -506,6 +506,19 @@ const homeOvenAlertTiming = (info,referenceDate=new Date()) => {
   if(!info?.count||!Number.isFinite(info?.nextAt)) return {due:false,anticipated:false};
   const now=referenceDate instanceof Date?referenceDate:new Date(referenceDate);
   const deadline=new Date(info.nextAt);
+  const todayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  const tomorrowStart=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  if(deadline>=todayStart&&deadline<tomorrowStart){
+    const time=`${String(deadline.getHours()).padStart(2,"0")}:${String(deadline.getMinutes()).padStart(2,"0")}`;
+    return {
+      due:true,
+      anticipated:false,
+      today:true,
+      daysWithoutOven:0,
+      text:`échéance à ${time}`,
+      title:`Échéance prévue aujourd'hui le ${info.label}`,
+    };
+  }
   const overdue=deadline.getTime()<now.getTime();
   if(overdue) return {
     due:true,
@@ -555,6 +568,8 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
         <span title={[alert.article,alert.description].filter(Boolean).join(" - ")} style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><strong style={{fontFamily:"monospace"}}>{alert.article||"—"}</strong>{alert.description?` — ${alert.description}`:""}</span>
         <span title={alert.timing.title}>{alert.timing.anticipated
           ? <><strong>Vendredi soir</strong> · {alert.timing.text}</>
+          : alert.timing.today
+          ? <><strong>Aujourd'hui</strong> · {alert.timing.text}</>
           : <><strong>{alert.timing.daysWithoutOven} jour{alert.timing.daysWithoutOven>1?"s":""}</strong> {alert.timing.text}</>}</span>
       </button>):empty}</div>
     </div>

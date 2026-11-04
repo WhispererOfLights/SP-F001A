@@ -21130,6 +21130,19 @@ var homeOvenAlertTiming = function homeOvenAlertTiming(info) {
   };
   var now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   var deadline = new Date(info.nextAt);
+  var todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  var tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (deadline >= todayStart && deadline < tomorrowStart) {
+    var time = "".concat(String(deadline.getHours()).padStart(2, "0"), ":").concat(String(deadline.getMinutes()).padStart(2, "0"));
+    return {
+      due: true,
+      anticipated: false,
+      today: true,
+      daysWithoutOven: 0,
+      text: "\xE9ch\xE9ance \xE0 ".concat(time),
+      title: "\xC9ch\xE9ance pr\xE9vue aujourd'hui le ".concat(info.label)
+    };
+  }
   var overdue = deadline.getTime() < now.getTime();
   if (overdue) return {
     due: true,
@@ -21312,7 +21325,7 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
       }
     }, alert.article || "—"), alert.description ? " \u2014 ".concat(alert.description) : ""), /*#__PURE__*/React.createElement("span", {
       title: alert.timing.title
-    }, alert.timing.anticipated ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Vendredi soir"), " \xB7 ", alert.timing.text) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, alert.timing.daysWithoutOven, " jour", alert.timing.daysWithoutOven > 1 ? "s" : ""), " ", alert.timing.text)));
+    }, alert.timing.anticipated ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Vendredi soir"), " \xB7 ", alert.timing.text) : alert.timing.today ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Aujourd'hui"), " \xB7 ", alert.timing.text) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, alert.timing.daysWithoutOven, " jour", alert.timing.daysWithoutOven > 1 ? "s" : ""), " ", alert.timing.text)));
   }) : empty)));
 };
 var OFSelector = function OFSelector(_ref129) {

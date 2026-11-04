@@ -25,6 +25,8 @@ assert.deepEqual({...ctx.ovenAlertTiming(saturday,friday)},{due:true,anticipated
 assert.equal(ctx.ovenAlertTiming(sunday,friday).anticipated,true);
 assert.equal(ctx.ovenAlertTiming(monday,friday).due,false);
 assert.equal(ctx.ovenAlertTiming(saturday,new Date(2026,9,29,8,0)).due,false);
+const dueTonight=ctx.ovenAlertTiming({count:1,nextAt:new Date(2026,10,4,20,0).getTime(),label:'mer 04/11/26 20:00'},new Date(2026,10,4,9,0));
+assert.deepEqual({...dueTonight},{due:true,anticipated:false,today:true,daysWithoutOven:0,text:'échéance à 20:00',title:"Échéance prévue aujourd'hui le mer 04/11/26 20:00"});
 const overdue=ctx.ovenAlertTiming({count:1,nextAt:new Date(2026,9,29,8,0).getTime(),label:'jeu 29/10/26 08:00'},friday);
 assert.equal(overdue.due,true);
 assert.equal(overdue.anticipated,false);
