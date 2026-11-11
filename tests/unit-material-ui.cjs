@@ -216,7 +216,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     const ipBody=await homeMailDialog.getByLabel('Message',{exact:true}).inputValue();
     assert.ok(ipBody.includes('100TEST | 250001163 | Article de test | SN : SN1 | Faits : F-001'));
     assert.ok(ipBody.includes('100TEST | 250001163 | Article de test | SN : SN2'));
-    assert.ok(ipBody.includes('OF 100TEST : http://sp-f001-test.local/?dossier=test-of&piece=all&of=100TEST&onglet=rework'));
+    assert.ok(ipBody.includes('OF 100TEST : file://neu.orolia/Data/ORO/Dpts/OP_SPACE/Photos_OF/100TEST'));
+    assert.ok(!ipBody.includes('sp-f001-test.local'));
     assert.ok(ipBody.includes("L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite."));
     assert.ok(ipBody.includes("L'horaire pourra être décalé selon les disponibilités du Product Assurance."));
     assert.ok(ipBody.endsWith('Merci,\nJulien'));
@@ -230,7 +231,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     const meetingContent=fs.readFileSync(meetingPath,'utf8');
     assert.ok(meetingContent.includes('LOCATION:#512 P17'));
     assert.ok(meetingContent.includes('X-MICROSOFT-CDO-LOCATION:#512 P17'));
-    assert.ok(meetingContent.includes('URL:http://sp-f001-test.local/?dossier=test-of&piece=all&of=100TEST&onglet=rework'));
+    assert.ok(meetingContent.includes('URL:file://neu.orolia/Data/ORO/Dpts/OP_SPACE/Photos_OF/100TEST'));
     assert.ok(meetingContent.includes('ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:pa@example.com'));
     for(const email of ['projet@example.com','manager@example.com','operateur@example.com']) assert.ok(meetingContent.includes(`ATTENDEE;ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:${email}`));
     assert.ok(!meetingContent.includes('ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:projet@example.com'));

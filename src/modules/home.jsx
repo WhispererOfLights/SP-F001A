@@ -289,6 +289,12 @@ const folderLinksForMail = (groups,tab="rework") => [
   ...groups.map(group=>`OF ${group.of} : ${folderLinkForMailGroup(group,tab)}`),
   ""
 ];
+const photoFolderUrlForOf = of => `file://neu.orolia/Data/ORO/Dpts/OP_SPACE/Photos_OF/${encodeURIComponent(String(of||"").trim())}`;
+const photoFolderLinksForMail = groups => [
+  "Accès aux dossiers photos :",
+  ...groups.map(group=>`OF ${group.of} : ${photoFolderUrlForOf(group.of)}`),
+  ""
+];
 const buildClosureRequest = ({rows,user}) => {
   const groups=groupHomeMailRows(rows);
   const otps=[...new Set(groups.map(group=>group.otp).filter(Boolean))];
@@ -311,11 +317,11 @@ const buildIpInvitation = ({rows,user,ipName}) => {
   if(finishedUnits.length) subjectParts.push(`SN produit fini ${finishedUnits.join(", ")}`);
   return {
     subject:subjectParts.join(" | "),
-    body:["Bonjour,","",intro,"",...closureMailTable(groups),...folderLinksForMail(groups),
+    body:["Bonjour,","",intro,"",...closureMailTable(groups),...photoFolderLinksForMail(groups),
       "L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite.","",
       "L'horaire pourra être décalé selon les disponibilités du Product Assurance.","",
       "Merci,",signature].join("\n"),
-    url:groups.length===1?folderLinkForMailGroup(groups[0]):"",
+    url:groups.length===1?photoFolderUrlForOf(groups[0].of):"",
   };
 };
 const defaultMeetingSlot = () => {

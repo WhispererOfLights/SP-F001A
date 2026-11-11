@@ -20405,6 +20405,14 @@ var folderLinksForMail = function folderLinksForMail(groups) {
     return "OF ".concat(group.of, " : ").concat(folderLinkForMailGroup(group, tab));
   })), [""]);
 };
+var photoFolderUrlForOf = function photoFolderUrlForOf(of) {
+  return "file://neu.orolia/Data/ORO/Dpts/OP_SPACE/Photos_OF/".concat(encodeURIComponent(String(of || "").trim()));
+};
+var photoFolderLinksForMail = function photoFolderLinksForMail(groups) {
+  return ["Accès aux dossiers photos :"].concat(_toConsumableArray(groups.map(function (group) {
+    return "OF ".concat(group.of, " : ").concat(photoFolderUrlForOf(group.of));
+  })), [""]);
+};
 var buildClosureRequest = function buildClosureRequest(_ref123) {
   var rows = _ref123.rows,
     user = _ref123.user;
@@ -20442,8 +20450,8 @@ var buildIpInvitation = function buildIpInvitation(_ref124) {
   if (finishedUnits.length) subjectParts.push("SN produit fini ".concat(finishedUnits.join(", ")));
   return {
     subject: subjectParts.join(" | "),
-    body: ["Bonjour,", "", intro, ""].concat(_toConsumableArray(closureMailTable(groups)), _toConsumableArray(folderLinksForMail(groups)), ["L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite.", "", "L'horaire pourra être décalé selon les disponibilités du Product Assurance.", "", "Merci,", signature]).join("\n"),
-    url: groups.length === 1 ? folderLinkForMailGroup(groups[0]) : ""
+    body: ["Bonjour,", "", intro, ""].concat(_toConsumableArray(closureMailTable(groups)), _toConsumableArray(photoFolderLinksForMail(groups)), ["L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite.", "", "L'horaire pourra être décalé selon les disponibilités du Product Assurance.", "", "Merci,", signature]).join("\n"),
+    url: groups.length === 1 ? photoFolderUrlForOf(groups[0].of) : ""
   };
 };
 var defaultMeetingSlot = function defaultMeetingSlot() {
