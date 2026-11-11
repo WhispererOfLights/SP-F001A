@@ -12,7 +12,7 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/App.runtime.js'), 'utf8') +
-  ';globalThis.check=computeReworkWarnings;globalThis.pdf=buildDirectReportPdf;globalThis.canCtrl=canActionReceiveCtrl;globalThis.missingCtrl=computeMissingReworkControls;globalThis.required=reworkRequiredFields;globalThis.missing=checkRequired;', context);
+  ';globalThis.check=computeReworkWarnings;globalThis.openD=computeOpenDesoudes;globalThis.pdf=buildDirectReportPdf;globalThis.canCtrl=canActionReceiveCtrl;globalThis.missingCtrl=computeMissingReworkControls;globalThis.required=reworkRequiredFields;globalThis.missing=checkRequired;', context);
 
 const units = [{id: 'u1', sn: 'SN1'}, {id: 'u2', sn: 'SN2'}];
 const row = (id, action1, valeur = '10K', extra = {}) => ({
@@ -37,6 +37,12 @@ assert.deepEqual(Array.from(context.missingCtrl([
 
 assert.equal(check([row(1, 'D'), row(2, 'S')]).mismatch.length, 0);
 assert.equal(check([row(1, 'D'), row(2, 'S', '20K')]).mismatch.length, 2);
+assert.equal(check([row(1, 'D'), row(2, 'S', '20K', {fiche: 'ISS-0010042'})]).mismatch.length, 0);
+assert.equal(check([row(1, 'D'), row(2, 'S', '20K', {fiche: 'R4-NC1119'})]).mismatch.length, 0);
+assert.equal(check([row(1, 'D'), row(2, 'S', '20K', {fiche: 'DM1234'})]).mismatch.length, 0);
+assert.equal(check([row(1, 'D'), row(2, 'S', '20K', {fiche: 'DOC-0013405_Rev.1'})]).mismatch.length, 2);
+assert.equal(check([row(1, 'D'), row(2, 'S', '20K', {changeReason: 'NC', changeFactNumber: 'NC42'})]).mismatch.length, 0);
+assert.equal(check([row(1, 'D'), row(2, 'S', '20K')]).substitutions.length, 2);
 assert.equal(check([row(1, 'D'), row(2, 'S', '20K', {isAdjust: true})]).mismatch.length, 0);
 assert.equal(check([row(1, 'D', '10K', {isAdjust: true}), row(2, 'S', '20K')]).mismatch.length, 0);
 for (const action of ['D', 'S', 'P']) {
@@ -67,6 +73,8 @@ assert.equal(check([row(1, 'P','10K'),row(2,'S','20K')]).mismatch.length,2);
 assert.equal(check([row(1, 'P','10K'),row(2,'S','20K',{isAdjust:true})]).mismatch.length,0);
 assert.equal(check([row(1, 'S'),row(2,'O','',{remarques:'Contrôle visuel OK'}),row(3,'D')]).sequence.length,0);
 assert.equal(check([row(1, 'S'),row(2,'O','',{remarques:'Contrôle visuel OK'}),row(3,'D')]).mismatch.length,0);
+assert.equal(context.openD([row(2, 'S', '20K'), row(1, 'D')]).length,0);
+assert.equal(context.openD([row(1, 'D')]).length,1);
 
 (async () => {
   const longObservation=`${'Explication detaillee '.repeat(70)}FIN OBSERVATION`;

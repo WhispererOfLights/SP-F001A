@@ -8,6 +8,9 @@ const REWORK_EDIT_FIELDS = [
   {key:"repere",label:"Repère TOPO"},
   {key:"action1",label:"Action"},
   {key:"isAdjust",label:"Adjust"},
+  {key:"changeReason",label:"Motif de substitution"},
+  {key:"changeFactId",label:"Fait technique lié"},
+  {key:"changeFactNumber",label:"N° du fait lié"},
   {key:"qty",label:"QTÉ"},
   {key:"codeERP",label:"Code article"},
   {key:"valeur",label:"Valeur"},
@@ -317,7 +320,7 @@ const copyReworkToUnit = (row,user,unit,includeChecks=false,copyMode="new",copyO
   if(!canWriteData(user)) throw new Error("Accès en écriture requis");
   if(includeChecks&&!sameOperation&&(!canControlRework(user)||!canTraceability(user))) throw new Error("Droits CTRL et TRA requis");
   if(includeChecks&&!sameOperation&&row.visaCtrl===user.trigram&&!isAdminManager(user)) throw new Error("Autocontrôle interdit");
-  const fields=["repere","qty","action1","codeERP","valeur","lot","dc","sn","fiche","etape","isAdjust","remarques"];
+  const fields=["repere","qty","action1","codeERP","valeur","lot","dc","sn","fiche","etape","isAdjust","changeReason","changeFactId","changeFactNumber","remarques"];
   const copied=duplicateRow({},user,{
     ...Object.fromEntries(fields.map(key=>[key,row[key]??(key==="isAdjust"?false:"")])),
     snScope:"custom",snIds:[unit.id],unitId:unit.id,snExcludeIds:[],comments:[],
@@ -596,6 +599,44 @@ const ReworkImportModal = ({header,existingRows=[],onImport,onClose}) => {
   </div>;
 };
 
+const ReworkSubstitutionModal = ({row,substitution,facts=[],onChooseFact,onChooseAdjust,onKeepWarning,onClose}) => {
+  const previous=substitution?.previous;
+  const current=substitution?.current||row;
+  return <div role="dialog" aria-modal="true" aria-labelledby="rework-substitution-title"
+    style={{position:"fixed",inset:0,zIndex:420,background:"#000000b8",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
+    onClick={event=>{if(event.target===event.currentTarget) onClose();}}>
+    <div style={{width:"100%",maxWidth:720,maxHeight:"86vh",overflow:"hidden",display:"flex",flexDirection:"column",background:C.surface,border:`1px solid ${C.yellow}`,borderRadius:8}}>
+      <div style={{padding:"16px 18px",borderBottom:`1px solid ${C.border}`}}>
+        <h2 id="rework-substitution-title" style={{margin:0,fontSize:17,color:C.text}}>Justifier le changement de valeur</h2>
+        <div style={{marginTop:6,fontSize:12,color:C.muted}}>
+          Repère <strong style={{color:C.text}}>{row?.repere||"?"}</strong> : <strong style={{color:C.red}}>{previous?.valeur||"?"}</strong> → <strong style={{color:C.green}}>{current?.valeur||"?"}</strong>
+        </div>
+      </div>
+      <div style={{padding:18,overflow:"auto"}}>
+        <div style={{fontSize:12,fontWeight:800,color:C.text,marginBottom:8}}>Faits techniques existants pour ce SN</div>
+        {facts.length?<div style={{display:"grid",gap:7}}>{facts.map(fact=>{
+          const type=String(fact.type||"").toUpperCase();
+          const number=fact.numero||"Sans numéro";
+          const description=fact.commentaires||fact.description||"";
+          return <button key={fact.id} type="button" onClick={()=>onChooseFact(fact)}
+            style={{display:"grid",gridTemplateColumns:"58px minmax(110px,auto) 1fr",gap:10,alignItems:"center",textAlign:"left",padding:"9px 10px",background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:5,cursor:"pointer"}}>
+            <Badge label={type} color={getFaitColor(type,DEFAULT_FAIT_TYPES)}/>
+            <strong>{number}</strong>
+            <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:C.muted}} title={description}>{description||"Aucune description"}</span>
+          </button>;
+        })}</div>:<div style={{padding:"10px 12px",background:C.input,border:`1px solid ${C.border}`,borderRadius:5,fontSize:12,color:C.muted}}>Aucun fait NC, DM ou ISS n’est enregistré pour ce SN.</div>}
+      </div>
+      <div style={{padding:"12px 18px",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+        <button type="button" onClick={onChooseAdjust} style={{padding:"7px 11px",border:0,borderRadius:4,background:C.blue,color:"#fff",fontWeight:800,cursor:"pointer"}}>Ajustement (ADJ)</button>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+          <button type="button" onClick={onKeepWarning} style={{padding:"7px 11px",border:`1px solid ${C.red}`,borderRadius:4,background:"transparent",color:C.red,fontWeight:800,cursor:"pointer"}}>Valider sans justification</button>
+          <button type="button" onClick={onClose} style={{padding:"7px 11px",border:0,borderRadius:4,background:C.border,color:C.text,fontWeight:800,cursor:"pointer"}}>Annuler</button>
+        </div>
+      </div>
+    </div>
+  </div>;
+};
+
 const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross,contextData}) => {
   const rows = data.rows||[];
   const [requestIds,setRequestIds]=useState([]);
@@ -617,7 +658,8 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
   };
   const [showMaterialDraft,setShowMaterialDraft]=useState(false);
   const [showImport,setShowImport]=useState(false);
-  useEffect(()=>{setRequestIds([]);setShowMaterialDraft(false);setShowImport(false);},[header?.of,header?._defaultSnIds?.join("|")]);
+  const [substitutionTarget,setSubstitutionTarget]=useState(null);
+  useEffect(()=>{setRequestIds([]);setShowMaterialDraft(false);setShowImport(false);setSubstitutionTarget(null);},[header?.of,header?._defaultSnIds?.join("|")]);
   const canEdit = row => canEditLine(user,row);
   const canCommentRow = () => perms.canComment!==false;
   const snRows = snRowsFromHeader(header);
@@ -828,6 +870,31 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
   };
   const setCtrlDate=(id,v)=>{ const r=rows.find(x=>x.id===id); if(canCtrlRow(r)) onChange({rows:scopedRowsPatch(rows,id,header,{dateCtrl:v})}); };
 
+  const factsForReworkRow=row=>{
+    const types=new Set(["NC","DM","ISS"]);
+    const rowUnits=snRows.filter(unit=>rowMatchesSn(row,unit,snRows));
+    return (contextData?.faits?.rows||[]).filter(fact=>{
+      if(fact.deleted||!types.has(String(fact.type||"").toUpperCase())) return false;
+      return !snRows.length||rowUnits.some(unit=>rowMatchesSn(fact,unit,snRows));
+    }).slice().sort((a,b)=>{
+      const closed=Number(!!a.closedDate)-Number(!!b.closedDate);
+      return closed||reworkActivityStamp(b).localeCompare(reworkActivityStamp(a))||String(a.numero||"").localeCompare(String(b.numero||""),undefined,{numeric:true});
+    });
+  };
+  const finalizeRow=(id,extra={})=>onChange({rows:scopedRowsPatch(rows,id,header,x=>{
+    const patched=importAwarePatch(x,extra);
+    const finalized=withEditHistory({...x,...patched},user,REWORK_EDIT_FIELDS);
+    return x.importOrigin&&!String(x.createdVisa||"").trim()
+      ? {...finalized,createdVisa:user?.trigram||"",createdDT:x.createdDT||nowDT()}
+      : finalized;
+  })});
+  const finishSubstitution=(extra={})=>{
+    const id=substitutionTarget?.rowId;
+    if(!id) return;
+    setSubstitutionTarget(null);
+    finalizeRow(id,extra);
+  };
+
   const validateRow=id=>{
     const r=rows.find(x=>x.id===id);
     if(!canEdit(r)) return;
@@ -845,12 +912,12 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         refuse(sequence.map(w=>`${w.snLabel} - ${w.repere} : ${w.previous.action1} → ${w.row.action1} interdit`).join(" ; "));
         return;
       }
-      onChange({rows:scopedRowsPatch(rows,id,header,x=>{
-        const finalized=withEditHistory(x,user,REWORK_EDIT_FIELDS);
-        return x.importOrigin&&!String(x.createdVisa||"").trim()
-          ? {...finalized,createdVisa:user?.trigram||"",createdDT:x.createdDT||nowDT()}
-          : finalized;
-      })});
+      const substitution=checks.substitutions.find(item=>item.current.id===id&&!item.justified);
+      if(substitution){
+        setSubstitutionTarget({rowId:id,substitution});
+        return;
+      }
+      finalizeRow(id);
     }
   };
   const unlockRow=id=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:rows.map(r=>r.id===id?{...r,validated:false,_scopeEditConfirmed:false,editBase:{
@@ -1029,10 +1096,14 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 <TD><CopyCell value={r.sn} title="Copier SN">
                   <Input entryField="sn" value={isObservation?"":r.sn} onChange={v=>upd(r.id,"sn",v)} small readOnly={locked||isObservation} placeholder={isObservation?"N/A":""} style={{width:"100%",...((locked||isObservation)?LOCKED_INPUT_STYLE:{})}}/>
                 </CopyCell></TD>
-                <TD><Input entryField="fiche" value={r.fiche} onChange={v=>upd(r.id,"fiche",v.toUpperCase())} small required readOnly={locked}
-                  title="Fiche suiveuse / FT / NC / DM (ex : DOC-0013405_Rev.1)"
-                  displayPlaceholder="Ex. DOC-0013405_Rev.1"
-                  style={{fontFamily:"monospace",width:"100%",textTransform:"uppercase",...(locked?LOCKED_INPUT_STYLE:{})}}/></TD>
+                <TD><div style={{display:"flex",alignItems:"center",gap:3,minWidth:0}}>
+                  <div style={{flex:1,minWidth:0}}><Input entryField="fiche" value={r.fiche} onChange={v=>upd(r.id,"fiche",v.toUpperCase())} small required readOnly={locked}
+                    title="Fiche suiveuse / FT / NC / DM (ex : DOC-0013405_Rev.1)"
+                    displayPlaceholder="Ex. DOC-0013405_Rev.1"
+                    style={{fontFamily:"monospace",width:"100%",textTransform:"uppercase",...(locked?LOCKED_INPUT_STYLE:{})}}/></div>
+                  {r.changeReason&&<span title={r.changeReason==="ADJ"?"Substitution justifiée par un ajustement":`Substitution justifiée par ${r.changeReason} ${r.changeFactNumber||""}`}
+                    style={{flex:"0 0 auto",padding:"2px 4px",borderRadius:3,border:`1px solid ${r.changeReason==="ADJ"?C.blue:C.green}`,color:r.changeReason==="ADJ"?C.blue:C.green,fontSize:8,fontWeight:900,lineHeight:1.2}}>{r.changeReason}</span>}
+                </div></TD>
                 <TD><Input entryField="etape" value={r.etape||""} onChange={v=>upd(r.id,"etape",v)} small required readOnly={locked}
                   title="OP (ex: 10, 20, 30...)"
                   placeholder="Et."
@@ -1124,6 +1195,14 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       </div>
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>✦ Visa Opér. pré-rempli hors import · ✓ Valider pour verrouiller · × Annuler sur ligne validée = barre et conserve la traçabilité</div>
       {showImport&&perms.canWrite&&<ReworkImportModal header={header} existingRows={rows} onImport={importDrafts} onClose={()=>setShowImport(false)}/>}
+      {substitutionTarget&&<ReworkSubstitutionModal
+        row={rows.find(row=>row.id===substitutionTarget.rowId)}
+        substitution={substitutionTarget.substitution}
+        facts={factsForReworkRow(rows.find(row=>row.id===substitutionTarget.rowId))}
+        onChooseFact={fact=>finishSubstitution({changeReason:String(fact.type||"").toUpperCase(),changeFactId:fact.id,changeFactNumber:fact.numero||""})}
+        onChooseAdjust={()=>finishSubstitution({isAdjust:true,changeReason:"ADJ",changeFactId:"",changeFactNumber:""})}
+        onKeepWarning={()=>finishSubstitution({changeReason:"",changeFactId:"",changeFactNumber:""})}
+        onClose={()=>setSubstitutionTarget(null)}/>}
       {showMaterialDraft&&perms.canWrite&&requestRows.length>0&&<MaterialRequestModal header={header} rows={requestRows} user={user} onClose={()=>setShowMaterialDraft(false)}/>}
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}
       {restoreTarget&&<RestoreModal onConfirm={restore} onCancel={()=>setRestoreTarget(null)}/>}

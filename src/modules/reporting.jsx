@@ -115,6 +115,22 @@ const uniqueOvenChoices = rows => {
   });
 };
 
+const reworkActivityStamp = row => String(row?.createdDT||"")
+  .replace(/^(\d{2})\/(\d{2})\/(\d{4})/,"$3-$2-$1");
+const sortReworkChronologically = (rows=[]) => rows.map((r,index)=>({r,index})).sort((a,b)=>
+  a.r.createdDT&&b.r.createdDT
+    ? reworkActivityStamp(a.r).localeCompare(reworkActivityStamp(b.r))||a.index-b.index
+    : a.index-b.index
+).map(item=>item.r);
+const reworkReferenceReason = row => {
+  const explicit=String(row?.changeReason||"").trim().toUpperCase();
+  if(["ADJ","NC","DM","ISS"].includes(explicit)) return explicit;
+  if(row?.isAdjust) return "ADJ";
+  const match=String(row?.fiche||"").toUpperCase().match(/(?:^|[^A-Z0-9])(ISS|DM|NC)(?=[-_\s\d]|$)/);
+  return match?.[1]||"";
+};
+const reworkSubstitutionJustified = row => !!reworkReferenceReason(row);
+
 const computeReworkWarnings = (rows=[], snRows=[], filter="all") => {
   const repereKey = r => (r?.repere||"").trim().toUpperCase();
   const units = snRows.length ? snRows.map(s=>({id:s.id,label:snTitle(s)})) : [{id:"all",label:"Tous"}];
@@ -129,21 +145,20 @@ const computeReworkWarnings = (rows=[], snRows=[], filter="all") => {
     return ids;
   };
   const unitLabel = id => units.find(u=>u.id===id)?.label || "Tous";
-  const state={installed:{},openD:{},first:[],pointed:[],mismatch:[],sequence:[]};
+  const state={installed:{},openD:{},first:[],pointed:[],substitutions:[],mismatch:[],sequence:[]};
   const lastAction={};
   const valueKey=r=>String(r.valeur||"").replace(/\s+/g,"").toUpperCase();
   const addMismatch=(previous,current,kind,repere,uid)=>{
     const fromValue=valueKey(previous),toValue=valueKey(current);
-    if(fromValue&&toValue&&fromValue!==toValue&&!previous.isAdjust&&!current.isAdjust){
-      state.mismatch.push({repere,previous,current,d:previous.action1==="D"?previous:current,s:current.action1==="D"?previous:current,
-        kind,unitId:uid,snLabel:unitLabel(uid)});
+    if(fromValue&&toValue&&fromValue!==toValue){
+      const item={repere,previous,current,d:previous.action1==="D"?previous:current,s:current.action1==="D"?previous:current,
+        kind,unitId:uid,snLabel:unitLabel(uid),justified:reworkSubstitutionJustified(previous)||reworkSubstitutionJustified(current),
+        reason:reworkReferenceReason(current)||reworkReferenceReason(previous)};
+      state.substitutions.push(item);
+      if(!item.justified) state.mismatch.push(item);
     }
   };
-  const ordered=rows.map((r,index)=>({r,index})).sort((a,b)=>{
-    const stamp=r=>String(r.createdDT||"").replace(/^(\d{2})\/(\d{2})\/(\d{4})/,"$3-$2-$1");
-    return a.r.createdDT&&b.r.createdDT?(stamp(a.r).localeCompare(stamp(b.r))||a.index-b.index):a.index-b.index;
-  });
-  ordered.forEach(({r})=>{
+  sortReworkChronologically(rows).forEach(r=>{
     if(r.deleted) return;
     const key=repereKey(r);
     if(!key||!["S","D","P"].includes(r.action1)) return;
@@ -186,7 +201,7 @@ const computeReworkWarnings = (rows=[], snRows=[], filter="all") => {
   });
   return state;
 };
-const computeOpenDesoudes = (rows=[]) => Object.values(rows.reduce((open,r)=>{
+const computeOpenDesoudes = (rows=[]) => Object.values(sortReworkChronologically(rows).reduce((open,r)=>{
   if(r?.deleted) return open;
   const key=(r?.repere||"").trim().toUpperCase();
   if(!key) return open;
@@ -936,7 +951,11 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const tracePdfValue=(value,field)=>String(value||"").trim()?value:missingTrace.includes(field)?"MANQUANT":"N/A";
         const lotPdf=r.action1==="O"?"N/A":tracePdfValue(r.lot,"LOT");
         const dcPdf=r.action1==="O"?"N/A":tracePdfValue(r.dc,"DC");
-        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(r.fiche),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
+        const substitutionRef=r.changeReason
+          ? [r.changeReason,r.changeFactNumber].filter(Boolean).join(" ")
+          : "";
+        const fichePdf=[r.fiche,substitutionRef&&`Justif. ${substitutionRef}`].filter(Boolean).join(" / ");
+        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(fichePdf),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
         const remark=String(r.remarques||"").trim()
           ? [{text:`${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
           : [];

@@ -492,6 +492,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       await mismatchRow.locator('[data-entry-field="fiche"]').fill('DOC-WARN');
       await mismatchRow.locator('[data-entry-field="etape"]').fill('10');
       await mismatchRow.getByTitle('Valider',{exact:true}).click();
+      if(action==='S') {
+        const substitutionDialog=page.getByRole('dialog',{name:'Justifier le changement de valeur',exact:true});
+        await substitutionDialog.getByText(/Aucun fait NC, DM ou ISS/).waitFor();
+        await substitutionDialog.getByRole('button',{name:'Valider sans justification',exact:true}).click();
+      }
       await page.waitForFunction(({action,value})=>window.testRecords['of:test-of'].rework.rows.some(r=>r.repere==='WARNVAL'&&r.action1===action&&r.valeur===value&&r.validated),{action,value});
     }
     const mismatchRows=page.locator('[data-rework-row]').filter({has:page.locator('[data-entry-field="repere"][value="WARNVAL"]')});
