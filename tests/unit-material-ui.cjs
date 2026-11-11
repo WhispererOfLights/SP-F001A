@@ -6,7 +6,7 @@ const root = path.join(__dirname, '..');
 const units = [{id: 'u1', sn: 'SN1', status: 'en_cours'}, {id: 'u2', sn: 'SN2', status: 'a_faire'}, {id:'lot-a',sn:'LOT-A',unitKind:'lot',qteInitiale:'10',status:'en_cours'}];
 const entry = {id: 'test-of', of: '100TEST', status: 'en_cours', codeArticle: '250001163', description: 'Article de test', otp: '7400-TEST', createdBy: 'JGR', _snRows: units};
 const data = {header: entry, units: {mode: 'multi', rows: units}, rework: {rows: [
-  {id: 'r1', createdVisa: 'OTHER', createdDT: '17/09/2026 10:00', validated: true, repere: 'R96', action1: 'S', qty: '2', codeERP: '225222333', valeur: '10K', lot: 'N/A', dc: 'N/A', fiche: 'DOC', etape: '10', snScope: 'custom', snIds: ['u1', 'u2']},
+  {id: 'r1', createdVisa: 'OTHER', visaOper:'OPR', createdDT: '17/09/2026 10:00', validated: true, repere: 'R96', action1: 'S', qty: '2', codeERP: '225222333', valeur: '10K', lot: 'N/A', dc: 'N/A', fiche: 'DOC', etape: '10', snScope: 'custom', snIds: ['u1', 'u2']},
   {id:'imported-existing',createdVisa:'OTHER',createdDT:'17/09/2026 11:00',validated:true,repere:'R-IMPORTED',action1:'S',qty:'1',codeERP:'225222333',valeur:'22K',lot:'N/A',dc:'N/A',fiche:'DOC',etape:'10',snScope:'custom',snIds:['u2'],importOrigin:{source:'legacy-import',importedBy:'JGR',importedAt:'16/09/2026 08:00'}},
   ...['D','P','R'].map(action1=>({id:'blocked-'+action1,createdVisa:'OTHER',validated:true,repere:'R'+action1,action1,codeERP:'123',snScope:'custom',snIds:['u2']})),
   {id:'cancelled-pdf',createdVisa:'OTHER',createdDT:'16/09/2026 08:30',validated:true,repere:'R99',action1:'S',codeERP:'999',valeur:'1K',snScope:'custom',snIds:['u2'],deleted:true,deletedVisa:'JGR',deletedDate:'18/09/2026 09:00',deletedReason:'Test ligne annulée'},
@@ -48,12 +48,13 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       const different={id:'different-of',of:'100DIFFERENT',codeArticle:'999',status:'en_cours',_snRows:[{id:'different-unit',sn:'DIFFERENTSN'}]};
       window.testRecords['of-list'].push(different);
       window.testRecords['of:different-of']={header:different,units:{rows:different._snRows}};
-      Object.assign(window.testRecords,{'users-list':['JGR','MGR','EMPTY','PA1','CDP'],
+      Object.assign(window.testRecords,{'users-list':['JGR','MGR','EMPTY','PA1','CDP','OPR'],
         'user:JGR':{...user,email:'jgr@example.com'},
         'user:MGR':{trigram:'MGR',prenom:'Autre',nom:'Manager',role:'Manager',email:'manager@example.com'},
         'user:EMPTY':{trigram:'EMPTY',role:'Manager'},
         'user:PA1':{trigram:'PA1',prenom:'Anne',nom:'Qualité',role:'Product Assurance',email:'pa@example.com'},
-        'user:CDP':{trigram:'CDP',prenom:'Paul',nom:'Projet',role:'Chef de projet',email:'projet@example.com'}});
+        'user:CDP':{trigram:'CDP',prenom:'Paul',nom:'Projet',role:'Chef de projet',email:'projet@example.com'},
+        'user:OPR':{trigram:'OPR',prenom:'Olivia',nom:'Production',role:'Opérateur',email:'operateur@example.com'}});
       window.testRecords['consommables-list']=[{id:'long-sap',sap:'1600000046',label:'Colle test longue référence',cat:'Colle',polymerizationHours:'876000'}];
       window.testRecords['of:test-of'].consommables={ops:[{id:'conso-op',createdVisa:'OTHER',createdDT:'18/09/2026 10:00',fiche:'DOC',op:'10',snScope:'all',validated:true,items:[{id:'conso-item',createdVisa:'OTHER',createdDT:'18/09/2026 10:00',consoId:'long-sap',validated:true,lot:'0000020516',dp:'17.09.26'}]}]};
       window.testRecords['of:test-of'].etuvage={rows:[{id:'home-oven-due',createdVisa:'OTHER',createdDT:'18/09/2026 08:00',snScope:'custom',snIds:['u1'],fourN:'FOUR-1',duree:'72',temp:'85',entreeDT:'18/09/2026 08:00',entreeVisa:'OTHER',sortieDT:'18/09/2026 10:00',sortieVisa:'OTHER',validated:true}]};
@@ -80,7 +81,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.getByRole('columnheader',{name:'Faits',exact:true}).count(),0);
     assert.equal(await page.getByRole('columnheader',{name:'Suivi',exact:true}).count(),0);
     assert.equal(await page.getByRole('cell',{name:'100OTHER',exact:true}).count(),0);
-    await page.getByRole('img',{name:"2 intervenants sur l'OF 100TEST",exact:true}).waitFor();
+    await page.getByRole('img',{name:"3 intervenants sur l'OF 100TEST",exact:true}).waitFor();
     const homeSearch=page.getByTitle('Rechercher un OF, SN ou lot',{exact:true});
     await homeSearch.fill('JGR');
     await page.waitForFunction(()=>Array.from(document.querySelectorAll('td')).filter(cell=>cell.textContent?.trim()==='100TEST').length>1);
@@ -208,18 +209,31 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await homeMailDialog.getByLabel('Table ou place de la réunion',{exact:true}).fill('P17');
     await homeMailDialog.getByRole('checkbox',{name:'Ajouter PA1 aux destinataires',exact:true}).check();
     await homeMailDialog.getByRole('checkbox',{name:'Mettre MGR en copie',exact:true}).check();
-    await homeMailDialog.getByRole('checkbox',{name:'Ajouter CDP aux destinataires',exact:true}).check();
+    await homeMailDialog.getByRole('checkbox',{name:'Mettre CDP en copie',exact:true}).check();
+    await homeMailDialog.getByRole('checkbox',{name:'Mettre OPR en copie',exact:true}).check();
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Objet"]')?.value.startsWith('IP Validation |'));
     assert.equal(await homeMailDialog.getByLabel('Objet',{exact:true}).inputValue(),'IP Validation | 250001163 - Article de test | SN1, SN2 | OTP 7400-TEST');
     const ipBody=await homeMailDialog.getByLabel('Message',{exact:true}).inputValue();
     assert.ok(ipBody.includes('100TEST | 250001163 | Article de test | SN : SN1 | Faits : F-001'));
     assert.ok(ipBody.includes('100TEST | 250001163 | Article de test | SN : SN2'));
     assert.ok(ipBody.includes('OF 100TEST : http://sp-f001-test.local/?dossier=test-of&piece=all&of=100TEST&onglet=rework'));
+    assert.ok(ipBody.includes("L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite."));
+    assert.ok(ipBody.includes("L'horaire pourra être décalé selon les disponibilités du Product Assurance."));
+    assert.ok(ipBody.endsWith('Merci,\nJulien'));
     assert.ok(!ipBody.includes('Faits : -')&&!ipBody.includes('|  |'));
     const downloadPromise=page.waitForEvent('download');
     await homeMailDialog.getByRole('button',{name:'Créer le brouillon Outlook',exact:true}).click();
     const meetingDownload=await downloadPromise;
     assert.ok(meetingDownload.suggestedFilename().endsWith('.ics'));
+    const meetingPath=path.join(__dirname,'artifacts/ip-invitation.ics');
+    await meetingDownload.saveAs(meetingPath);
+    const meetingContent=fs.readFileSync(meetingPath,'utf8');
+    assert.ok(meetingContent.includes('LOCATION:#512 P17'));
+    assert.ok(meetingContent.includes('X-MICROSOFT-CDO-LOCATION:#512 P17'));
+    assert.ok(meetingContent.includes('URL:http://sp-f001-test.local/?dossier=test-of&piece=all&of=100TEST&onglet=rework'));
+    assert.ok(meetingContent.includes('ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:pa@example.com'));
+    for(const email of ['projet@example.com','manager@example.com','operateur@example.com']) assert.ok(meetingContent.includes(`ATTENDEE;ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:${email}`));
+    assert.ok(!meetingContent.includes('ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:projet@example.com'));
     assert.ok((await homeMailDialog.getByRole('status').textContent()).includes('Brouillon Outlook créé'));
     await homeMailDialog.getByText('Fermer',{exact:true}).click();
     const first = page.getByRole('textbox', {name: 'SN produit fini de SN1 - OF 100TEST', exact: true});

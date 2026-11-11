@@ -94,8 +94,8 @@ assert.equal(context.role({role:'Product Assurance'}),'Product Assurance');
 assert.equal(context.role({role:'Chef de projet'}),'Chef de projet');
 assert.deepEqual(Array.from(context.ccEmails([{trigram:'JGR',email:'jgr@example.com'},{trigram:'NPR',email:'npr@example.com'}],['JGR'])),['jgr@example.com']);
 assert.deepEqual(Array.from(context.meetingRecipients('one@example.com; two@example.com, one@example.com')),['one@example.com','two@example.com']);
-const meetingIcs=context.icsMeeting({subject:'Invitation | IP Validation',body:'Résumé\nOF 1001',date:'2026-10-02',time:'10:00',duration:90,location:'#512 P17',requiredRecipients:['projet@example.com','pa@example.com'],optionalRecipients:['manager@example.com'],organizer:{prenom:'Julien',nom:'Grosjean',email:'jgr@example.com'}});
-for(const value of ['METHOD:PUBLISH','DTSTART:20261002T100000','DTEND:20261002T113000','SUMMARY:Invitation | IP Validation','DESCRIPTION:Résumé\\nOF 1001','CATEGORIES:IP','COLOR:#FFD966','LOCATION:#512 P17','ORGANIZER;CN=Julien Grosjean:mailto:jgr@example.com','ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:projet@example.com','ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:pa@example.com','ATTENDEE;ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:manager@example.com']) assert.ok(meetingIcs.includes(value));
+const meetingIcs=context.icsMeeting({subject:'Invitation | IP Validation',body:'Résumé\nOF 1001',date:'2026-10-02',time:'10:00',duration:90,location:'#512 P17',url:'http://neu-jgr-sp:5181/?dossier=of-a',requiredRecipients:['pa@example.com'],optionalRecipients:['projet@example.com','manager@example.com'],organizer:{prenom:'Julien',nom:'Grosjean',email:'jgr@example.com'}});
+for(const value of ['METHOD:PUBLISH','DTSTART:20261002T100000','DTEND:20261002T113000','SUMMARY:Invitation | IP Validation','DESCRIPTION:Résumé\\nOF 1001','CATEGORIES:IP','COLOR:#FFD966','LOCATION:#512 P17','X-MICROSOFT-CDO-LOCATION:#512 P17','URL:http://neu-jgr-sp:5181/?dossier=of-a','ORGANIZER;CN=Julien Grosjean:mailto:jgr@example.com','ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:pa@example.com','ATTENDEE;ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:projet@example.com','ATTENDEE;ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:manager@example.com']) assert.ok(meetingIcs.includes(value));
 assert.ok(!meetingIcs.includes('CATEGORIES:IP,Jaune'));
 const polymerizationData={header:{status:'en_cours'},consommables:{ops:[{validated:true,createdDT:'25/09/2026 08:00',items:[{validated:true,consoId:'glue'}]}]}};
 assert.ok(Array.from(context.ofWarnings(polymerizationData,[{id:'glue',cat:'Colle',polymerizationHours:'876000'}]))
@@ -128,6 +128,11 @@ assert.ok(invitationWithFinished.body.includes('1001 | 250001163 | Carte A | SN 
 assert.equal(context.singleMeetingOtp(homeMailRows.slice(0,2)),true);
 assert.equal(context.singleMeetingOtp([homeMailRows[0],homeMailRows[3]]),false);
 assert.ok(invitation.body.includes('inspection IP Validation'));
+assert.ok(invitation.body.includes("L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite."));
+assert.ok(invitation.body.includes("L'horaire pourra être décalé selon les disponibilités du Product Assurance."));
+assert.ok(invitation.body.includes('OF 1001 : http://neu-jgr-sp:5181/?dossier=of-a&piece=all&of=1001&onglet=rework'));
+assert.ok(invitation.body.endsWith('Merci,\nJGR'));
+assert.equal(invitation.url,'http://neu-jgr-sp:5181/?dossier=of-a&piece=all&of=1001&onglet=rework');
 assert.ok(!invitation.body.includes('séance IP Validation'));
 assert.ok(invitation.body.includes('1001 | 250001163 | Carte A | SN : SN001 | Faits : F-01'));
 assert.ok(invitation.body.includes('1001 | 250001163 | Carte A | SN : SN002'));

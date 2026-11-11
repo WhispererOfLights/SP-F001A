@@ -278,14 +278,15 @@ const closureMailTable = groups => {
   });
   return [...lines,""];
 };
+const folderLinkForMailGroup = (group,tab="rework") => {
+  const unitIds=[...new Set(group.rows.map(row=>row._homeUnitId).filter(Boolean))];
+  const unitId=unitIds.length===1?unitIds[0]:"all";
+  const unit=unitIds.length===1?group.rows[0]:null;
+  return buildFolderLink({ofId:group.id,unitId,ofNumber:group.of,sn:unit?.sn||"",lot:unit?.lot||"",tab});
+};
 const folderLinksForMail = (groups,tab="rework") => [
   "Accès aux dossiers :",
-  ...groups.map(group=>{
-    const unitIds=[...new Set(group.rows.map(row=>row._homeUnitId).filter(Boolean))];
-    const unitId=unitIds.length===1?unitIds[0]:"all";
-    const unit=unitIds.length===1?group.rows[0]:null;
-    return `OF ${group.of} : ${buildFolderLink({ofId:group.id,unitId,ofNumber:group.of,sn:unit?.sn||"",lot:unit?.lot||"",tab})}`;
-  }),
+  ...groups.map(group=>`OF ${group.of} : ${folderLinkForMailGroup(group,tab)}`),
   ""
 ];
 const buildClosureRequest = ({rows,user}) => {
@@ -306,10 +307,15 @@ const buildIpInvitation = ({rows,user,ipName}) => {
   const name=String(ipName||"").trim()||"IP";
   const intro=`Voici le résumé des sous-ensembles prévus pour l’inspection ${name} :`;
   const subjectParts=[name,articles.join(" / "),units.join(", "),`OTP ${otps.join(" / ")}`];
+  const signature=[user.prenom,user.nom].filter(Boolean).join(" ")||user.trigram;
   if(finishedUnits.length) subjectParts.push(`SN produit fini ${finishedUnits.join(", ")}`);
   return {
     subject:subjectParts.join(" | "),
-    body:["Bonjour,","",intro,"",...closureMailTable(groups),...folderLinksForMail(groups),"Merci,",[user.prenom,user.nom].filter(Boolean).join(" ")||user.trigram,user.trigram].join("\n")
+    body:["Bonjour,","",intro,"",...closureMailTable(groups),...folderLinksForMail(groups),
+      "L'AS-Built, s'il n'est pas présent en annexe, sera transmis au plus vite.","",
+      "L'horaire pourra être décalé selon les disponibilités du Product Assurance.","",
+      "Merci,",signature].join("\n"),
+    url:groups.length===1?folderLinkForMailGroup(groups[0]):"",
   };
 };
 const defaultMeetingSlot = () => {
@@ -326,7 +332,7 @@ const formatIcsLocal = date => {
   const pad=value=>String(value).padStart(2,"0");
   return `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
 };
-const buildOutlookMeetingIcs = ({subject,body,date,time,duration=60,location="",recipients=[],requiredRecipients=recipients,optionalRecipients=[],organizer={}}) => {
+const buildOutlookMeetingIcs = ({subject,body,date,time,duration=60,location="",url="",recipients=[],requiredRecipients=recipients,optionalRecipients=[],organizer={}}) => {
   const matchDate=String(date||"").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const matchTime=String(time||"").match(/^(\d{2}):(\d{2})$/);
   if(!matchDate||!matchTime) throw new Error("Date ou heure de réunion invalide");
@@ -342,7 +348,11 @@ const buildOutlookMeetingIcs = ({subject,body,date,time,duration=60,location="",
     "CATEGORIES:IP","COLOR:#FFD966","X-APPLE-CALENDAR-COLOR:#FFD966",
     "STATUS:CONFIRMED","TRANSP:OPAQUE","X-MICROSOFT-CDO-BUSYSTATUS:BUSY"
   ];
-  if(String(location||"").trim()) lines.push(`LOCATION:${escapeIcsText(String(location).trim())}`);
+  if(String(location||"").trim()){
+    const escapedLocation=escapeIcsText(String(location).trim());
+    lines.push(`LOCATION:${escapedLocation}`,`X-MICROSOFT-CDO-LOCATION:${escapedLocation}`);
+  }
+  if(String(url||"").trim()) lines.push(`URL:${escapeIcsText(String(url).trim())}`);
   if(organizer.email) lines.push(`ORGANIZER;CN=${escapeIcsText(organizerName)}:mailto:${organizer.email}`);
   requiredRecipients.forEach(email=>lines.push(`ATTENDEE;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:${email}`));
   optionalRecipients.forEach(email=>lines.push(`ATTENDEE;ROLE=OPT-PARTICIPANT;RSVP=TRUE:mailto:${email}`));
@@ -350,7 +360,7 @@ const buildOutlookMeetingIcs = ({subject,body,date,time,duration=60,location="",
   return lines.join("\r\n");
 };
 const downloadOutlookMeeting = ({draft,date,time,duration,location,requiredRecipients,optionalRecipients,user}) => {
-  const content=buildOutlookMeetingIcs({subject:draft.subject,body:draft.body,date,time,duration,location,requiredRecipients,optionalRecipients,organizer:user});
+  const content=buildOutlookMeetingIcs({subject:draft.subject,body:draft.body,date,time,duration,location,url:draft.url,requiredRecipients,optionalRecipients,organizer:user});
   const blob=new Blob([content],{type:"text/calendar;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const link=document.createElement("a");
@@ -375,16 +385,24 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
   const [inviteProjectTo,setInviteProjectTo]=useState([]);
   const [inviteAssuranceTo,setInviteAssuranceTo]=useState([]);
   const [inviteCc,setInviteCc]=useState([]);
+  const [inviteOperatorCc,setInviteOperatorCc]=useState([]);
   const {managers,error:ccError}=useCcManagers(!isIp);
   const {accounts:inviteAccounts,error:inviteAccountsError}=useUserAccounts(isIp);
   const assuranceAccounts=inviteAccounts.filter(isProductAssuranceAccount);
   const projectAccounts=inviteAccounts.filter(account=>account.trigram!==user.trigram&&isProjectLeadAccount(account));
   const invitationCcAccounts=inviteAccounts.filter(account=>account.trigram!==user.trigram&&normalizeRole(account)==="Manager");
+  const involvedVisas=new Set(rows.flatMap(row=>row._homeContributors||[]));
+  const operatorAccounts=inviteAccounts.filter(account=>account.active!==false&&account.trigram!==user.trigram&&normalizeRole(account)==="Opérateur"&&involvedVisas.has(String(account.trigram||"").toUpperCase()));
   const ccEmails=selectedManagerEmails(managers,copyTo);
   const projectMeetingEmails=selectedManagerEmails(projectAccounts,inviteProjectTo);
   const assuranceMeetingEmails=selectedManagerEmails(assuranceAccounts,inviteAssuranceTo);
-  const requiredMeetingEmails=[...new Set([...projectMeetingEmails,...assuranceMeetingEmails])];
-  const optionalMeetingEmails=selectedManagerEmails(invitationCcAccounts,inviteCc).filter(email=>!requiredMeetingEmails.includes(email));
+  const operatorMeetingEmails=selectedManagerEmails(operatorAccounts,inviteOperatorCc);
+  const requiredMeetingEmails=[...new Set(assuranceMeetingEmails)];
+  const optionalMeetingEmails=[...new Set([
+    ...projectMeetingEmails,
+    ...selectedManagerEmails(invitationCcAccounts,inviteCc),
+    ...operatorMeetingEmails,
+  ])].filter(email=>!requiredMeetingEmails.includes(email));
   const makeDraft=()=>isIp?buildIpInvitation({rows,user,ipName}):buildClosureRequest({rows,user});
   const [draft,setDraft]=useState(makeDraft);
   const [message,setMessage]=useState("");
@@ -451,12 +469,14 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
           style={{width:"100%",boxSizing:"border-box",marginTop:4,padding:7,background:C.input,color:C.blue,fontWeight:700,border:`1px solid ${C.blue}`,borderRadius:4}}/>
       </label>}
       {isIp&&<>
-        <ManagerCcPicker managers={projectAccounts} copyTo={inviteProjectTo} onChange={setInviteProjectTo} required error={inviteAccountsError}
-          legend="À - Chefs de projet" mode="to"/>
         <ManagerCcPicker managers={assuranceAccounts} copyTo={inviteAssuranceTo} onChange={setInviteAssuranceTo} required
           legend="À - Product Assurance" mode="to"/>
+        <ManagerCcPicker managers={projectAccounts} copyTo={inviteProjectTo} onChange={setInviteProjectTo} error={inviteAccountsError}
+          legend="CC - Chefs de projet"/>
         <ManagerCcPicker managers={invitationCcAccounts} copyTo={inviteCc} onChange={setInviteCc}
           legend="CC - Managers"/>
+        <ManagerCcPicker managers={operatorAccounts} copyTo={inviteOperatorCc} onChange={setInviteOperatorCc}
+          legend="CC - Opérateurs impliqués"/>
       </>}
       {!isIp&&<ManagerCcPicker managers={managers} copyTo={copyTo} onChange={setCopyTo} error={ccError}/>}
       <label style={{display:"block",marginBottom:10,fontSize:12}}>Objet
@@ -471,7 +491,7 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
         <span role="status" style={{fontSize:12,color:message.includes("impossible")?C.red:C.green}}>{message}</span>
         <Btn onClick={closeModal} disabled={sending} color={C.border} small>{sending?"Mise à jour…":"Fermer"}</Btn>
         <Btn onClick={copy} color={C.border} small>Copier le brouillon</Btn>
-        {isIp?<Btn disabled={!ipName.trim()||!meetingDate||!meetingTime||!projectMeetingEmails.length||!assuranceMeetingEmails.length||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
+        {isIp?<Btn disabled={!ipName.trim()||!meetingDate||!meetingTime||!assuranceMeetingEmails.length||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
           downloadOutlookMeeting({draft,date:meetingDate,time:meetingTime,duration:meetingDuration,location:[meetingRoom,meetingPlace].map(value=>value.trim()).filter(Boolean).join(" "),requiredRecipients:requiredMeetingEmails,optionalRecipients:optionalMeetingEmails,user});
           setMessage("Brouillon Outlook créé : ouvrez-le, modifiez-le puis cliquez sur Inviter des participants pour l’envoyer.");
         }} color={color} small>Créer le brouillon Outlook</Btn>:<Btn disabled={sending||!recipient.trim()||!draft.subject.trim()||!draft.body.trim()} onClick={()=>{
@@ -498,6 +518,20 @@ const homeFactsForUnit = (data,unitId) => {
   const units=data?.units?.rows||snRowsFromHeader(data?.header||{});
   const unit=units.find(item=>item.id===unitId&&!item.deleted);
   return effectiveScopedRows(data,"faits").filter(row=>!unit||rowMatchesSn(row,unit,units));
+};
+const homeActivityVisasForUnit = (data,unitId) => {
+  const units=data?.units?.rows||snRowsFromHeader(data?.header||{});
+  const unit=units.find(item=>item.id===unitId&&!item.deleted);
+  const matches=row=>!row?.deleted&&(!unit||rowMatchesSn(row,unit,units));
+  const rows=[
+    ...(data?.rework?.rows||[]).filter(matches),
+    ...(data?.testequip?.rows||[]).filter(matches),
+    ...(data?.faits?.rows||[]).filter(matches),
+    ...(data?.etuvage?.rows||[]).filter(matches),
+    ...(data?.consommables?.ops||[]).filter(matches),
+    ...(data?.demating?.connectors||[]).filter(matches),
+  ];
+  return activityVisasOf(rows);
 };
 const homeFactSearchText = facts => (facts||[]).map(fact=>[
   fact.type,fact.numero,fact.commentaires,fact.date,fact.visa,fact.closedDate,fact.closedVisa,
@@ -705,7 +739,8 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   };
   const baseHomeRows=sorted.flatMap(o=>homeRowsForOf(o,dataById[o.id])).map(row=>{
     const facts=homeFactsForUnit(dataById[row.id],row._homeUnitId);
-    return {...row,_homeFacts:facts,_homeFactSearch:homeFactSearchText(facts)};
+    const contributors=homeActivityVisasForUnit(dataById[row.id],row._homeUnitId);
+    return {...row,_homeFacts:facts,_homeFactSearch:homeFactSearchText(facts),_homeContributors:contributors};
   });
   const operationalRows=baseHomeRows.filter(row=>
     !STATUTS[row.status||"en_cours"]?.closed&&!UNIT_STATUTS[row.unitStatus||"en_cours"]?.closed
