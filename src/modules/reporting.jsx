@@ -838,14 +838,12 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     ].filter(Boolean).forEach(item=>open.push(item));
 
     const consumableIssues=[];
-    const consumableSoon=[];
     unitRows(ofData?.consommables?.ops,unit).forEach(op=>(op.items||[]).filter(item=>!item.deleted).forEach(item=>{
       const consumable=consoById[item.consoId]||{};
       const name=compactArticleCode(consumable.sap||consumable.code||item.consoId)||"consommable ?";
       const status=dpStatus(item.dp,item.createdDT||op.createdDT);
       if(item.dp&&!isValidDMY(item.dp)) consumableIssues.push(`${name} date invalide`);
       else if(status?.label==="PÉRIMÉ") consumableIssues.push(`${name} périmé`);
-      else if(status?.label==="BIENTÔT") consumableSoon.push(`${name} bientôt périmé`);
     }));
     const expiredEquipment=[];
     const equipmentSoon=[];
@@ -860,7 +858,6 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       compactItems("Appareils hors calibration",expiredEquipment),
     ].filter(Boolean).forEach(item=>alerts.push(item));
     [
-      compactItems("Consommables bientôt périmés",consumableSoon),
       compactItems("Calibrations bientôt expirées",equipmentSoon),
     ].filter(Boolean).forEach(item=>open.push(item));
 
@@ -1010,11 +1007,10 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
           desc,
           it.echantillon||"",
           it.lot,
-          `${it.dp||""}${invalid?" - DATE INVALIDE":status&&status.label!=="OK"?` - ${status.label}`:""}`
+          `${it.dp||""}${invalid?" - DATE INVALIDE":status?.label==="PÉRIMÉ"?" - PÉRIMÉ":""}`
         ],it,commentsForPdf(op),[trace(op),polymerizationTrace].filter(Boolean).join(" | "));
         return {...row,cellStyles:{
-          ...(invalid||status?.label==="PÉRIMÉ"?{8:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{}),
-          ...(status?.label==="BIENTÔT"?{8:{fill:"0.99 0.96 0.84",bold:true}}:{})
+          ...(invalid||status?.label==="PÉRIMÉ"?{8:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{})
         }};
       }));
     section("Consommables",["Date","Visa","Fiche suiveuse","OP","Code article","Description","N ech.","LOT","DP"],cons,[23,12,26,11,34,88,22,30,20],unit);

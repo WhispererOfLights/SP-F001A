@@ -3418,7 +3418,6 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
       return open.push(item);
     });
     var consumableIssues = [];
-    var consumableSoon = [];
     unitRows((_ofData4 = ofData) === null || _ofData4 === void 0 || (_ofData4 = _ofData4.consommables) === null || _ofData4 === void 0 ? void 0 : _ofData4.ops, unit).forEach(function (op) {
       return (op.items || []).filter(function (item) {
         return !item.deleted;
@@ -3426,7 +3425,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
         var consumable = consoById[item.consoId] || {};
         var name = compactArticleCode(consumable.sap || consumable.code || item.consoId) || "consommable ?";
         var status = dpStatus(item.dp, item.createdDT || op.createdDT);
-        if (item.dp && !isValidDMY(item.dp)) consumableIssues.push("".concat(name, " date invalide"));else if ((status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ") consumableIssues.push("".concat(name, " p\xE9rim\xE9"));else if ((status === null || status === void 0 ? void 0 : status.label) === "BIENTÔT") consumableSoon.push("".concat(name, " bient\xF4t p\xE9rim\xE9"));
+        if (item.dp && !isValidDMY(item.dp)) consumableIssues.push("".concat(name, " date invalide"));else if ((status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ") consumableIssues.push("".concat(name, " p\xE9rim\xE9"));
       });
     });
     var expiredEquipment = [];
@@ -3439,7 +3438,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
     [compactItems("Consommables périmés ou invalides", consumableIssues), compactItems("Appareils hors calibration", expiredEquipment)].filter(Boolean).forEach(function (item) {
       return alerts.push(item);
     });
-    [compactItems("Consommables bientôt périmés", consumableSoon), compactItems("Calibrations bientôt expirées", equipmentSoon)].filter(Boolean).forEach(function (item) {
+    [compactItems("Calibrations bientôt expirées", equipmentSoon)].filter(Boolean).forEach(function (item) {
       return open.push(item);
     });
     var facts = unitRows(effectiveScopedRows(ofData, "faits"), unit).filter(function (row) {
@@ -3689,17 +3688,12 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
         var polymerization = polymerizationStatus(conso, it.createdDT || op.createdDT);
         var polymerizationTrace = polymerization ? "Polym\xE9risation ".concat(polymerization.hours, " h - sous vide d\xE8s le ").concat(formatAvailabilityDT(polymerization.readyAt)) : "";
         var invalid = !!it.dp && !isValidDMY(it.dp);
-        var row = rowPdfWithComments([it.createdDT || op.createdDT, it.createdVisa || op.createdVisa, op.fiche, op.op, code, desc, it.echantillon || "", it.lot, "".concat(it.dp || "").concat(invalid ? " - DATE INVALIDE" : status && status.label !== "OK" ? " - ".concat(status.label) : "")], it, commentsForPdf(op), [trace(op), polymerizationTrace].filter(Boolean).join(" | "));
+        var row = rowPdfWithComments([it.createdDT || op.createdDT, it.createdVisa || op.createdVisa, op.fiche, op.op, code, desc, it.echantillon || "", it.lot, "".concat(it.dp || "").concat(invalid ? " - DATE INVALIDE" : (status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ" ? " - PÉRIMÉ" : "")], it, commentsForPdf(op), [trace(op), polymerizationTrace].filter(Boolean).join(" | "));
         return _objectSpread(_objectSpread({}, row), {}, {
-          cellStyles: _objectSpread(_objectSpread({}, invalid || (status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ" ? {
+          cellStyles: _objectSpread({}, invalid || (status === null || status === void 0 ? void 0 : status.label) === "PÉRIMÉ" ? {
             8: {
               fill: "0.99 0.91 0.91",
               color: color.red,
-              bold: true
-            }
-          } : {}), (status === null || status === void 0 ? void 0 : status.label) === "BIENTÔT" ? {
-            8: {
-              fill: "0.99 0.96 0.84",
               bold: true
             }
           } : {})

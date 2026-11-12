@@ -36,10 +36,13 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   assert.ok(!complete.includes('LOT / DC manquants'));
   const consoPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},consommables:{ops:[{id:'op1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',fiche:'DOC',op:'10',snIds:['u1'],items:[
-      {id:'expired',createdDT:'18/09/2026 08:01',createdVisa:'JGR',consoId:'c1',lot:'0000020516',dp:'17.09.26',validated:true}
+      {id:'expired',createdDT:'18/09/2026 08:01',createdVisa:'JGR',consoId:'c1',lot:'0000020516',dp:'17.09.26',validated:true},
+      {id:'soon',createdDT:'18/09/2026 08:02',createdVisa:'JGR',consoId:'c1',lot:'0000020517',dp:'19.09.26',validated:true}
     ]}]}},lists:{consommables:[{id:'c1',sap:'1600000046',label:'Consommable test'}]},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['consommables']}).text();
   assert.ok(/0\.99 0\.91 0\.91 rg/.test(consoPdf),'Expired consumable DP cell is highlighted in red');
   assert.ok(consoPdf.includes('(ALERTES)')&&consoPdf.includes('Consommables p'),'Expired consumable appears in the summary');
+  assert.ok(consoPdf.includes('(19.09.26)'),'A soon-to-expire consumable keeps its plain DP date in the PDF');
+  assert.ok(!consoPdf.includes('BIENT')&&!consoPdf.includes('Consommables bient'),'Soon-to-expire consumables are not presented as PDF alerts');
   const factsPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},faits:{rows:[{id:'fact1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',type:'NC',numero:'NC-123',date:'18/09/2026',lien:'REF',commentaires:'Fait visible',closedDate:'31/12/2099',closedVisa:'CLOSEV',snIds:['u1']}]}},
     lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['faits']}).text();
