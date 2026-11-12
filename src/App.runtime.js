@@ -3726,9 +3726,18 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
     section("Suivi technique", ["Date", "Visa", "Type", "Numero", "Date ouv.", "Description"], (((_ofData9 = ofData) === null || _ofData9 === void 0 || (_ofData9 = _ofData9.faits) === null || _ofData9 === void 0 ? void 0 : _ofData9.rows) || []).filter(inUnit).map(function (r) {
       return rowPdfWithComments([r.createdDT, r.createdVisa, r.type, r.numero, r.date, r.commentaires], r, commentsForPdf(r));
     }), [25, 15, 20, 36, 28, 145], unit);
-    section("Etuvages", ["Date", "Visa", "Four", "Durée [h]", "Température [°C]", "Entrée", "Visa E", "Sortie", "Visa S"], (((_ofData0 = ofData) === null || _ofData0 === void 0 || (_ofData0 = _ofData0.etuvage) === null || _ofData0 === void 0 ? void 0 : _ofData0.rows) || []).filter(inUnit).map(function (r) {
+    var etuvageRows = (((_ofData0 = ofData) === null || _ofData0 === void 0 || (_ofData0 = _ofData0.etuvage) === null || _ofData0 === void 0 ? void 0 : _ofData0.rows) || []).filter(inUnit);
+    var nextEtuvage = nextEtuvageInfo(etuvageRows);
+    var etuvagePdfRows = etuvageRows.map(function (r) {
       return rowPdf([r.createdDT, r.createdVisa, r.fourN, r.duree, r.temp, r.entreeDT, r.entreeVisa, r.sortieDT, r.sortieVisa], r);
-    }), [23, 13, 26, 16, 16, 36, 14, 36, 14], unit);
+    });
+    if (nextEtuvage.count) etuvagePdfRows.unshift({
+      fullText: "Prochain \xE9tuvage le ".concat(nextEtuvage.label),
+      fill: "0.91 0.95 1.00",
+      stroke: color.blue,
+      color: color.blue
+    });
+    section("Etuvages", ["Date", "Visa", "Four", "Durée [h]", "Température [°C]", "Entrée", "Visa E", "Sortie", "Visa S"], etuvagePdfRows, [23, 13, 26, 16, 16, 36, 14, 36, 14], unit);
     var demConnectors = (((_ofData1 = ofData) === null || _ofData1 === void 0 || (_ofData1 = _ofData1.demating) === null || _ofData1 === void 0 ? void 0 : _ofData1.connectors) || []).filter(function (c) {
       return !c.deleted && inUnit(c);
     }).sort(function (a, b) {

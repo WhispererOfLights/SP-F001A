@@ -1030,7 +1030,14 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
 
     section("Suivi technique",["Date","Visa","Type","Numero","Date ouv.","Description"],(ofData?.faits?.rows||[]).filter(inUnit).map(r=>rowPdfWithComments([r.createdDT,r.createdVisa,r.type,r.numero,r.date,r.commentaires],r,commentsForPdf(r))),[25,15,20,36,28,145],unit);
 
-    section("Etuvages",["Date","Visa","Four","Durée [h]","Température [°C]","Entrée","Visa E","Sortie","Visa S"],(ofData?.etuvage?.rows||[]).filter(inUnit).map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r)),[23,13,26,16,16,36,14,36,14],unit);
+    const etuvageRows=(ofData?.etuvage?.rows||[]).filter(inUnit);
+    const nextEtuvage=nextEtuvageInfo(etuvageRows);
+    const etuvagePdfRows=etuvageRows.map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r));
+    if(nextEtuvage.count) etuvagePdfRows.unshift({
+      fullText:`Prochain étuvage le ${nextEtuvage.label}`,
+      fill:"0.91 0.95 1.00",stroke:color.blue,color:color.blue,
+    });
+    section("Etuvages",["Date","Visa","Four","Durée [h]","Température [°C]","Entrée","Visa E","Sortie","Visa S"],etuvagePdfRows,[23,13,26,16,16,36,14,36,14],unit);
 
     const demConnectors=(ofData?.demating?.connectors||[]).filter(c=>!c.deleted&&inUnit(c))
       .sort((a,b)=>connectorSortKey(a.nConect).localeCompare(connectorSortKey(b.nConect)));
