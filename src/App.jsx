@@ -598,7 +598,8 @@ const weekendOvenStartInputValue = (reference=Date.now()) => {
   if(date.getTime()<reference) date.setDate(date.getDate()+7);
   return operationDateInputValue(`${String(date.getDate()).padStart(2,"0")}/${String(date.getMonth()+1).padStart(2,"0")}/${date.getFullYear()} 20:00`);
 };
-const ovenRequiredMissing = row => [
+const isVacuumExit = row => row?.eventType==="sortie_vide"||row?.sortieVide===true;
+const ovenRequiredMissing = row => isVacuumExit(row)?[]:[
   !String(row?.duree||"").trim()&&"Durée [H]",
   !String(row?.temp||"").trim()&&"Temp [°C]",
 ].filter(Boolean);
@@ -1880,7 +1881,7 @@ const adminVisaRowPresentation = (row,section,field,fallback="") => {
     return {summary:[action,row.repere&&`Repère ${row.repere}`].filter(Boolean).join(" · "),details:[row.valeur,row.codeERP&&`Article ${row.codeERP}`,row.sn&&`SN ${row.sn}`,row.lot&&`Lot ${row.lot}`].filter(Boolean).join(" · "),...stamp};
   }
   if(section==="consommables") return {summary:first(row.designation,row.type,row.article,"Consommable"),details:[row.lot&&`Lot ${row.lot}`,row.nEchantillon&&`Échantillon ${row.nEchantillon}`,row.qty&&`Qté ${row.qty}`].filter(Boolean).join(" · "),...stamp};
-  if(section==="etuvage") return {summary:["Étuvage",first(row.fourN,row.nInv,row.designation)].filter(Boolean).join(" · "),details:[row.temperature&&`${row.temperature} °C`,row.duree&&`${row.duree} h`].filter(Boolean).join(" · "),...stamp};
+  if(section==="etuvage") return {summary:isVacuumExit(row)?"Sortie vide":["Étuvage",first(row.fourN,row.nInv,row.designation)].filter(Boolean).join(" · "),details:[row.temperature&&`${row.temperature} °C`,row.duree&&`${row.duree} h`].filter(Boolean).join(" · "),...stamp};
   if(section==="testequip") return {summary:first(row.nInv,row.designation,row.type,"Test équipement"),details:[row.type,row.designation].filter((value,index,list)=>value&&list.indexOf(value)===index).join(" · "),...stamp};
   if(section==="faits"||section==="openwork") return {summary:[first(row.type,section==="openwork"?"OW":"Fait"),first(row.numero,row.nOW)].filter(Boolean).join(" · "),details:first(row.description,row.designation,row.remarque),...stamp};
   if(section==="demating") return {summary:first(row.nom,row.connecteur,row.designation,row.type,"Mating / Demating"),details:first(row.action,row.etat,row.cycle),...stamp};

@@ -829,6 +829,13 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       if(tab==='faits') assert.equal(copied.closedDate,'');
       await modal.getByRole('button',{name:'Fermer',exact:true}).click();
     }
+    await page.getByRole('button',{name:'Étuvages',exact:true}).click();
+    await page.getByRole('button',{name:'+ Sortie vide',exact:true}).click();
+    await page.waitForFunction(()=>window.testRecords['of:test-of'].etuvage.rows.some(row=>row.eventType==='sortie_vide'&&row.validated&&row.entreeDT&&row.entreeVisa==='JGR'));
+    const vacuumExit=await page.evaluate(()=>window.testRecords['of:test-of'].etuvage.rows.find(row=>row.eventType==='sortie_vide'));
+    assert.equal(vacuumExit.fourN,'');assert.equal(vacuumExit.duree,'');assert.equal(vacuumExit.temp,'');
+    await page.getByText('SORTIE VIDE',{exact:true}).first().waitFor();
+    await page.screenshot({path:path.join(__dirname,'artifacts/vacuum-exit.png')});
     await page.evaluate(()=>{
       const of=window.testRecords['of:test-of'];
       of.rework.rows.push({id:'draft-rework',createdVisa:'JGR',createdDT:'22/09/2026 10:00',validated:false,editBase:{repere:'R10'},repere:'R10',action1:'S',snScope:'custom',snIds:['u1']});

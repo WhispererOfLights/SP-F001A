@@ -349,7 +349,7 @@ const copyTableLineToUnit = (tab,row,user,unit,includeChecks=false,copyMode="new
     consommables:["fiche","op"],
     testequip:["isFour","nInv","type","designation","dateExpiration"],
     faits:["type","numero","commentaires"],
-    etuvage:["fourN","duree","temp"],
+    etuvage:["eventType","fourN","duree","temp"],
     openwork:["description"],
     demating:["nConect"]
   }[tab];
@@ -368,7 +368,11 @@ const copyTableLineToUnit = (tab,row,user,unit,includeChecks=false,copyMode="new
   }
   if(tab==="testequip") Object.assign(copied,{visa:sameOperation?(row.visa||row.createdVisa||user.trigram):user.trigram,checkDate:sameOperation?(row.checkDate||now()):now()});
   if(tab==="faits") Object.assign(copied,{visa:sameOperation?(row.visa||row.createdVisa||user.trigram):user.trigram,date:sameOperation?(row.date||now()):now(),closedVisa:sameOperation?(row.closedVisa||""):"",closedDate:sameOperation?(row.closedDate||""):""});
-  if(tab==="etuvage") Object.assign(copied,{entreeVisa:sameOperation?(row.entreeVisa||""):"",entreeDT:sameOperation?(row.entreeDT||""):"",sortieVisa:sameOperation?(row.sortieVisa||""):"",sortieDT:sameOperation?(row.sortieDT||""):"",comments:sameOperation?(row.comments||[]).map(comment=>({...comment,id:uid()})):[]});
+  if(tab==="etuvage"){
+    const preserveEvent=sameOperation||isVacuumExit(row);
+    Object.assign(copied,{entreeVisa:preserveEvent?(row.entreeVisa||""):"",entreeDT:preserveEvent?(row.entreeDT||""):"",sortieVisa:preserveEvent?(row.sortieVisa||""):"",sortieDT:preserveEvent?(row.sortieDT||""):"",comments:preserveEvent?(row.comments||[]).map(comment=>({...comment,id:uid()})):[]});
+    if(isVacuumExit(row)) Object.assign(copied,{createdVisa:row.createdVisa||user.trigram,createdDT:row.createdDT||row.entreeDT||nowDT(),validated:true});
+  }
   if(tab==="openwork") Object.assign(copied,{openVisa:sameOperation?(row.openVisa||row.createdVisa||user.trigram):user.trigram,openDate:sameOperation?(row.openDate||now()):now(),closedVisa:sameOperation?(row.closedVisa||""):"",closedDate:sameOperation?(row.closedDate||""):""});
   if(tab==="demating") Object.assign(copied,{validated:true,events:sameOperation?(row.events||[]).map(event=>({...event,id:uid()})):[],connError:""});
   return copied;
@@ -381,7 +385,7 @@ const copySourceLabel = (tab,row) => ({
   consommables:[row.fiche,row.op,row.items?.[0]?.consoId,row.items?.[0]?.lot],
   testequip:[row.nInv,row.type,row.designation],
   faits:[row.type,row.numero],
-  etuvage:[row.fourN,row.duree&&`${row.duree} h`,row.temp&&`${row.temp} °C`],
+  etuvage:isVacuumExit(row)?["Sortie vide",row.entreeDT]:[row.fourN,row.duree&&`${row.duree} h`,row.temp&&`${row.temp} °C`],
   openwork:[row.nOW,row.description],
   demating:[row.nConect]
 }[tab]||[row.repere,row.numero,row.description]).filter(Boolean).join(" · ")||"Ligne";

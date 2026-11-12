@@ -1452,8 +1452,11 @@ var weekendOvenStartInputValue = function weekendOvenStartInputValue() {
   if (date.getTime() < reference) date.setDate(date.getDate() + 7);
   return operationDateInputValue("".concat(String(date.getDate()).padStart(2, "0"), "/").concat(String(date.getMonth() + 1).padStart(2, "0"), "/").concat(date.getFullYear(), " 20:00"));
 };
+var isVacuumExit = function isVacuumExit(row) {
+  return (row === null || row === void 0 ? void 0 : row.eventType) === "sortie_vide" || (row === null || row === void 0 ? void 0 : row.sortieVide) === true;
+};
 var ovenRequiredMissing = function ovenRequiredMissing(row) {
-  return [!String((row === null || row === void 0 ? void 0 : row.duree) || "").trim() && "Durée [H]", !String((row === null || row === void 0 ? void 0 : row.temp) || "").trim() && "Temp [°C]"].filter(Boolean);
+  return isVacuumExit(row) ? [] : [!String((row === null || row === void 0 ? void 0 : row.duree) || "").trim() && "Durée [H]", !String((row === null || row === void 0 ? void 0 : row.temp) || "").trim() && "Temp [°C]"].filter(Boolean);
 };
 var isFutureOperationDate = function isFutureOperationDate(value) {
   var reference = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : Date.now();
@@ -3446,7 +3449,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
     });
     var ovens = unitRows(effectiveScopedRows(ofData, "etuvage"), unit);
     var runningOvens = ovens.filter(function (row) {
-      return row.entreeDT && !row.sortieDT;
+      return !isVacuumExit(row) && row.entreeDT && !row.sortieDT;
     });
     var incompleteOvens = ovens.filter(function (row) {
       return !row.validated && ovenRequiredMissing(row).length;
@@ -3729,7 +3732,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
     var etuvageRows = (((_ofData0 = ofData) === null || _ofData0 === void 0 || (_ofData0 = _ofData0.etuvage) === null || _ofData0 === void 0 ? void 0 : _ofData0.rows) || []).filter(inUnit);
     var nextEtuvage = nextEtuvageInfo(etuvageRows);
     var etuvagePdfRows = etuvageRows.map(function (r) {
-      return rowPdf([r.createdDT, r.createdVisa, r.fourN, r.duree, r.temp, r.entreeDT, r.entreeVisa, r.sortieDT, r.sortieVisa], r);
+      return rowPdf([r.createdDT, r.createdVisa, isVacuumExit(r) ? "SORTIE VIDE" : r.fourN, isVacuumExit(r) ? "-" : r.duree, isVacuumExit(r) ? "-" : r.temp, r.entreeDT, r.entreeVisa, isVacuumExit(r) ? "-" : r.sortieDT, isVacuumExit(r) ? "-" : r.sortieVisa], r);
     });
     if (nextEtuvage.count) etuvagePdfRows.unshift({
       fullText: "Prochain \xE9tuvage le ".concat(nextEtuvage.label),
@@ -8933,7 +8936,7 @@ var copyTableLineToUnit = function copyTableLineToUnit(tab, row, user, unit) {
     consommables: ["fiche", "op"],
     testequip: ["isFour", "nInv", "type", "designation", "dateExpiration"],
     faits: ["type", "numero", "commentaires"],
-    etuvage: ["fourN", "duree", "temp"],
+    etuvage: ["eventType", "fourN", "duree", "temp"],
     openwork: ["description"],
     demating: ["nConect"]
   }[tab];
@@ -8988,17 +8991,25 @@ var copyTableLineToUnit = function copyTableLineToUnit(tab, row, user, unit) {
     closedVisa: sameOperation ? row.closedVisa || "" : "",
     closedDate: sameOperation ? row.closedDate || "" : ""
   });
-  if (tab === "etuvage") Object.assign(copied, {
-    entreeVisa: sameOperation ? row.entreeVisa || "" : "",
-    entreeDT: sameOperation ? row.entreeDT || "" : "",
-    sortieVisa: sameOperation ? row.sortieVisa || "" : "",
-    sortieDT: sameOperation ? row.sortieDT || "" : "",
-    comments: sameOperation ? (row.comments || []).map(function (comment) {
-      return _objectSpread(_objectSpread({}, comment), {}, {
-        id: uid()
-      });
-    }) : []
-  });
+  if (tab === "etuvage") {
+    var preserveEvent = sameOperation || isVacuumExit(row);
+    Object.assign(copied, {
+      entreeVisa: preserveEvent ? row.entreeVisa || "" : "",
+      entreeDT: preserveEvent ? row.entreeDT || "" : "",
+      sortieVisa: preserveEvent ? row.sortieVisa || "" : "",
+      sortieDT: preserveEvent ? row.sortieDT || "" : "",
+      comments: preserveEvent ? (row.comments || []).map(function (comment) {
+        return _objectSpread(_objectSpread({}, comment), {}, {
+          id: uid()
+        });
+      }) : []
+    });
+    if (isVacuumExit(row)) Object.assign(copied, {
+      createdVisa: row.createdVisa || user.trigram,
+      createdDT: row.createdDT || row.entreeDT || nowDT(),
+      validated: true
+    });
+  }
   if (tab === "openwork") Object.assign(copied, {
     openVisa: sameOperation ? row.openVisa || row.createdVisa || user.trigram : user.trigram,
     openDate: sameOperation ? row.openDate || now() : now(),
@@ -9027,7 +9038,7 @@ var copySourceLabel = function copySourceLabel(tab, row) {
     consommables: [row.fiche, row.op, (_row$items5 = row.items) === null || _row$items5 === void 0 || (_row$items5 = _row$items5[0]) === null || _row$items5 === void 0 ? void 0 : _row$items5.consoId, (_row$items6 = row.items) === null || _row$items6 === void 0 || (_row$items6 = _row$items6[0]) === null || _row$items6 === void 0 ? void 0 : _row$items6.lot],
     testequip: [row.nInv, row.type, row.designation],
     faits: [row.type, row.numero],
-    etuvage: [row.fourN, row.duree && "".concat(row.duree, " h"), row.temp && "".concat(row.temp, " \xB0C")],
+    etuvage: isVacuumExit(row) ? ["Sortie vide", row.entreeDT] : [row.fourN, row.duree && "".concat(row.duree, " h"), row.temp && "".concat(row.temp, " \xB0C")],
     openwork: [row.nOW, row.description],
     demating: [row.nConect]
   }[tab] || [row.repere, row.numero, row.description]).filter(Boolean).join(" · ") || "Ligne";
@@ -16089,6 +16100,9 @@ var ETUVAGE_EDIT_FIELDS = [{
   key: "snIds",
   label: "N° SN"
 }, {
+  key: "eventType",
+  label: "Type d'événement"
+}, {
   key: "fourN",
   label: "Four N°"
 }, {
@@ -16132,7 +16146,7 @@ var closePreviousOpenEtuvages = function closePreviousOpenEtuvages() {
   var startedAt = etuvageTimestamp(entryDate);
   var closed = [];
   var next = rows.map(function (row) {
-    if (row.id === startedRow.id || row.deleted || !row.entreeDT || row.sortieDT) return row;
+    if (row.id === startedRow.id || row.deleted || isVacuumExit(row) || !row.entreeDT || row.sortieDT) return row;
     var previousAt = etuvageTimestamp(row.entreeDT);
     if (startedAt && previousAt && previousAt >= startedAt) return row;
     var rowUnitIds = units.filter(function (unit) {
@@ -16223,6 +16237,33 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         sortieDT: "",
         comments: []
       })])
+    });
+  };
+  var addVacuumExit = function addVacuumExit() {
+    if (!perms.canWrite) return;
+    var dt = nowDT();
+    var row = _objectSpread(_objectSpread({
+      id: uid()
+    }, defaultSnScope(header)), {}, {
+      eventType: "sortie_vide",
+      createdVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+      createdDT: dt,
+      fourN: "",
+      duree: "",
+      temp: "",
+      entreeVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+      entreeDT: dt,
+      sortieVisa: "",
+      sortieDT: "",
+      validated: true,
+      validError: "",
+      comments: []
+    });
+    onChange({
+      rows: closePreviousOpenEtuvages([].concat(_toConsumableArray(rows), [row]), row, dt, header, {
+        visa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+        dt: dt
+      })
     });
   };
   var upd = function upd(id, f, v) {
@@ -16503,12 +16544,19 @@ var TabEtuvage = function TabEtuvage(_ref95) {
     }
   }, perms.canWrite && /*#__PURE__*/React.createElement("div", {
     style: {
-      marginRight: "auto"
+      marginRight: "auto",
+      display: "flex",
+      gap: 6
     }
   }, /*#__PURE__*/React.createElement(Btn, {
     onClick: add,
     small: true
-  }, "+ \xC9tuvage")), /*#__PURE__*/React.createElement("span", {
+  }, "+ \xC9tuvage"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: addVacuumExit,
+    color: C.green,
+    small: true,
+    title: "Enregistrer le retour d'une pi\xE8ce depuis le vide"
+  }, "+ Sortie vide")), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.muted,
@@ -16563,16 +16611,17 @@ var TabEtuvage = function TabEtuvage(_ref95) {
   }))), /*#__PURE__*/React.createElement("tbody", null, visibleRows.flatMap(function (r, i) {
     var inFour = !!r.entreeDT,
       outFour = !!r.sortieDT;
+    var vacuumExit = isVacuumExit(r);
     var editable = canEdit(r);
     var locked = !!r.validated || !editable;
-    var fourVal = r.fourN.trim().toLowerCase();
+    var fourVal = String(r.fourN || "").trim().toLowerCase();
     var fourOk = !r.fourN || fours.some(function (t) {
       return (t.nInv || "").trim().toLowerCase() === fourVal || (t.designation || "").trim().toLowerCase() === fourVal;
     });
     return [/*#__PURE__*/React.createElement("tr", {
       key: r.id,
       style: {
-        background: r.deleted ? "#da363318" : outFour ? "#23863610" : inFour ? "#1f6feb10" : i % 2 === 0 ? "transparent" : C.stripe,
+        background: r.deleted ? "#da363318" : vacuumExit ? "#23863610" : outFour ? "#23863610" : inFour ? "#1f6feb10" : i % 2 === 0 ? "transparent" : C.stripe,
         textDecoration: r.deleted ? "line-through" : undefined,
         opacity: r.deleted ? .6 : 1,
         pointerEvents: r.deleted ? "none" : undefined,
@@ -16604,7 +16653,11 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         return patchRow(r.id, fields);
       },
       disabled: locked
-    })), /*#__PURE__*/React.createElement(TD, null, locked ? /*#__PURE__*/React.createElement(Input, {
+    })), /*#__PURE__*/React.createElement(TD, null, vacuumExit ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014") : locked ? /*#__PURE__*/React.createElement(Input, {
       value: r.fourN,
       small: true,
       readOnly: true,
@@ -16634,14 +16687,18 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         marginTop: 1,
         whiteSpace: "nowrap"
       }
-    }, "\u26A0 non coch\xE9 four"), !r.fourN && !fours.length && !locked && /*#__PURE__*/React.createElement("div", {
+    }, "\u26A0 non coch\xE9 four"), !vacuumExit && !r.fourN && !fours.length && !locked && /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.muted,
         fontSize: 9,
         marginTop: 1,
         whiteSpace: "nowrap"
       }
-    }, "Cochez un four dans Test Equip.")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(Input, {
+    }, "Cochez un four dans Test Equip.")), /*#__PURE__*/React.createElement(TD, null, vacuumExit ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014") : /*#__PURE__*/React.createElement(Input, {
       value: r.duree,
       onChange: function onChange(v) {
         return upd(r.id, "duree", v);
@@ -16654,7 +16711,11 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         color: C.red,
         background: "#da363318"
       } : {}
-    })), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement(Input, {
+    })), /*#__PURE__*/React.createElement(TD, null, vacuumExit ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014") : /*#__PURE__*/React.createElement(Input, {
       value: r.temp,
       onChange: function onChange(v) {
         return upd(r.id, "temp", v);
@@ -16672,7 +16733,10 @@ var TabEtuvage = function TabEtuvage(_ref95) {
       style: {
         pointerEvents: "all"
       }
-    }, !inFour ? editable && /*#__PURE__*/React.createElement("div", {
+    }, vacuumExit ? /*#__PURE__*/React.createElement(Badge, {
+      label: "SORTIE VIDE",
+      color: C.green
+    }) : !inFour ? editable && /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         flexDirection: "column",
@@ -16762,7 +16826,11 @@ var TabEtuvage = function TabEtuvage(_ref95) {
       style: {
         pointerEvents: "all"
       }
-    }, !outFour ? editable && /*#__PURE__*/React.createElement(Btn, {
+    }, vacuumExit ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014") : !outFour ? editable && /*#__PURE__*/React.createElement(Btn, {
       onClick: function onClick() {
         return stamp(r.id, "sortieDT");
       },
@@ -16803,7 +16871,11 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         fontSize: 9,
         color: r.autoClosedByNext ? C.muted : C.green
       }
-    }, r.sortieVisa))), /*#__PURE__*/React.createElement(TD, null, !r.validated ? /*#__PURE__*/React.createElement(Input, {
+    }, r.sortieVisa))), /*#__PURE__*/React.createElement(TD, null, vacuumExit ? /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014") : !r.validated ? /*#__PURE__*/React.createElement(Input, {
       value: r.sortieDT || "",
       onChange: function onChange(v) {
         return patchEtuvageStamp(r.id, {
@@ -24563,7 +24635,7 @@ var adminVisaRowPresentation = function adminVisaRowPresentation(row, section, f
     details: [row.lot && "Lot ".concat(row.lot), row.nEchantillon && "\xC9chantillon ".concat(row.nEchantillon), row.qty && "Qt\xE9 ".concat(row.qty)].filter(Boolean).join(" · ")
   }, stamp);
   if (section === "etuvage") return _objectSpread({
-    summary: ["Étuvage", first(row.fourN, row.nInv, row.designation)].filter(Boolean).join(" · "),
+    summary: isVacuumExit(row) ? "Sortie vide" : ["Étuvage", first(row.fourN, row.nInv, row.designation)].filter(Boolean).join(" · "),
     details: [row.temperature && "".concat(row.temperature, " \xB0C"), row.duree && "".concat(row.duree, " h")].filter(Boolean).join(" · ")
   }, stamp);
   if (section === "testequip") return _objectSpread({

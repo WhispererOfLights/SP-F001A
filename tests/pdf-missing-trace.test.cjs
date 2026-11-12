@@ -49,13 +49,17 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   assert.ok(factsPdf.includes('NC-123')&&factsPdf.includes('Fait visible'));
   assert.ok(!factsPdf.includes('31/12/2099')&&!factsPdf.includes('CLOSEV'),'Fact status and closure visa must not appear in the PDF');
   const ovenPdfBlob=context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
-    units:{rows:units},etuvage:{rows:[{id:'oven1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',fourN:'F1',duree:'72',temp:'85',entreeDT:'18/09/2026 08:00',entreeVisa:'JGR',snIds:['u1']}]}} ,
+    units:{rows:units},etuvage:{rows:[
+      {id:'oven1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',fourN:'F1',duree:'72',temp:'85',entreeDT:'18/09/2026 08:00',entreeVisa:'JGR',snIds:['u1']},
+      {id:'vacuum1',eventType:'sortie_vide',createdDT:'17/09/2026 08:00',createdVisa:'JGR',entreeDT:'17/09/2026 08:00',entreeVisa:'JGR',validated:true,snIds:['u1']}
+    ]}} ,
     lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['etuvage']});
   const ovenPdf=await ovenPdfBlob.text();
   assert.ok(ovenPdf.includes('(Dur\\351e [h])'),'Oven duration header includes hours');
   assert.ok(ovenPdf.includes('(Temp\\351rature [\\260C])'),'Oven temperature header includes degrees Celsius');
   assert.ok(ovenPdf.includes('Prochain')&&ovenPdf.includes('21/09/26 08:00'),'The PDF states the next oven date calculated from the latest start');
   assert.ok(!/retard/i.test(ovenPdf),'The PDF does not label an overdue oven as late');
+  assert.ok(ovenPdf.includes('(SORTIE VIDE)'),'Vacuum exits are identified in the oven PDF');
   const equipmentPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},testequip:{rows:[
       {id:'expired-equipment',createdDT:'18/09/2026 08:00',createdVisa:'JGR',nInv:'INV-HS',type:'Multimetre',designation:'Hors calibration',dateExpiration:'2025-06',checkDate:'18/09/2026',snIds:['u1']},

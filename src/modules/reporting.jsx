@@ -863,7 +863,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
 
     const facts=unitRows(effectiveScopedRows(ofData,"faits"),unit).filter(row=>!row.closedDate);
     const ovens=unitRows(effectiveScopedRows(ofData,"etuvage"),unit);
-    const runningOvens=ovens.filter(row=>row.entreeDT&&!row.sortieDT);
+    const runningOvens=ovens.filter(row=>!isVacuumExit(row)&&row.entreeDT&&!row.sortieDT);
     const incompleteOvens=ovens.filter(row=>!row.validated&&ovenRequiredMissing(row).length);
     [
       compactItems("Suivis techniques ouverts",facts.map(row=>technicalFollowUpLabel(row))),
@@ -1032,7 +1032,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
 
     const etuvageRows=(ofData?.etuvage?.rows||[]).filter(inUnit);
     const nextEtuvage=nextEtuvageInfo(etuvageRows);
-    const etuvagePdfRows=etuvageRows.map(r=>rowPdf([r.createdDT,r.createdVisa,r.fourN,r.duree,r.temp,r.entreeDT,r.entreeVisa,r.sortieDT,r.sortieVisa],r));
+    const etuvagePdfRows=etuvageRows.map(r=>rowPdf([r.createdDT,r.createdVisa,isVacuumExit(r)?"SORTIE VIDE":r.fourN,isVacuumExit(r)?"-":r.duree,isVacuumExit(r)?"-":r.temp,r.entreeDT,r.entreeVisa,isVacuumExit(r)?"-":r.sortieDT,isVacuumExit(r)?"-":r.sortieVisa],r));
     if(nextEtuvage.count) etuvagePdfRows.unshift({
       fullText:`Prochain étuvage le ${nextEtuvage.label}`,
       fill:"0.91 0.95 1.00",stroke:color.blue,color:color.blue,

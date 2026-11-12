@@ -3,6 +3,7 @@ const ETUVAGE_EDIT_FIELDS = [
   {key:"createdDT",label:"Date de l'opération"},
   {key:"snScope",label:"Mode SN"},
   {key:"snIds",label:"N° SN"},
+  {key:"eventType",label:"Type d'événement"},
   {key:"fourN",label:"Four N°"},
   {key:"duree",label:"Durée"},
   {key:"temp",label:"Temp"},
@@ -26,7 +27,7 @@ const closePreviousOpenEtuvages = (rows=[],startedRow,entryDate,header,audit={})
   const startedAt=etuvageTimestamp(entryDate);
   const closed=[];
   const next=rows.map(row=>{
-    if(row.id===startedRow.id||row.deleted||!row.entreeDT||row.sortieDT) return row;
+    if(row.id===startedRow.id||row.deleted||isVacuumExit(row)||!row.entreeDT||row.sortieDT) return row;
     const previousAt=etuvageTimestamp(row.entreeDT);
     if(startedAt&&previousAt&&previousAt>=startedAt) return row;
     const rowUnitIds=units.filter(unit=>rowMatchesSn(row,unit,units)).map(unit=>unit.id);
@@ -56,6 +57,13 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
   const [showDeleted,setShowDeleted]   = useState(false);
   const snFilter=workSnFilter(header);
   const add=()=>{ if(!perms.canWrite) return; onChange({rows:[...rows,{id:uid(),...defaultSnScope(header),createdVisa:user?.trigram||"",createdDT:nowDT(),fourN:"",duree:"",temp:"",entreeVisa:"",entreeDT:"",sortieVisa:"",sortieDT:"",comments:[]}]}); };
+  const addVacuumExit=()=>{
+    if(!perms.canWrite) return;
+    const dt=nowDT();
+    const row={id:uid(),...defaultSnScope(header),eventType:"sortie_vide",createdVisa:user?.trigram||"",createdDT:dt,
+      fourN:"",duree:"",temp:"",entreeVisa:user?.trigram||"",entreeDT:dt,sortieVisa:"",sortieDT:"",validated:true,validError:"",comments:[]};
+    onChange({rows:closePreviousOpenEtuvages([...rows,row],row,dt,header,{visa:user?.trigram||"",dt})});
+  };
   const upd=(id,f,v)=>{ const r=rows.find(x=>x.id===id); if(f==="comments" ? !perms.canComment : !canEdit(r)) return; onChange({rows:scopedRowsPatch(rows,id,header,{[f]:v})}); };
   const patchRow=(id,fields)=>{ const r=rows.find(x=>x.id===id); if(canEdit(r)) onChange({rows:scopedRowsPatch(rows,id,header,fields)}); };
   const dup=id=>{ const r=rows.find(x=>x.id===id); if(!r||!perms.canWrite) return; if(onCopyAcross&&!r.deleted){onCopyAcross(r);return;} onChange({rows:[...rows,duplicateRow(r,user,{
@@ -142,7 +150,10 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
         </div>}
       </div>
       <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:12}}>
-        {perms.canWrite&&<div style={{marginRight:"auto"}}><Btn onClick={add} small>+ Étuvage</Btn></div>}
+        {perms.canWrite&&<div style={{marginRight:"auto",display:"flex",gap:6}}>
+          <Btn onClick={add} small>+ Étuvage</Btn>
+          <Btn onClick={addVacuumExit} color={C.green} small title="Enregistrer le retour d'une pièce depuis le vide">+ Sortie vide</Btn>
+        </div>}
         <span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>Filtre SN : {snFilter==="all"?"TRAVAIL = Tous":snScopeLabel({snScope:"custom",snIds:[snFilter]},snRowsFromHeader(header))}</span>
         {deletedCount>0&&<Btn onClick={()=>setShowDeleted(s=>!s)} color={showDeleted?"#da3633":C.border} small>
           {showDeleted?"▲ Masquer annulées":"▼ Voir annulées ("+deletedCount+")"}
@@ -164,15 +175,16 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
           <tbody>
             {visibleRows.flatMap((r,i)=>{
               const inFour=!!r.entreeDT,outFour=!!r.sortieDT;
+              const vacuumExit=isVacuumExit(r);
               const editable = canEdit(r);
               const locked = !!r.validated || !editable;
-              const fourVal=r.fourN.trim().toLowerCase();
+              const fourVal=String(r.fourN||"").trim().toLowerCase();
               const fourOk=!r.fourN||fours.some(t=>
                 (t.nInv||"").trim().toLowerCase()===fourVal ||
                 (t.designation||"").trim().toLowerCase()===fourVal
               );
               return [
-                <tr key={r.id} style={{background:r.deleted?"#da363318":outFour?"#23863610":inFour?"#1f6feb10":i%2===0?"transparent":C.stripe,
+                <tr key={r.id} style={{background:r.deleted?"#da363318":vacuumExit?"#23863610":outFour?"#23863610":inFour?"#1f6feb10":i%2===0?"transparent":C.stripe,
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
                   pointerEvents:r.deleted?"none":undefined,
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
@@ -180,7 +192,9 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
                   <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                   <TD>
-                    {locked?(
+                    {vacuumExit?(
+                      <span style={{color:C.muted}}>—</span>
+                    ):locked?(
                       <Input value={r.fourN} small readOnly style={LOCKED_INPUT_STYLE}/>
                     ):(
                       <>
@@ -192,14 +206,16 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                       </>
                     )}
                     {r.fourN&&!fourOk&&!locked&&<div style={{color:C.yellow,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>⚠ non coché four</div>}
-                    {!r.fourN&&!fours.length&&!locked&&<div style={{color:C.muted,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>Cochez un four dans Test Equip.</div>}
+                    {!vacuumExit&&!r.fourN&&!fours.length&&!locked&&<div style={{color:C.muted,fontSize:9,marginTop:1,whiteSpace:"nowrap"}}>Cochez un four dans Test Equip.</div>}
                   </TD>
-                  <TD><Input value={r.duree} onChange={v=>upd(r.id,"duree",v)} small placeholder="h" readOnly={locked}
-                    style={locked?LOCKED_INPUT_STYLE:r.validError&&!r.duree?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
-                  <TD><Input value={r.temp}  onChange={v=>upd(r.id,"temp",v)}  small placeholder="°C" readOnly={locked}
-                    style={locked?LOCKED_INPUT_STYLE:r.validError&&!r.temp?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/></TD>
+                  <TD>{vacuumExit?<span style={{color:C.muted}}>—</span>:<Input value={r.duree} onChange={v=>upd(r.id,"duree",v)} small placeholder="h" readOnly={locked}
+                    style={locked?LOCKED_INPUT_STYLE:r.validError&&!r.duree?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/>}</TD>
+                  <TD>{vacuumExit?<span style={{color:C.muted}}>—</span>:<Input value={r.temp}  onChange={v=>upd(r.id,"temp",v)}  small placeholder="°C" readOnly={locked}
+                    style={locked?LOCKED_INPUT_STYLE:r.validError&&!r.temp?{borderColor:C.red,color:C.red,background:"#da363318"}:{}}/>}</TD>
                   <TD center style={{pointerEvents:"all"}}>
-                    {!inFour
+                    {vacuumExit
+                      ? <Badge label="SORTIE VIDE" color={C.green}/>
+                      : !inFour
                       ? (editable&&<div style={{display:"flex",flexDirection:"column",gap:3,alignItems:"stretch"}}>
                           <Btn onClick={()=>validateAndEnter(r.id)} color={C.blue} small>▶ Entrée four</Btn>
                           <Btn onClick={()=>setWeekendTarget(r.id)} color={C.border} small title="Démarrer le compteur au dimanche soir">WE · Dim. soir</Btn>
@@ -224,7 +240,9 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                       : <span style={{fontFamily:"monospace",fontSize:11,color:inFour?C.blue:C.muted}}>{r.entreeDT||"—"}</span>}
                   </TD>
                   <TD center style={{pointerEvents:"all"}}>
-                    {!outFour
+                    {vacuumExit
+                      ? <span style={{color:C.muted}}>—</span>
+                      : !outFour
                       ? (editable&&<Btn onClick={()=>stamp(r.id,"sortieDT")} color={C.green} small disabled={!inFour}>■ Sortie</Btn>)
                       : <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}>
                           <Badge label={r.autoClosedByNext?"■ SORTI AUTO":"■ SORTI"} color={r.autoClosedByNext?C.muted:C.green}/>
@@ -237,7 +255,9 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                         </div>}
                   </TD>
                   <TD>
-                    {!r.validated
+                    {vacuumExit
+                      ? <span style={{color:C.muted}}>—</span>
+                      : !r.validated
                       ? <Input value={r.sortieDT||""} onChange={v=>patchEtuvageStamp(r.id,{sortieDT:v,sortieVisa:v?(r.sortieVisa||user?.trigram||""):"",
                           autoClosedByNext:false,autoClosedDT:"",autoClosedVisa:"",autoClosedStartId:""})}
                           small title="Corriger la date/heure de sortie. Vider retire l'état sortie four."
