@@ -3,6 +3,22 @@ const homeRowsForOf = (entry,data) => {
   const units=withUnitMetadata(data||{header:entry}).units.rows.filter(u=>!u.deleted&&(cleanSn(u.sn)||cleanSn(u.lot)));
   return units.length?units.map(u=>({...entry,sn:u.sn||"",lot:u.lot||entry.lot||"",snProduitFini:u.snProduitFini||"",unitStatus:u.status||"en_cours",_homeUnitId:u.id,_homeUnitKind:u.unitKind||((u.lot||entry.lot)?"lot":"sn"),_homeSnCount:units.length,_homeQty:trackedLotQty(u)})):[{...entry,sn:"",lot:"",snProduitFini:"",_homeUnitKind:"sn",_homeQty:""}];
 };
+const homeUnitStatusSummary = rows => {
+  const counts=(rows||[]).reduce((result,row)=>{
+    const status=row.unitStatus||"en_cours";
+    result[status]=(result[status]||0)+1;
+    return result;
+  },{});
+  const parts=Object.keys(STATUTS).filter(status=>counts[status]).map(status=>({
+    status,count:counts[status],label:STATUTS[status]?.label||status,color:STATUTS[status]?.color||C.border,
+  }));
+  Object.keys(counts).filter(status=>!parts.some(part=>part.status===status)).forEach(status=>parts.push({status,count:counts[status],label:status,color:C.border}));
+  return {
+    parts,
+    label:parts.map(part=>`${part.count} ${part.label}`).join(" · ")||"Aucun état",
+    color:parts.length===1?parts[0].color:C.yellow,
+  };
+};
 const SORT_OPTS=[
   {id:"fav",  label:"⭐ Favoris d'abord"},
   {id:"opens",label:"Derniers ouverts"},
@@ -1174,8 +1190,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 {sortableTh("otp","OTP",190)}
                 {sortableTh("snProduitFini","SN Prod. Fini",140)}
                 {sortableTh("reprise","Reprise",78)}
-                {sortableTh("status","Statut OF",105)}
-                {sortableTh("unitStatus","Statut SN",110)}
+                {sortableTh("unitStatus","État",170)}
                 {sortableTh("nextEtuvage","Prochain étuvage",150)}
                 {sortableTh("followup","Suivi technique",330)}
                 <TH w={isAdminManager(user)?140:80}></TH>
@@ -1183,7 +1198,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
               <tr style={{background:C.raised}}>
                 <td/>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
-                {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['status','Statut OF'],['unitStatus','Statut SN'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{key==="unitStatus"?<span title="Le filtre de statut est commun aux OF et aux SN / LOT" style={{display:"block",textAlign:"center",fontSize:9,color:C.muted}}>Filtre commun</span>:columnFilter(key,label)}</td>)}
+                {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['unitStatus','État'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
                 <td style={{padding:"4px 5px"}}>{columnFilter("followup","Suivi technique")}</td>
                 <td/>
               </tr>
@@ -1212,6 +1227,9 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const lotSummary=lotCount?`${lotCount} LOT`:"—";
                 const summaryName=[snCount&&`${snCount} SN`,lotCount&&`${lotCount} LOT`].filter(Boolean).join(" / ")||`${ofRows.length} élément(s)`;
                 const groupStatuses=[...new Set(ofRows.map(row=>row.unitStatus||"en_cours"))];
+                const statusSummary=homeUnitStatusSummary(ofRows);
+                const administrativeStatus=o.status||"en_cours";
+                const showAdministrativeStatus=groupStart&&(groupStatuses.length!==1||administrativeStatus!==groupStatuses[0]);
                 const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
                 const contributors=contributorsById[o.id]||[];
                 return (
@@ -1244,23 +1262,17 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{o.otp||o.projet||"—"}</span></TD>
                     <TD onClick={e=>e.stopPropagation()}>{collapsed?<span style={{color:C.muted}}>—</span>:<FinishedProductSn of={o} user={user} onSave={onFinishedSnChange}/>}</TD>
                     <TD center><Badge label={(String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true")?"Oui":"Non"} color={String(o.ofRework||"").toLowerCase()==="oui"?C.yellow:C.border}/></TD>
-                    <TD center>
-                      <select disabled={!isAdminManager(user)} value={o.status||"en_cours"}
-                        onClick={e=>e.stopPropagation()}
-                        onChange={e=>{e.stopPropagation();onUpdateStatus(o.id,e.target.value);}}
-                        style={{background:STATUTS[o.status||"en_cours"]?.color+"22",
-                          border:`1px solid ${STATUTS[o.status||"en_cours"]?.color}`,
-                          borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,
-                          color:STATUTS[o.status||"en_cours"]?.color,outline:"none",cursor:"pointer"}}>
-                        {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-                      </select>
-                    </TD>
                     <TD onClick={e=>e.stopPropagation()}>
-                      {collapsed?<Badge label={groupStatuses.length===1?(UNIT_STATUTS[groupStatuses[0]]?.label||groupStatuses[0]):"Statuts mixtes"} color={groupStatuses.length===1?(UNIT_STATUTS[groupStatuses[0]]?.color||C.border):C.yellow}/>:o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
-                        onChange={e=>onUnitStatusChange(o.id,o._homeUnitId,e.target.value).catch(error=>window.alert(`Enregistrement impossible : ${error?.message||error}`))}
-                        style={{width:"100%",background:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color+"18",color:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color,border:`1px solid ${UNIT_STATUTS[o.unitStatus||"en_cours"]?.color}`,borderRadius:4,padding:"3px 5px",fontSize:12}}>
-                        {Object.entries(UNIT_STATUTS).map(([value,s])=><option key={value} value={value}>{s.label}</option>)}
-                      </select>:"—"}
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"stretch",gap:3}}>
+                        {collapsed?<Badge label={statusSummary.label} color={statusSummary.color}/>:o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
+                          onChange={e=>onUnitStatusChange(o.id,o._homeUnitId,e.target.value).catch(error=>window.alert(`Enregistrement impossible : ${error?.message||error}`))}
+                          style={{width:"100%",background:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color+"18",color:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color,border:`1px solid ${UNIT_STATUTS[o.unitStatus||"en_cours"]?.color}`,borderRadius:4,padding:"3px 5px",fontSize:12}}>
+                          {Object.entries(UNIT_STATUTS).map(([value,s])=><option key={value} value={value}>{s.label}</option>)}
+                        </select>:<span style={{color:C.muted}}>—</span>}
+                        {showAdministrativeStatus&&<span title="État administratif de l’OF, modifiable dans le dossier" style={{fontSize:9,color:STATUTS[administrativeStatus]?.color||C.muted,fontWeight:800,whiteSpace:"nowrap"}}>
+                          OF · {STATUTS[administrativeStatus]?.label||administrativeStatus}
+                        </span>}
+                      </div>
                     </TD>
                     <TD center onClick={e=>e.stopPropagation()}>{(()=>{
                       try{

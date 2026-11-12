@@ -20358,6 +20358,43 @@ var homeRowsForOf = function homeRowsForOf(entry, data) {
     _homeQty: ""
   })];
 };
+var homeUnitStatusSummary = function homeUnitStatusSummary(rows) {
+  var counts = (rows || []).reduce(function (result, row) {
+    var status = row.unitStatus || "en_cours";
+    result[status] = (result[status] || 0) + 1;
+    return result;
+  }, {});
+  var parts = Object.keys(STATUTS).filter(function (status) {
+    return counts[status];
+  }).map(function (status) {
+    var _STATUTS$status, _STATUTS$status2;
+    return {
+      status: status,
+      count: counts[status],
+      label: ((_STATUTS$status = STATUTS[status]) === null || _STATUTS$status === void 0 ? void 0 : _STATUTS$status.label) || status,
+      color: ((_STATUTS$status2 = STATUTS[status]) === null || _STATUTS$status2 === void 0 ? void 0 : _STATUTS$status2.color) || C.border
+    };
+  });
+  Object.keys(counts).filter(function (status) {
+    return !parts.some(function (part) {
+      return part.status === status;
+    });
+  }).forEach(function (status) {
+    return parts.push({
+      status: status,
+      count: counts[status],
+      label: status,
+      color: C.border
+    });
+  });
+  return {
+    parts: parts,
+    label: parts.map(function (part) {
+      return "".concat(part.count, " ").concat(part.label);
+    }).join(" · ") || "Aucun état",
+    color: parts.length === 1 ? parts[0].color : C.yellow
+  };
+};
 var SORT_OPTS = [{
   id: "fav",
   label: "⭐ Favoris d'abord"
@@ -23780,7 +23817,7 @@ var OFSelector = function OFSelector(_ref129) {
     }
   })), /*#__PURE__*/React.createElement(TH, {
     w: 30
-  }, "\u2B50"), sortableTh("of", "OF", 120), sortableTh("codeArticle", "N° Article", 110), sortableTh("sn", "SN", 90), sortableTh("lot", "LOT", 110), sortableTh("description", "Description"), sortableTh("otp", "OTP", 190), sortableTh("snProduitFini", "SN Prod. Fini", 140), sortableTh("reprise", "Reprise", 78), sortableTh("status", "Statut OF", 105), sortableTh("unitStatus", "Statut SN", 110), sortableTh("nextEtuvage", "Prochain étuvage", 150), sortableTh("followup", "Suivi technique", 330), /*#__PURE__*/React.createElement(TH, {
+  }, "\u2B50"), sortableTh("of", "OF", 120), sortableTh("codeArticle", "N° Article", 110), sortableTh("sn", "SN", 90), sortableTh("lot", "LOT", 110), sortableTh("description", "Description"), sortableTh("otp", "OTP", 190), sortableTh("snProduitFini", "SN Prod. Fini", 140), sortableTh("reprise", "Reprise", 78), sortableTh("unitStatus", "État", 170), sortableTh("nextEtuvage", "Prochain étuvage", 150), sortableTh("followup", "Suivi technique", 330), /*#__PURE__*/React.createElement(TH, {
     w: isAdminManager(user) ? 140 : 80
   })), /*#__PURE__*/React.createElement("tr", {
     style: {
@@ -23801,7 +23838,7 @@ var OFSelector = function OFSelector(_ref129) {
       color: C.muted,
       cursor: "pointer"
     }
-  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['status', 'Statut OF'], ['unitStatus', 'Statut SN'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref141) {
+  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['unitStatus', 'État'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref141) {
     var _ref142 = _slicedToArray(_ref141, 2),
       key = _ref142[0],
       label = _ref142[1];
@@ -23810,21 +23847,13 @@ var OFSelector = function OFSelector(_ref129) {
       style: {
         padding: "4px 5px"
       }
-    }, key === "unitStatus" ? /*#__PURE__*/React.createElement("span", {
-      title: "Le filtre de statut est commun aux OF et aux SN / LOT",
-      style: {
-        display: "block",
-        textAlign: "center",
-        fontSize: 9,
-        color: C.muted
-      }
-    }, "Filtre commun") : columnFilter(key, label));
+    }, columnFilter(key, label));
   }), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: "4px 5px"
     }
   }, columnFilter("followup", "Suivi technique")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
-    var _STATUTS13, _STATUTS14, _STATUTS15, _UNIT_STATUTS$groupSt, _UNIT_STATUTS$groupSt2, _UNIT_STATUTS5, _UNIT_STATUTS6, _UNIT_STATUTS7, _warningsById$o$id4, _warningsById$o$id5;
+    var _UNIT_STATUTS5, _UNIT_STATUTS6, _UNIT_STATUTS7, _STATUTS$administrati, _STATUTS$administrati2, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
     var ofRows = allHomeRows.filter(function (row) {
       return row.id === o.id;
@@ -23868,6 +23897,9 @@ var OFSelector = function OFSelector(_ref129) {
     var groupStatuses = _toConsumableArray(new Set(ofRows.map(function (row) {
       return row.unitStatus || "en_cours";
     })));
+    var statusSummary = homeUnitStatusSummary(ofRows);
+    var administrativeStatus = o.status || "en_cours";
+    var showAdministrativeStatus = groupStart && (groupStatuses.length !== 1 || administrativeStatus !== groupStatuses[0]);
     var actionKey = collapsed ? "".concat(o.id, ":all") : homeRowKey(o);
     var contributors = contributorsById[o.id] || [];
     return /*#__PURE__*/React.createElement("tr", {
@@ -24020,43 +24052,19 @@ var OFSelector = function OFSelector(_ref129) {
       label: String(o.ofRework || "non").toLowerCase() === "oui" || String(o.ofRework || "").toLowerCase() === "true" ? "Oui" : "Non",
       color: String(o.ofRework || "").toLowerCase() === "oui" ? C.yellow : C.border
     })), /*#__PURE__*/React.createElement(TD, {
-      center: true
-    }, /*#__PURE__*/React.createElement("select", {
-      disabled: !isAdminManager(user),
-      value: o.status || "en_cours",
       onClick: function onClick(e) {
         return e.stopPropagation();
-      },
-      onChange: function onChange(e) {
-        e.stopPropagation();
-        onUpdateStatus(o.id, e.target.value);
-      },
-      style: {
-        background: ((_STATUTS13 = STATUTS[o.status || "en_cours"]) === null || _STATUTS13 === void 0 ? void 0 : _STATUTS13.color) + "22",
-        border: "1px solid ".concat((_STATUTS14 = STATUTS[o.status || "en_cours"]) === null || _STATUTS14 === void 0 ? void 0 : _STATUTS14.color),
-        borderRadius: 20,
-        padding: "2px 8px",
-        fontSize: 10,
-        fontWeight: 700,
-        color: (_STATUTS15 = STATUTS[o.status || "en_cours"]) === null || _STATUTS15 === void 0 ? void 0 : _STATUTS15.color,
-        outline: "none",
-        cursor: "pointer"
       }
-    }, Object.entries(STATUTS).map(function (_ref143) {
-      var _ref144 = _slicedToArray(_ref143, 2),
-        k = _ref144[0],
-        v = _ref144[1];
-      return /*#__PURE__*/React.createElement("option", {
-        key: k,
-        value: k
-      }, v.label);
-    }))), /*#__PURE__*/React.createElement(TD, {
-      onClick: function onClick(e) {
-        return e.stopPropagation();
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: 3
       }
     }, collapsed ? /*#__PURE__*/React.createElement(Badge, {
-      label: groupStatuses.length === 1 ? ((_UNIT_STATUTS$groupSt = UNIT_STATUTS[groupStatuses[0]]) === null || _UNIT_STATUTS$groupSt === void 0 ? void 0 : _UNIT_STATUTS$groupSt.label) || groupStatuses[0] : "Statuts mixtes",
-      color: groupStatuses.length === 1 ? ((_UNIT_STATUTS$groupSt2 = UNIT_STATUTS[groupStatuses[0]]) === null || _UNIT_STATUTS$groupSt2 === void 0 ? void 0 : _UNIT_STATUTS$groupSt2.color) || C.border : C.yellow
+      label: statusSummary.label,
+      color: statusSummary.color
     }) : o._homeUnitId ? /*#__PURE__*/React.createElement("select", {
       "aria-label": "Statut SN ".concat(o.sn || o.lot, " - OF ").concat(o.of),
       disabled: !isAdminManager(user),
@@ -24075,15 +24083,27 @@ var OFSelector = function OFSelector(_ref129) {
         padding: "3px 5px",
         fontSize: 12
       }
-    }, Object.entries(UNIT_STATUTS).map(function (_ref145) {
-      var _ref146 = _slicedToArray(_ref145, 2),
-        value = _ref146[0],
-        s = _ref146[1];
+    }, Object.entries(UNIT_STATUTS).map(function (_ref143) {
+      var _ref144 = _slicedToArray(_ref143, 2),
+        value = _ref144[0],
+        s = _ref144[1];
       return /*#__PURE__*/React.createElement("option", {
         key: value,
         value: value
       }, s.label);
-    })) : "—"), /*#__PURE__*/React.createElement(TD, {
+    })) : /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.muted
+      }
+    }, "\u2014"), showAdministrativeStatus && /*#__PURE__*/React.createElement("span", {
+      title: "\xC9tat administratif de l\u2019OF, modifiable dans le dossier",
+      style: {
+        fontSize: 9,
+        color: ((_STATUTS$administrati = STATUTS[administrativeStatus]) === null || _STATUTS$administrati === void 0 ? void 0 : _STATUTS$administrati.color) || C.muted,
+        fontWeight: 800,
+        whiteSpace: "nowrap"
+      }
+    }, "OF \xB7 ", ((_STATUTS$administrati2 = STATUTS[administrativeStatus]) === null || _STATUTS$administrati2 === void 0 ? void 0 : _STATUTS$administrati2.label) || administrativeStatus))), /*#__PURE__*/React.createElement(TD, {
       center: true,
       onClick: function onClick(e) {
         return e.stopPropagation();
@@ -24345,12 +24365,12 @@ var TABS = [{
   label: "Suivi technique",
   "short": "SUIVI"
 }];
-var SettingsModal = function SettingsModal(_ref147) {
-  var user = _ref147.user,
-    onClose = _ref147.onClose,
-    onUsers = _ref147.onUsers,
-    onStatuses = _ref147.onStatuses,
-    onConsumables = _ref147.onConsumables;
+var SettingsModal = function SettingsModal(_ref145) {
+  var user = _ref145.user,
+    onClose = _ref145.onClose,
+    onUsers = _ref145.onUsers,
+    onStatuses = _ref145.onStatuses,
+    onConsumables = _ref145.onConsumables;
   var options = [canManageUsers(user) && {
     id: "users",
     label: "Utilisateurs",
@@ -24583,10 +24603,10 @@ var adminVisaEntries = function adminVisaEntries(data) {
     }
     if (!value || _typeof(value) !== "object") return;
     var nextContext = contextOf(value, context);
-    Object.entries(value).forEach(function (_ref148) {
-      var _ref149 = _slicedToArray(_ref148, 2),
-        key = _ref149[0],
-        item = _ref149[1];
+    Object.entries(value).forEach(function (_ref146) {
+      var _ref147 = _slicedToArray(_ref146, 2),
+        key = _ref147[0],
+        item = _ref147[1];
       if (skipped.has(key)) return;
       if (ADMIN_VISA_FIELDS[key] && String(item || "").trim()) {
         entries.push(_objectSpread({
@@ -24678,12 +24698,12 @@ var applyAdminDateCorrections = function applyAdminDateCorrections(data, entries
   });
   return updated;
 };
-var AdminVisaModal = function AdminVisaModal(_ref150) {
-  var data = _ref150.data,
-    user = _ref150.user,
-    onClose = _ref150.onClose,
-    onConfirm = _ref150.onConfirm,
-    onConfirmDate = _ref150.onConfirmDate;
+var AdminVisaModal = function AdminVisaModal(_ref148) {
+  var data = _ref148.data,
+    user = _ref148.user,
+    onClose = _ref148.onClose,
+    onConfirm = _ref148.onConfirm,
+    onConfirmDate = _ref148.onConfirmDate;
   var entries = adminVisaEntries(data);
   var _useState309 = useState("visa"),
     _useState310 = _slicedToArray(_useState309, 2),
@@ -26160,12 +26180,12 @@ function App() {
             }
             _context52.n = 3;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref157 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee50(_ref156) {
-                var _ref158, id, unitIds, _t73, _t74;
+              var _ref155 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee50(_ref154) {
+                var _ref156, id, unitIds, _t73, _t74;
                 return _regenerator().w(function (_context50) {
                   while (1) switch (_context50.n) {
                     case 0:
-                      _ref158 = _slicedToArray(_ref156, 2), id = _ref158[0], unitIds = _ref158[1];
+                      _ref156 = _slicedToArray(_ref154, 2), id = _ref156[0], unitIds = _ref156[1];
                       _t73 = id;
                       _context50.n = 1;
                       return window.storage.updateWorkOrderSummary("of:".concat(id), {
@@ -26186,7 +26206,7 @@ function App() {
                 }, _callee50);
               }));
               return function (_x23) {
-                return _ref157.apply(this, arguments);
+                return _ref155.apply(this, arguments);
               };
             }()));
           case 3:
@@ -26198,12 +26218,12 @@ function App() {
           case 4:
             _context52.n = 5;
             return Promise.all(_toConsumableArray(groups).map(/*#__PURE__*/function () {
-              var _ref160 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee51(_ref159) {
-                var _ref161, id, unitIds, record, data;
+              var _ref158 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee51(_ref157) {
+                var _ref159, id, unitIds, record, data;
                 return _regenerator().w(function (_context51) {
                   while (1) switch (_context51.n) {
                     case 0:
-                      _ref161 = _slicedToArray(_ref159, 2), id = _ref161[0], unitIds = _ref161[1];
+                      _ref159 = _slicedToArray(_ref157, 2), id = _ref159[0], unitIds = _ref159[1];
                       _context51.n = 1;
                       return window.storage.get("of:".concat(id), true);
                     case 1:
@@ -26228,7 +26248,7 @@ function App() {
                 }, _callee51);
               }));
               return function (_x24) {
-                return _ref160.apply(this, arguments);
+                return _ref158.apply(this, arguments);
               };
             }()));
           case 5:
@@ -26561,7 +26581,7 @@ function App() {
     return importOFs;
   }();
   var save = useCallback(/*#__PURE__*/function () {
-    var _ref163 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee55(data) {
+    var _ref161 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee55(data) {
       var etvRows, lastEtv, _t78;
       return _regenerator().w(function (_context56) {
         while (1) switch (_context56.p = _context56.n) {
@@ -26621,11 +26641,11 @@ function App() {
       }, _callee55, null, [[2, 4, 5, 6]]);
     }));
     return function (_x26) {
-      return _ref163.apply(this, arguments);
+      return _ref161.apply(this, arguments);
     };
   }(), [currentId]);
   var closeWorkItem = useCallback(/*#__PURE__*/function () {
-    var _ref164 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee56(tab, rowId, closed) {
+    var _ref162 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee56(tab, rowId, closed) {
       var stored, _t79;
       return _regenerator().w(function (_context57) {
         while (1) switch (_context57.p = _context57.n) {
@@ -26666,7 +26686,7 @@ function App() {
       }, _callee56, null, [[2, 5]]);
     }));
     return function (_x27, _x28, _x29) {
-      return _ref164.apply(this, arguments);
+      return _ref162.apply(this, arguments);
     };
   }(), [currentId, user]);
   useEffect(function () {
@@ -27845,7 +27865,7 @@ function App() {
   var reportSous = h.codeArticle || h.description || "—";
   var reportSn = snRows.length ? snRows.map(snTitle).join(" ; ") : "".concat(h.sn || "—", " / ").concat(h.lot || "—");
   var ReportTitle = function ReportTitle() {
-    var _STATUTS16;
+    var _STATUTS13;
     return printAll ? /*#__PURE__*/React.createElement("div", {
       style: {
         borderBottom: "3px solid ".concat(C.accent),
@@ -27895,7 +27915,7 @@ function App() {
         textTransform: "uppercase",
         letterSpacing: .8
       }
-    }, "Statut OF"), /*#__PURE__*/React.createElement("strong", null, ((_STATUTS16 = STATUTS[h.status || "en_cours"]) === null || _STATUTS16 === void 0 ? void 0 : _STATUTS16.label) || "—")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }, "Statut OF"), /*#__PURE__*/React.createElement("strong", null, ((_STATUTS13 = STATUTS[h.status || "en_cours"]) === null || _STATUTS13 === void 0 ? void 0 : _STATUTS13.label) || "—")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.muted,
         fontSize: 9,
@@ -27904,8 +27924,8 @@ function App() {
       }
     }, "\xC9dit\xE9"), /*#__PURE__*/React.createElement("strong", null, nowDT(), " - ", user.trigram)))) : null;
   };
-  var ReportHead = function ReportHead(_ref165) {
-    var tab = _ref165.tab;
+  var ReportHead = function ReportHead(_ref163) {
+    var tab = _ref163.tab;
     return printAll ? /*#__PURE__*/React.createElement("div", {
       style: {
         border: "1px solid ".concat(C.border),
@@ -28475,7 +28495,7 @@ function App() {
       save(u);
     },
     onUpdateStatus: (/*#__PURE__*/function () {
-      var _ref167 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee71(status) {
+      var _ref165 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee71(status) {
         var stored, _updated, _updated2, _t90;
         return _regenerator().w(function (_context74) {
           while (1) switch (_context74.p = _context74.n) {
@@ -28523,7 +28543,7 @@ function App() {
         }, _callee71, null, [[1, 4]]);
       }));
       return function (_x46) {
-        return _ref167.apply(this, arguments);
+        return _ref165.apply(this, arguments);
       };
     }())
   })), headerPanel === "sn" && /*#__PURE__*/React.createElement(TrackedSNs, {

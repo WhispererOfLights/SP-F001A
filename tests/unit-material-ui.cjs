@@ -84,6 +84,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.getByRole('columnheader',{name:/Suivi technique/}).count(),1);
     assert.equal(await page.getByRole('columnheader',{name:'Faits',exact:true}).count(),0);
     assert.equal(await page.getByRole('columnheader',{name:'Suivi',exact:true}).count(),0);
+    assert.equal(await page.getByRole('button',{name:'Trier État de A à Z',exact:true}).count(),1);
+    assert.equal(await page.getByRole('button',{name:/Trier Statut OF/}).count(),0);
+    assert.equal(await page.getByRole('button',{name:/Trier Statut SN/}).count(),0);
     assert.equal(await page.getByRole('cell',{name:'100OTHER',exact:true}).count(),0);
     await page.getByRole('img',{name:"3 intervenants sur l'OF 100TEST",exact:true}).waitFor();
     const homeSearch=page.getByTitle('Rechercher un OF, SN ou lot',{exact:true});
@@ -98,6 +101,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await expandHomeOf.waitFor();
     assert.equal(await page.getByRole('cell',{name:'2 SN',exact:true}).count()>0,true);
     assert.equal(await page.getByRole('cell',{name:'1 LOT',exact:true}).count()>0,true);
+    await page.getByText(/1 À faire · 2 En cours|2 En cours · 1 À faire/,{exact:true}).waitFor();
     await expandHomeOf.click();
     assert.equal(await page.getByRole('cell',{name:'250001163',exact:true}).count(),3);
     assert.equal(await page.getByRole('cell',{name:'Article de test',exact:true}).count(),3);
