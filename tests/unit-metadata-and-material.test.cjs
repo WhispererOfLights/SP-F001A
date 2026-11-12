@@ -9,7 +9,7 @@ const context = {
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '../src/App.runtime.js'), 'utf8') +
-  ';globalThis.normalize=withUnitMetadata;globalThis.patch=patchTrackedUnit;globalThis.home=homeRowsForOf;globalThis.teamsText=buildTeamsOfText;globalThis.mail=buildMaterialRequest;globalThis.parseUnits=parseOfImportPaste;globalThis.convertUnit=convertTrackedUnitKind;globalThis.lotQty=trackedLotQty;globalThis.compactUnit=snCompactTitle;globalThis.compactScope=snScopeCompactLabel;globalThis.dpStatus=dpStatus;globalThis.isValidDMY=isValidDMY;globalThis.isValidCalibDate=isValidCalibDate;globalThis.calibStatus=calibStatus;globalThis.dcCheck=dcCheck;globalThis.ofWarnings=ofWarnings;globalThis.polymerizationStatus=polymerizationStatus;globalThis.closureMail=buildClosureRequest;globalThis.ipMail=buildIpInvitation;globalThis.ofRanges=compactOfRanges;globalThis.ccRequired=materialCcRequired;globalThis.ccEmails=selectedManagerEmails;globalThis.icsMeeting=buildOutlookMeetingIcs;globalThis.meetingRecipients=parseMeetingRecipients;globalThis.singleMeetingOtp=hasSingleMeetingOtp;globalThis.role=normalizeRole;globalThis.componentLabelPdf=buildComponentLabelPdf;globalThis.componentSheetsPdf=buildComponentRetentionSheetsPdf;globalThis.normalizeStatuses=normalizeStatusTypes;globalThis.applyStatuses=applyStatusTypes;globalThis.statuses=STATUTS;globalThis.unitStatuses=UNIT_STATUTS;globalThis.operationDateInput=operationDateInputValue;globalThis.operationDateOutput=operationDateFromInput;globalThis.weekendOvenStart=weekendOvenStartInputValue;globalThis.ovenMissing=ovenRequiredMissing;globalThis.openWorkNumber=formatOpenWorkNumber;globalThis.nextOpenWorkNumber=nextOpenWorkNumber;globalThis.followUpLabel=technicalFollowUpLabel;globalThis.futureOperationDate=isFutureOperationDate;globalThis.sapRows=buildSapExcelRows;globalThis.excelWorkbook=buildExcelWorkbook;globalThis.homeFactSearch=homeFactSearchText;globalThis.folderLink=buildFolderLink;globalThis.parseFolderLink=parseFolderLink;', context);
+  ';globalThis.normalize=withUnitMetadata;globalThis.patch=patchTrackedUnit;globalThis.home=homeRowsForOf;globalThis.teamsText=buildTeamsOfText;globalThis.mail=buildMaterialRequest;globalThis.parseUnits=parseOfImportPaste;globalThis.convertUnit=convertTrackedUnitKind;globalThis.lotQty=trackedLotQty;globalThis.compactUnit=snCompactTitle;globalThis.compactScope=snScopeCompactLabel;globalThis.dpStatus=dpStatus;globalThis.isValidDMY=isValidDMY;globalThis.isValidCalibDate=isValidCalibDate;globalThis.calibStatus=calibStatus;globalThis.dcCheck=dcCheck;globalThis.ofWarnings=ofWarnings;globalThis.polymerizationStatus=polymerizationStatus;globalThis.closureMail=buildClosureRequest;globalThis.ipMail=buildIpInvitation;globalThis.ofRanges=compactOfRanges;globalThis.ccRequired=materialCcRequired;globalThis.ccEmails=selectedManagerEmails;globalThis.icsMeeting=buildOutlookMeetingIcs;globalThis.meetingRecipients=parseMeetingRecipients;globalThis.singleMeetingOtp=hasSingleMeetingOtp;globalThis.role=normalizeRole;globalThis.componentLabelPdf=buildComponentLabelPdf;globalThis.componentSheetsPdf=buildComponentRetentionSheetsPdf;globalThis.normalizeStatuses=normalizeStatusTypes;globalThis.applyStatuses=applyStatusTypes;globalThis.statuses=STATUTS;globalThis.unitStatuses=UNIT_STATUTS;globalThis.operationDateInput=operationDateInputValue;globalThis.operationDateOutput=operationDateFromInput;globalThis.weekendOvenStart=weekendOvenStartInputValue;globalThis.ovenMissing=ovenRequiredMissing;globalThis.closePreviousOvens=closePreviousOpenEtuvages;globalThis.openWorkNumber=formatOpenWorkNumber;globalThis.nextOpenWorkNumber=nextOpenWorkNumber;globalThis.followUpLabel=technicalFollowUpLabel;globalThis.futureOperationDate=isFutureOperationDate;globalThis.sapRows=buildSapExcelRows;globalThis.excelWorkbook=buildExcelWorkbook;globalThis.homeFactSearch=homeFactSearchText;globalThis.folderLink=buildFolderLink;globalThis.parseFolderLink=parseFolderLink;', context);
 
 assert.equal(context.operationDateInput('05/10/2026 09:07'),'2026-10-05T09:07');
 assert.equal(context.operationDateOutput('2026-05-01T14:30'),'01/05/2026 14:30');
@@ -18,6 +18,26 @@ assert.equal(context.weekendOvenStart(new Date(2026,9,18,18,0).getTime()),'2026-
 assert.equal(context.weekendOvenStart(new Date(2026,9,18,21,0).getTime()),'2026-10-25T20:00');
 assert.deepEqual(Array.from(context.ovenMissing({fourN:'',duree:'',temp:''})),['Durée [H]','Temp [°C]']);
 assert.deepEqual(Array.from(context.ovenMissing({fourN:'',duree:'72',temp:'85'})),[]);
+const ovenHeader={_snRows:[{id:'u1',sn:'SN1'},{id:'u2',sn:'SN2'}]};
+const closeOvens=(rows,started,date='12/11/2026 08:00')=>JSON.parse(JSON.stringify(
+  context.closePreviousOvens(rows,started,date,ovenHeader,{visa:'JGR',dt:'12/11/2026 08:01'})
+));
+let closedOvens=closeOvens([
+  {id:'old-u1',entreeDT:'11/11/2026 08:00',snScope:'custom',snIds:['u1']},
+  {id:'old-u2',entreeDT:'11/11/2026 08:00',snScope:'custom',snIds:['u2']},
+  {id:'new-u1',entreeDT:'12/11/2026 08:00',snScope:'custom',snIds:['u1']},
+],{id:'new-u1',snScope:'custom',snIds:['u1']});
+assert.equal(closedOvens.find(row=>row.id==='old-u1').sortieDT,'N/A');
+assert.equal(closedOvens.find(row=>row.id==='old-u1').sortieVisa,'N/A');
+assert.equal(closedOvens.find(row=>row.id==='old-u1').autoClosedVisa,'JGR');
+assert.equal(closedOvens.find(row=>row.id==='old-u2').sortieDT,undefined);
+closedOvens=closeOvens([
+  {id:'old-all',entreeDT:'11/11/2026 08:00',snScope:'all',snIds:[]},
+  {id:'new-u1',entreeDT:'12/11/2026 08:00',snScope:'custom',snIds:['u1']},
+],{id:'new-u1',snScope:'custom',snIds:['u1']});
+assert.equal(closedOvens.length,3);
+assert.deepEqual(closedOvens.find(row=>row.id==='old-all').snIds,['u2']);
+assert.deepEqual(closedOvens.find(row=>row.autoClosedByNext).snIds,['u1']);
 assert.equal(context.openWorkNumber('001'),'OW001');
 assert.equal(context.openWorkNumber('OW1'),'OW001');
 assert.equal(context.nextOpenWorkNumber([{type:'OW',numero:'001'},{type:'OW',numero:'OW009'},{type:'NC',numero:'NC10'}]),'OW010');

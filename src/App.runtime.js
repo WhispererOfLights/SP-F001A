@@ -16106,6 +16106,68 @@ var ETUVAGE_EDIT_FIELDS = [{
   key: "sortieVisa",
   label: "Visa sortie"
 }];
+var etuvageTimestamp = function etuvageTimestamp(value) {
+  var match = String(value || "").match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  if (match) return new Date(+match[3], +match[2] - 1, +match[1], +(match[4] || 0), +(match[5] || 0)).getTime();
+  var parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+var closePreviousOpenEtuvages = function closePreviousOpenEtuvages() {
+  var rows = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
+  var startedRow = arguments.length > 1 ? arguments[1] : undefined;
+  var entryDate = arguments.length > 2 ? arguments[2] : undefined;
+  var header = arguments.length > 3 ? arguments[3] : undefined;
+  var audit = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : {};
+  if (!startedRow || !entryDate) return rows;
+  var units = snRowsFromHeader(header);
+  var startedUnitIds = units.filter(function (unit) {
+    return rowMatchesSn(startedRow, unit, units);
+  }).map(function (unit) {
+    return unit.id;
+  });
+  var startedAt = etuvageTimestamp(entryDate);
+  var closed = [];
+  var next = rows.map(function (row) {
+    if (row.id === startedRow.id || row.deleted || !row.entreeDT || row.sortieDT) return row;
+    var previousAt = etuvageTimestamp(row.entreeDT);
+    if (startedAt && previousAt && previousAt >= startedAt) return row;
+    var rowUnitIds = units.filter(function (unit) {
+      return rowMatchesSn(row, unit, units);
+    }).map(function (unit) {
+      return unit.id;
+    });
+    var overlap = units.length ? rowUnitIds.filter(function (id) {
+      return startedUnitIds.includes(id);
+    }) : ["all"];
+    if (!overlap.length) return row;
+    var closure = {
+      sortieDT: "N/A",
+      sortieVisa: "N/A",
+      autoClosedByNext: true,
+      autoClosedDT: audit.dt || nowDT(),
+      autoClosedVisa: audit.visa || "N/A",
+      autoClosedStartId: startedRow.id
+    };
+    if (!units.length || overlap.length === rowUnitIds.length) return _objectSpread(_objectSpread({}, row), closure);
+    var remaining = rowUnitIds.filter(function (id) {
+      return !overlap.includes(id);
+    });
+    closed.push(_objectSpread(_objectSpread(_objectSpread({}, row), closure), {}, {
+      id: uid(),
+      snScope: "custom",
+      snIds: overlap,
+      unitId: overlap[0] || "",
+      snExcludeIds: []
+    }));
+    return _objectSpread(_objectSpread({}, row), {}, {
+      snScope: "custom",
+      snIds: remaining,
+      unitId: remaining[0] || "",
+      snExcludeIds: []
+    });
+  });
+  return [].concat(_toConsumableArray(next), closed);
+};
 var TabEtuvage = function TabEtuvage(_ref95) {
   var data = _ref95.data,
     onChange = _ref95.onChange,
@@ -16260,15 +16322,22 @@ var TabEtuvage = function TabEtuvage(_ref95) {
       });
       return;
     }
+    var startedDate = entryDate || r.entreeDT || nowDT();
+    var updated = scopedRowsPatch(rows, id, header, function (x) {
+      var next = _objectSpread(_objectSpread({}, x), {}, {
+        entreeDT: entryDate || x.entreeDT || nowDT(),
+        entreeVisa: x.entreeVisa || (user === null || user === void 0 ? void 0 : user.trigram) || "",
+        validated: true,
+        validError: ""
+      });
+      return withEditHistory(next, user, ETUVAGE_EDIT_FIELDS);
+    });
     onChange({
-      rows: scopedRowsPatch(rows, id, header, function (x) {
-        var next = _objectSpread(_objectSpread({}, x), {}, {
-          entreeDT: entryDate || x.entreeDT || nowDT(),
-          entreeVisa: x.entreeVisa || (user === null || user === void 0 ? void 0 : user.trigram) || "",
-          validated: true,
-          validError: ""
-        });
-        return withEditHistory(next, user, ETUVAGE_EDIT_FIELDS);
+      rows: closePreviousOpenEtuvages(updated, _objectSpread(_objectSpread({}, r), {}, {
+        entreeDT: startedDate
+      }), startedDate, header, {
+        visa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+        dt: nowDT()
       })
     });
   };
@@ -16333,7 +16402,11 @@ var TabEtuvage = function TabEtuvage(_ref95) {
       validated: true,
       validError: ""
     } : field === "sortieDT" ? {
-      sortieVisa: (user === null || user === void 0 ? void 0 : user.trigram) || ""
+      sortieVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+      autoClosedByNext: false,
+      autoClosedDT: "",
+      autoClosedVisa: "",
+      autoClosedStartId: ""
     } : {};
     onChange({
       rows: scopedRowsPatch(rows, id, header, _objectSpread(_defineProperty({}, field, nowDT()), extra))
@@ -16700,8 +16773,8 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         alignItems: "center"
       }
     }, /*#__PURE__*/React.createElement(Badge, {
-      label: "\u25A0 SORTI",
-      color: C.green
+      label: r.autoClosedByNext ? "■ SORTI AUTO" : "■ SORTI",
+      color: r.autoClosedByNext ? C.muted : C.green
     }), !locked ? /*#__PURE__*/React.createElement(Input, {
       value: r.sortieVisa || "",
       onChange: function onChange(v) {
@@ -16720,17 +16793,22 @@ var TabEtuvage = function TabEtuvage(_ref95) {
         color: C.green
       }
     }) : /*#__PURE__*/React.createElement("span", {
+      title: r.autoClosedByNext ? "Sortie cl\xF4tur\xE9e automatiquement le ".concat(r.autoClosedDT || "N/A", " au lancement de l\u2019\xE9tuvage suivant") : undefined,
       style: {
         fontFamily: "monospace",
         fontSize: 9,
-        color: C.green
+        color: r.autoClosedByNext ? C.muted : C.green
       }
     }, r.sortieVisa))), /*#__PURE__*/React.createElement(TD, null, !r.validated ? /*#__PURE__*/React.createElement(Input, {
       value: r.sortieDT || "",
       onChange: function onChange(v) {
         return patchEtuvageStamp(r.id, {
           sortieDT: v,
-          sortieVisa: v ? r.sortieVisa || (user === null || user === void 0 ? void 0 : user.trigram) || "" : ""
+          sortieVisa: v ? r.sortieVisa || (user === null || user === void 0 ? void 0 : user.trigram) || "" : "",
+          autoClosedByNext: false,
+          autoClosedDT: "",
+          autoClosedVisa: "",
+          autoClosedStartId: ""
         });
       },
       small: true,

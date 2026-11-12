@@ -12,6 +12,40 @@ const ETUVAGE_EDIT_FIELDS = [
   {key:"sortieVisa",label:"Visa sortie"},
 ];
 
+const etuvageTimestamp = value => {
+  const match=String(value||"").match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+  if(match) return new Date(+match[3],+match[2]-1,+match[1],+(match[4]||0),+(match[5]||0)).getTime();
+  const parsed=Date.parse(String(value||""));
+  return Number.isFinite(parsed)?parsed:0;
+};
+
+const closePreviousOpenEtuvages = (rows=[],startedRow,entryDate,header,audit={}) => {
+  if(!startedRow||!entryDate) return rows;
+  const units=snRowsFromHeader(header);
+  const startedUnitIds=units.filter(unit=>rowMatchesSn(startedRow,unit,units)).map(unit=>unit.id);
+  const startedAt=etuvageTimestamp(entryDate);
+  const closed=[];
+  const next=rows.map(row=>{
+    if(row.id===startedRow.id||row.deleted||!row.entreeDT||row.sortieDT) return row;
+    const previousAt=etuvageTimestamp(row.entreeDT);
+    if(startedAt&&previousAt&&previousAt>=startedAt) return row;
+    const rowUnitIds=units.filter(unit=>rowMatchesSn(row,unit,units)).map(unit=>unit.id);
+    const overlap=units.length
+      ? rowUnitIds.filter(id=>startedUnitIds.includes(id))
+      : ["all"];
+    if(!overlap.length) return row;
+    const closure={
+      sortieDT:"N/A",sortieVisa:"N/A",autoClosedByNext:true,
+      autoClosedDT:audit.dt||nowDT(),autoClosedVisa:audit.visa||"N/A",autoClosedStartId:startedRow.id,
+    };
+    if(!units.length||overlap.length===rowUnitIds.length) return {...row,...closure};
+    const remaining=rowUnitIds.filter(id=>!overlap.includes(id));
+    closed.push({...row,...closure,id:uid(),snScope:"custom",snIds:overlap,unitId:overlap[0]||"",snExcludeIds:[]});
+    return {...row,snScope:"custom",snIds:remaining,unitId:remaining[0]||"",snExcludeIds:[]};
+  });
+  return [...next,...closed];
+};
+
 const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceShowDeleted=false,onCopyAcross}) => {
   const rows=data.rows||[];
   const canEdit = row => canEditLine(user,row);
@@ -48,11 +82,13 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
       onChange({rows:scopedRowsPatch(rows,id,header,{validError:"Requis avant entrée : "+miss.join(", ")})});
       return;
     }
-    onChange({rows:scopedRowsPatch(rows,id,header,x=>{
+    const startedDate=entryDate||r.entreeDT||nowDT();
+    const updated=scopedRowsPatch(rows,id,header,x=>{
       const next={...x,entreeDT:entryDate||x.entreeDT||nowDT(),entreeVisa:x.entreeVisa||user?.trigram||"",
         validated:true,validError:""};
       return withEditHistory(next,user,ETUVAGE_EDIT_FIELDS);
-    })});
+    });
+    onChange({rows:closePreviousOpenEtuvages(updated,{...r,entreeDT:startedDate},startedDate,header,{visa:user?.trigram||"",dt:nowDT()})});
   };
   const startWeekend=(id,entryDate)=>{ setWeekendTarget(null); validateAndEnter(id,entryDate); };
   const validateRow=id=>{
@@ -74,7 +110,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
     const extra = field==="entreeDT"
       ? {entreeVisa:user?.trigram||"", validated:true, validError:""}
       : field==="sortieDT"
-      ? {sortieVisa:user?.trigram||""}
+      ? {sortieVisa:user?.trigram||"",autoClosedByNext:false,autoClosedDT:"",autoClosedVisa:"",autoClosedStartId:""}
       : {};
     onChange({rows:scopedRowsPatch(rows,id,header,{[field]:nowDT(),...extra})});
   };
@@ -191,17 +227,19 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                     {!outFour
                       ? (editable&&<Btn onClick={()=>stamp(r.id,"sortieDT")} color={C.green} small disabled={!inFour}>■ Sortie</Btn>)
                       : <div style={{display:"flex",flexDirection:"column",gap:1,alignItems:"center"}}>
-                          <Badge label="■ SORTI" color={C.green}/>
+                          <Badge label={r.autoClosedByNext?"■ SORTI AUTO":"■ SORTI"} color={r.autoClosedByNext?C.muted:C.green}/>
                           {!locked
                             ? <Input value={r.sortieVisa||""} onChange={v=>patchEtuvageStamp(r.id,{sortieVisa:v})} small
                                 title="Corriger le visa sortie"
                                 style={{width:48,fontSize:9,fontFamily:"monospace",textAlign:"center",padding:"1px 3px",color:C.green}}/>
-                            : <span style={{fontFamily:"monospace",fontSize:9,color:C.green}}>{r.sortieVisa}</span>}
+                            : <span title={r.autoClosedByNext?`Sortie clôturée automatiquement le ${r.autoClosedDT||"N/A"} au lancement de l’étuvage suivant`:undefined}
+                                style={{fontFamily:"monospace",fontSize:9,color:r.autoClosedByNext?C.muted:C.green}}>{r.sortieVisa}</span>}
                         </div>}
                   </TD>
                   <TD>
                     {!r.validated
-                      ? <Input value={r.sortieDT||""} onChange={v=>patchEtuvageStamp(r.id,{sortieDT:v,sortieVisa:v?(r.sortieVisa||user?.trigram||""):""})}
+                      ? <Input value={r.sortieDT||""} onChange={v=>patchEtuvageStamp(r.id,{sortieDT:v,sortieVisa:v?(r.sortieVisa||user?.trigram||""):"",
+                          autoClosedByNext:false,autoClosedDT:"",autoClosedVisa:"",autoClosedStartId:""})}
                           small title="Corriger la date/heure de sortie. Vider retire l'état sortie four."
                           readOnly={!editable}
                           style={{fontFamily:"monospace",fontSize:11,color:r.sortieDT?C.green:C.muted}}/>
