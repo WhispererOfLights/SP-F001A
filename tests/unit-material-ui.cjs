@@ -344,6 +344,18 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       const heading=page.getByRole('columnheader',{name:label,exact:true});
       assert.ok(await heading.evaluate(el=>el.scrollWidth<=el.clientWidth),`${label} heading must fit`);
     }
+    const actionFilter=page.getByRole('button',{name:'Filtrer les actions',exact:true});
+    const actionChoices=page.getByRole('group',{name:'Filtrer les actions - choix',exact:true});
+    await actionFilter.click();
+    await actionChoices.waitFor();
+    await actionFilter.click();
+    await actionChoices.waitFor({state:'detached'});
+    await actionFilter.click();
+    await page.keyboard.press('Escape');
+    await actionChoices.waitFor({state:'detached'});
+    await actionFilter.click();
+    await page.getByRole('button',{name:'Fermer Filtrer les actions',exact:true}).click();
+    await actionChoices.waitFor({state:'detached'});
     await page.getByRole('checkbox', {name: 'Demander la matière R96 225222333', exact: true}).check();
     await page.screenshot({path: path.join(__dirname, 'artifacts/rework-request-1920.png')});
     await page.getByRole('button', {name: 'Demande matière (1)', exact: true}).click();

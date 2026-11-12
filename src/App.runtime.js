@@ -640,34 +640,75 @@ var MultiFilter = function MultiFilter(_ref5) {
     label = _ref5$label === void 0 ? "Tous" : _ref5$label,
     _ref5$title = _ref5.title,
     title = _ref5$title === void 0 ? "Filtre" : _ref5$title;
-  var _useState1 = useState(null),
+  var _useState1 = useState(false),
     _useState10 = _slicedToArray(_useState1, 2),
-    position = _useState10[0],
-    setPosition = _useState10[1];
+    open = _useState10[0],
+    setOpen = _useState10[1];
+  var _useState11 = useState({
+      top: 0,
+      left: 0
+    }),
+    _useState12 = _slicedToArray(_useState11, 2),
+    position = _useState12[0],
+    setPosition = _useState12[1];
+  var buttonRef = React.useRef(null);
+  var panelRef = React.useRef(null);
   var selected = Array.isArray(value) ? value : !value || value === "all" ? [] : [value];
   var caption = selected.length === 0 ? label : selected.length === 1 ? ((_options$find = options.find(function (o) {
     return o.value === selected[0];
   })) === null || _options$find === void 0 ? void 0 : _options$find.label) || selected[0] : "".concat(selected.length, " choix");
-  return /*#__PURE__*/React.createElement("details", {
-    onToggle: function onToggle(e) {
-      if (e.currentTarget.open) {
-        var r = e.currentTarget.getBoundingClientRect();
-        setPosition({
-          top: r.bottom + 3,
-          left: Math.max(8, Math.min(r.left, window.innerWidth - 210))
-        });
-      } else setPosition(null);
-    },
+  var place = function place() {
+    var _buttonRef$current;
+    var r = (_buttonRef$current = buttonRef.current) === null || _buttonRef$current === void 0 ? void 0 : _buttonRef$current.getBoundingClientRect();
+    if (!r) return;
+    var width = 210;
+    setPosition({
+      top: r.bottom + 3,
+      left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8))
+    });
+  };
+  useEffect(function () {
+    if (!open) return;
+    place();
+    var close = function close(event) {
+      var _buttonRef$current2, _panelRef$current;
+      if ((_buttonRef$current2 = buttonRef.current) !== null && _buttonRef$current2 !== void 0 && _buttonRef$current2.contains(event.target) || (_panelRef$current = panelRef.current) !== null && _panelRef$current !== void 0 && _panelRef$current.contains(event.target)) return;
+      setOpen(false);
+    };
+    var key = function key(event) {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", key);
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return function () {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", key);
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
+  return /*#__PURE__*/React.createElement("span", {
     style: {
       position: "relative",
+      display: "inline-block",
       fontWeight: 400,
       minWidth: 0
     }
-  }, /*#__PURE__*/React.createElement("summary", {
+  }, /*#__PURE__*/React.createElement("button", {
+    ref: buttonRef,
+    type: "button",
     title: title,
     "aria-label": title,
+    "aria-expanded": open,
+    onClick: function onClick() {
+      place();
+      setOpen(function (current) {
+        return !current;
+      });
+    },
     style: {
-      listStyle: "none",
       cursor: "pointer",
       background: C.input,
       border: "1px solid ".concat(selected.length ? C.blue : C.border),
@@ -677,12 +718,14 @@ var MultiFilter = function MultiFilter(_ref5) {
       fontSize: 11,
       whiteSpace: "nowrap"
     }
-  }, caption, " \u25BE"), /*#__PURE__*/React.createElement("div", {
+  }, caption, " \u25BE"), open && /*#__PURE__*/React.createElement("div", {
+    ref: panelRef,
+    role: "group",
+    "aria-label": "".concat(title, " - choix"),
     style: {
       position: "fixed",
-      top: (position === null || position === void 0 ? void 0 : position.top) || 0,
-      left: (position === null || position === void 0 ? void 0 : position.left) || 0,
-      visibility: position ? "visible" : "hidden",
+      top: position.top,
+      left: position.left,
       zIndex: 350,
       minWidth: 180,
       maxHeight: 260,
@@ -694,19 +737,49 @@ var MultiFilter = function MultiFilter(_ref5) {
       padding: 8,
       boxShadow: "0 4px 12px #00000022"
     }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      borderBottom: "1px solid ".concat(C.border),
+      paddingBottom: 5,
+      marginBottom: 3
+    }
   }, /*#__PURE__*/React.createElement("button", {
     type: "button",
     onClick: function onClick() {
-      return _onChange3([]);
+      _onChange3([]);
+      setOpen(false);
     },
     style: {
       background: "none",
       border: 0,
       color: C.blue,
       cursor: "pointer",
-      padding: "3px 0 7px"
+      padding: "2px 0"
     }
-  }, label), options.map(function (o) {
+  }, label), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "Fermer ".concat(title),
+    title: "Fermer",
+    onClick: function onClick() {
+      return setOpen(false);
+    },
+    style: {
+      width: 22,
+      height: 22,
+      padding: 0,
+      border: 0,
+      borderRadius: 4,
+      background: C.border,
+      color: C.text,
+      cursor: "pointer",
+      fontSize: 15,
+      lineHeight: 1
+    }
+  }, "\xD7")), options.map(function (o) {
     return /*#__PURE__*/React.createElement("label", {
       key: o.value,
       style: {
@@ -715,7 +788,8 @@ var MultiFilter = function MultiFilter(_ref5) {
         gap: 7,
         padding: "5px 0",
         fontSize: 12,
-        whiteSpace: "nowrap"
+        whiteSpace: "nowrap",
+        cursor: "pointer"
       }
     }, /*#__PURE__*/React.createElement("input", {
       type: "checkbox",
@@ -1429,12 +1503,12 @@ var OperationDateCell = function OperationDateCell(_ref19) {
 var WeekendOvenModal = function WeekendOvenModal(_ref20) {
   var onConfirm = _ref20.onConfirm,
     onCancel = _ref20.onCancel;
-  var _useState11 = useState(function () {
+  var _useState13 = useState(function () {
       return weekendOvenStartInputValue();
     }),
-    _useState12 = _slicedToArray(_useState11, 2),
-    start = _useState12[0],
-    setStart = _useState12[1];
+    _useState14 = _slicedToArray(_useState13, 2),
+    start = _useState14[0],
+    setStart = _useState14[1];
   var formatted = operationDateFromInput(start);
   return /*#__PURE__*/React.createElement("div", {
     style: {
@@ -3896,10 +3970,10 @@ var DeleteModal = function DeleteModal(_ref37) {
     onCancel = _ref37.onCancel,
     _ref37$godMode = _ref37.godMode,
     godMode = _ref37$godMode === void 0 ? false : _ref37$godMode;
-  var _useState13 = useState(""),
-    _useState14 = _slicedToArray(_useState13, 2),
-    reason = _useState14[0],
-    setReason = _useState14[1];
+  var _useState15 = useState(""),
+    _useState16 = _slicedToArray(_useState15, 2),
+    reason = _useState16[0],
+    setReason = _useState16[1];
   useEffect(function () {
     if (godMode) onConfirm("");
   }, [godMode]);
@@ -3982,22 +4056,22 @@ var LabelOptionsModal = function LabelOptionsModal(_ref38) {
     consommables = _ref38.consommables,
     onCancel = _ref38.onCancel,
     onConfirm = _ref38.onConfirm;
-  var _useState15 = useState(["binder"]),
-    _useState16 = _slicedToArray(_useState15, 2),
-    types = _useState16[0],
-    setTypes = _useState16[1];
-  var _useState17 = useState("landscape"),
+  var _useState17 = useState(["binder"]),
     _useState18 = _slicedToArray(_useState17, 2),
-    orientation = _useState18[0],
-    setOrientation = _useState18[1];
-  var _useState19 = useState(function () {
+    types = _useState18[0],
+    setTypes = _useState18[1];
+  var _useState19 = useState("landscape"),
+    _useState20 = _slicedToArray(_useState19, 2),
+    orientation = _useState20[0],
+    setOrientation = _useState20[1];
+  var _useState21 = useState(function () {
       return defaultSelectedIds !== null && defaultSelectedIds !== void 0 && defaultSelectedIds.length ? defaultSelectedIds : snRows.map(function (unit) {
         return unit.id;
       });
     }),
-    _useState20 = _slicedToArray(_useState19, 2),
-    selected = _useState20[0],
-    setSelected = _useState20[1];
+    _useState22 = _slicedToArray(_useState21, 2),
+    selected = _useState22[0],
+    setSelected = _useState22[1];
   var toggle = function toggle(id) {
     return setSelected(function (current) {
       return current.includes(id) ? current.filter(function (value) {
@@ -4314,14 +4388,14 @@ var BulkLabelOptionsModal = function BulkLabelOptionsModal(_ref39) {
     consommables = _ref39.consommables,
     onCancel = _ref39.onCancel,
     onConfirm = _ref39.onConfirm;
-  var _useState21 = useState(["kitting"]),
-    _useState22 = _slicedToArray(_useState21, 2),
-    types = _useState22[0],
-    setTypes = _useState22[1];
-  var _useState23 = useState("landscape"),
+  var _useState23 = useState(["kitting"]),
     _useState24 = _slicedToArray(_useState23, 2),
-    orientation = _useState24[0],
-    setOrientation = _useState24[1];
+    types = _useState24[0],
+    setTypes = _useState24[1];
+  var _useState25 = useState("landscape"),
+    _useState26 = _slicedToArray(_useState25, 2),
+    orientation = _useState26[0],
+    setOrientation = _useState26[1];
   var availability = function availability(id) {
     return (entries || []).reduce(function (result, entry) {
       var status = operationalLabelAvailability({
@@ -4544,42 +4618,42 @@ var PdfOptionsModal = function PdfOptionsModal(_ref40) {
     includeHistoryDefault = _ref40$includeHistory === void 0 ? false : _ref40$includeHistory,
     onCancel = _ref40.onCancel,
     onConfirm = _ref40.onConfirm;
-  var _useState25 = useState(includeHistoryDefault),
-    _useState26 = _slicedToArray(_useState25, 2),
-    includeHistory = _useState26[0],
-    setIncludeHistory = _useState26[1];
-  var _useState27 = useState(true),
+  var _useState27 = useState(includeHistoryDefault),
     _useState28 = _slicedToArray(_useState27, 2),
-    includeDeleted = _useState28[0],
-    setIncludeDeleted = _useState28[1];
+    includeHistory = _useState28[0],
+    setIncludeHistory = _useState28[1];
   var _useState29 = useState(true),
     _useState30 = _slicedToArray(_useState29, 2),
-    skipEmptyReports = _useState30[0],
-    setSkipEmptyReports = _useState30[1];
+    includeDeleted = _useState30[0],
+    setIncludeDeleted = _useState30[1];
   var _useState31 = useState(true),
     _useState32 = _slicedToArray(_useState31, 2),
-    includePdf = _useState32[0],
-    setIncludePdf = _useState32[1];
-  var _useState33 = useState(false),
+    skipEmptyReports = _useState32[0],
+    setSkipEmptyReports = _useState32[1];
+  var _useState33 = useState(true),
     _useState34 = _slicedToArray(_useState33, 2),
-    includeExcel = _useState34[0],
-    setIncludeExcel = _useState34[1];
-  var _useState35 = useState(function () {
+    includePdf = _useState34[0],
+    setIncludePdf = _useState34[1];
+  var _useState35 = useState(false),
+    _useState36 = _slicedToArray(_useState35, 2),
+    includeExcel = _useState36[0],
+    setIncludeExcel = _useState36[1];
+  var _useState37 = useState(function () {
       return REPORT_SECTIONS.map(function (s) {
         return s.id;
       });
     }),
-    _useState36 = _slicedToArray(_useState35, 2),
-    selectedSections = _useState36[0],
-    setSelectedSections = _useState36[1];
-  var _useState37 = useState(function () {
+    _useState38 = _slicedToArray(_useState37, 2),
+    selectedSections = _useState38[0],
+    setSelectedSections = _useState38[1];
+  var _useState39 = useState(function () {
       return defaultSelectedIds !== null && defaultSelectedIds !== void 0 && defaultSelectedIds.length ? defaultSelectedIds : snRows.map(function (u) {
         return u.id;
       });
     }),
-    _useState38 = _slicedToArray(_useState37, 2),
-    selected = _useState38[0],
-    setSelected = _useState38[1];
+    _useState40 = _slicedToArray(_useState39, 2),
+    selected = _useState40[0],
+    setSelected = _useState40[1];
   var toggle = function toggle(id) {
     return setSelected(function (prev) {
       return prev.includes(id) ? prev.filter(function (x) {
@@ -4884,42 +4958,42 @@ var BulkPdfOptionsModal = function BulkPdfOptionsModal(_ref41) {
   var rows = _ref41.rows,
     onCancel = _ref41.onCancel,
     onConfirm = _ref41.onConfirm;
-  var _useState39 = useState(false),
-    _useState40 = _slicedToArray(_useState39, 2),
-    includeHistory = _useState40[0],
-    setIncludeHistory = _useState40[1];
-  var _useState41 = useState(true),
+  var _useState41 = useState(false),
     _useState42 = _slicedToArray(_useState41, 2),
-    includeDeleted = _useState42[0],
-    setIncludeDeleted = _useState42[1];
+    includeHistory = _useState42[0],
+    setIncludeHistory = _useState42[1];
   var _useState43 = useState(true),
     _useState44 = _slicedToArray(_useState43, 2),
-    skipEmptyReports = _useState44[0],
-    setSkipEmptyReports = _useState44[1];
+    includeDeleted = _useState44[0],
+    setIncludeDeleted = _useState44[1];
   var _useState45 = useState(true),
     _useState46 = _slicedToArray(_useState45, 2),
-    includePdf = _useState46[0],
-    setIncludePdf = _useState46[1];
-  var _useState47 = useState(false),
+    skipEmptyReports = _useState46[0],
+    setSkipEmptyReports = _useState46[1];
+  var _useState47 = useState(true),
     _useState48 = _slicedToArray(_useState47, 2),
-    includeExcel = _useState48[0],
-    setIncludeExcel = _useState48[1];
-  var _useState49 = useState(function () {
+    includePdf = _useState48[0],
+    setIncludePdf = _useState48[1];
+  var _useState49 = useState(false),
+    _useState50 = _slicedToArray(_useState49, 2),
+    includeExcel = _useState50[0],
+    setIncludeExcel = _useState50[1];
+  var _useState51 = useState(function () {
       return REPORT_SECTIONS.map(function (section) {
         return section.id;
       });
     }),
-    _useState50 = _slicedToArray(_useState49, 2),
-    selectedSections = _useState50[0],
-    setSelectedSections = _useState50[1];
-  var _useState51 = useState(false),
     _useState52 = _slicedToArray(_useState51, 2),
-    running = _useState52[0],
-    setRunning = _useState52[1];
-  var _useState53 = useState(""),
+    selectedSections = _useState52[0],
+    setSelectedSections = _useState52[1];
+  var _useState53 = useState(false),
     _useState54 = _slicedToArray(_useState53, 2),
-    error = _useState54[0],
-    setError = _useState54[1];
+    running = _useState54[0],
+    setRunning = _useState54[1];
+  var _useState55 = useState(""),
+    _useState56 = _slicedToArray(_useState55, 2),
+    error = _useState56[0],
+    setError = _useState56[1];
   var ofCount = new Set(rows.map(function (row) {
     return row.id;
   })).size;
@@ -5172,10 +5246,10 @@ var BulkPdfOptionsModal = function BulkPdfOptionsModal(_ref41) {
 var RestoreModal = function RestoreModal(_ref42) {
   var onConfirm = _ref42.onConfirm,
     onCancel = _ref42.onCancel;
-  var _useState55 = useState(""),
-    _useState56 = _slicedToArray(_useState55, 2),
-    reason = _useState56[0],
-    setReason = _useState56[1];
+  var _useState57 = useState(""),
+    _useState58 = _slicedToArray(_useState57, 2),
+    reason = _useState58[0],
+    setReason = _useState58[1];
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -5302,18 +5376,18 @@ var Header = function Header(_ref46) {
     onUpdateStatus = _ref46.onUpdateStatus,
     user = _ref46.user,
     onCommentsChange = _ref46.onCommentsChange;
-  var _useState57 = useState(false),
-    _useState58 = _slicedToArray(_useState57, 2),
-    editing = _useState58[0],
-    setEditing = _useState58[1];
-  var _useState59 = useState({}),
+  var _useState59 = useState(false),
     _useState60 = _slicedToArray(_useState59, 2),
-    draft = _useState60[0],
-    setDraft = _useState60[1];
-  var _useState61 = useState(""),
+    editing = _useState60[0],
+    setEditing = _useState60[1];
+  var _useState61 = useState({}),
     _useState62 = _slicedToArray(_useState61, 2),
-    copiedField = _useState62[0],
-    setCopiedField = _useState62[1];
+    draft = _useState62[0],
+    setDraft = _useState62[1];
+  var _useState63 = useState(""),
+    _useState64 = _slicedToArray(_useState63, 2),
+    copiedField = _useState64[0],
+    setCopiedField = _useState64[1];
   var startEdit = function startEdit() {
     if (!isAdminManager(user)) return;
     setDraft(_objectSpread({}, h));
@@ -6251,17 +6325,17 @@ var SnScopePicker = function SnScopePicker(_ref62) {
   var scope = snScope(row, rows);
   var label = snScopeLabel(row, rows);
   var compactLabel = snScopeCompactLabel(row, rows);
-  var _useState63 = useState(false),
-    _useState64 = _slicedToArray(_useState63, 2),
-    open = _useState64[0],
-    setOpen = _useState64[1];
-  var _useState65 = useState({
+  var _useState65 = useState(false),
+    _useState66 = _slicedToArray(_useState65, 2),
+    open = _useState66[0],
+    setOpen = _useState66[1];
+  var _useState67 = useState({
       top: 0,
       left: 0
     }),
-    _useState66 = _slicedToArray(_useState65, 2),
-    pos = _useState66[0],
-    setPos = _useState66[1];
+    _useState68 = _slicedToArray(_useState67, 2),
+    pos = _useState68[0],
+    setPos = _useState68[1];
   var btnRef = React.useRef(null);
   var panelRef = React.useRef(null);
   var place = function place() {
@@ -6280,8 +6354,8 @@ var SnScopePicker = function SnScopePicker(_ref62) {
     if (!open) return;
     place();
     var close = function close(e) {
-      var _btnRef$current2, _panelRef$current;
-      if ((_btnRef$current2 = btnRef.current) !== null && _btnRef$current2 !== void 0 && _btnRef$current2.contains(e.target) || (_panelRef$current = panelRef.current) !== null && _panelRef$current !== void 0 && _panelRef$current.contains(e.target)) return;
+      var _btnRef$current2, _panelRef$current2;
+      if ((_btnRef$current2 = btnRef.current) !== null && _btnRef$current2 !== void 0 && _btnRef$current2.contains(e.target) || (_panelRef$current2 = panelRef.current) !== null && _panelRef$current2 !== void 0 && _panelRef$current2.contains(e.target)) return;
       setOpen(false);
     };
     var key = function key(e) {
@@ -6800,21 +6874,21 @@ var SplitLotModal = function SplitLotModal(_ref63) {
   var source = _ref63.source,
     onConfirm = _ref63.onConfirm,
     onClose = _ref63.onClose;
-  var _useState67 = useState(trackedLotQty(source)),
-    _useState68 = _slicedToArray(_useState67, 2),
-    remaining = _useState68[0],
-    setRemaining = _useState68[1];
-  var _useState69 = useState([{
+  var _useState69 = useState(trackedLotQty(source)),
+    _useState70 = _slicedToArray(_useState69, 2),
+    remaining = _useState70[0],
+    setRemaining = _useState70[1];
+  var _useState71 = useState([{
       lot: "",
       qty: ""
     }]),
-    _useState70 = _slicedToArray(_useState69, 2),
-    destinations = _useState70[0],
-    setDestinations = _useState70[1];
-  var _useState71 = useState(""),
     _useState72 = _slicedToArray(_useState71, 2),
-    error = _useState72[0],
-    setError = _useState72[1];
+    destinations = _useState72[0],
+    setDestinations = _useState72[1];
+  var _useState73 = useState(""),
+    _useState74 = _slicedToArray(_useState73, 2),
+    error = _useState74[0],
+    setError = _useState74[1];
   var total = Number(remaining || 0) + destinations.reduce(function (sum, d) {
     return sum + Number(d.qty || 0);
   }, 0);
@@ -6987,10 +7061,10 @@ var TrackedSNs = function TrackedSNs(_ref64) {
     user = _ref64.user,
     activeUnitId = _ref64.activeUnitId,
     onActiveUnitChange = _ref64.onActiveUnitChange;
-  var _useState73 = useState(null),
-    _useState74 = _slicedToArray(_useState73, 2),
-    splitSource = _useState74[0],
-    setSplitSource = _useState74[1];
+  var _useState75 = useState(null),
+    _useState76 = _slicedToArray(_useState75, 2),
+    splitSource = _useState76[0],
+    setSplitSource = _useState76[1];
   var editable = isAdminManager(user);
   var rows = (data === null || data === void 0 ? void 0 : data.rows) || [];
   var mode = (data === null || data === void 0 ? void 0 : data.mode) || (rows.filter(function (r) {
@@ -8335,14 +8409,14 @@ var selectedManagerEmails = function selectedManagerEmails(managers, copyTo) {
 };
 var useUserAccounts = function useUserAccounts() {
   var enabled = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : true;
-  var _useState75 = useState([]),
-    _useState76 = _slicedToArray(_useState75, 2),
-    accounts = _useState76[0],
-    setAccounts = _useState76[1];
-  var _useState77 = useState(""),
+  var _useState77 = useState([]),
     _useState78 = _slicedToArray(_useState77, 2),
-    error = _useState78[0],
-    setError = _useState78[1];
+    accounts = _useState78[0],
+    setAccounts = _useState78[1];
+  var _useState79 = useState(""),
+    _useState80 = _slicedToArray(_useState79, 2),
+    error = _useState80[0],
+    setError = _useState80[1];
   useEffect(function () {
     if (!enabled) {
       setAccounts([]);
@@ -8523,33 +8597,33 @@ var MaterialRequestModal = function MaterialRequestModal(_ref72) {
     rows = _ref72.rows,
     user = _ref72.user,
     onClose = _ref72.onClose;
-  var _useState79 = useState(function () {
+  var _useState81 = useState(function () {
       return buildMaterialRequest({
         header: header,
         rows: rows,
         user: user
       });
     }),
-    _useState80 = _slicedToArray(_useState79, 2),
-    draft = _useState80[0],
-    setDraft = _useState80[1];
-  var _useState81 = useState(LOGISTICS_DIRECTORY_RECIPIENT),
     _useState82 = _slicedToArray(_useState81, 2),
-    recipient = _useState82[0],
-    setRecipient = _useState82[1];
-  var _useState83 = useState([]),
+    draft = _useState82[0],
+    setDraft = _useState82[1];
+  var _useState83 = useState(LOGISTICS_DIRECTORY_RECIPIENT),
     _useState84 = _slicedToArray(_useState83, 2),
-    copyTo = _useState84[0],
-    setCopyTo = _useState84[1];
+    recipient = _useState84[0],
+    setRecipient = _useState84[1];
+  var _useState85 = useState([]),
+    _useState86 = _slicedToArray(_useState85, 2),
+    copyTo = _useState86[0],
+    setCopyTo = _useState86[1];
   var _useCcManagers = useCcManagers(),
     managers = _useCcManagers.managers,
     ccError = _useCcManagers.error;
   var ccRequired = materialCcRequired(user);
   var ccEmails = selectedManagerEmails(managers, copyTo);
-  var _useState85 = useState(""),
-    _useState86 = _slicedToArray(_useState85, 2),
-    message = _useState86[0],
-    setMessage = _useState86[1];
+  var _useState87 = useState(""),
+    _useState88 = _slicedToArray(_useState87, 2),
+    message = _useState88[0],
+    setMessage = _useState88[1];
   var copy = /*#__PURE__*/function () {
     var _copy = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee6() {
       var text, _navigator$clipboard3, area, _t4;
@@ -8994,54 +9068,54 @@ var CopyReworkModal = function CopyReworkModal(_ref73) {
     defaultUnitIds = _ref73.defaultUnitIds,
     _ref73$tab = _ref73.tab,
     tab = _ref73$tab === void 0 ? "rework" : _ref73$tab;
-  var _useState87 = useState([]),
-    _useState88 = _slicedToArray(_useState87, 2),
-    targets = _useState88[0],
-    setTargets = _useState88[1];
   var _useState89 = useState([]),
     _useState90 = _slicedToArray(_useState89, 2),
-    selected = _useState90[0],
-    setSelected = _useState90[1];
-  var _useState91 = useState(function () {
+    targets = _useState90[0],
+    setTargets = _useState90[1];
+  var _useState91 = useState([]),
+    _useState92 = _slicedToArray(_useState91, 2),
+    selected = _useState92[0],
+    setSelected = _useState92[1];
+  var _useState93 = useState(function () {
       return [copySourceKey(tab, row)];
     }),
-    _useState92 = _slicedToArray(_useState91, 2),
-    selectedSources = _useState92[0],
-    setSelectedSources = _useState92[1];
-  var _useState93 = useState(""),
     _useState94 = _slicedToArray(_useState93, 2),
-    search = _useState94[0],
-    setSearch = _useState94[1];
-  var _useState95 = useState(false),
+    selectedSources = _useState94[0],
+    setSelectedSources = _useState94[1];
+  var _useState95 = useState(""),
     _useState96 = _slicedToArray(_useState95, 2),
-    includeChecks = _useState96[0],
-    setIncludeChecks = _useState96[1];
-  var _useState97 = useState(function () {
+    search = _useState96[0],
+    setSearch = _useState96[1];
+  var _useState97 = useState(false),
+    _useState98 = _slicedToArray(_useState97, 2),
+    includeChecks = _useState98[0],
+    setIncludeChecks = _useState98[1];
+  var _useState99 = useState(function () {
       return tab === "etuvage" ? "same" : "new";
     }),
-    _useState98 = _slicedToArray(_useState97, 2),
-    copyMode = _useState98[0],
-    setCopyMode = _useState98[1];
-  var _useState99 = useState(false),
     _useState100 = _slicedToArray(_useState99, 2),
-    reuseSample = _useState100[0],
-    setReuseSample = _useState100[1];
-  var _useState101 = useState(true),
+    copyMode = _useState100[0],
+    setCopyMode = _useState100[1];
+  var _useState101 = useState(false),
     _useState102 = _slicedToArray(_useState101, 2),
-    loading = _useState102[0],
-    setLoading = _useState102[1];
-  var _useState103 = useState(false),
+    reuseSample = _useState102[0],
+    setReuseSample = _useState102[1];
+  var _useState103 = useState(true),
     _useState104 = _slicedToArray(_useState103, 2),
-    running = _useState104[0],
-    setRunning = _useState104[1];
-  var _useState105 = useState(""),
+    loading = _useState104[0],
+    setLoading = _useState104[1];
+  var _useState105 = useState(false),
     _useState106 = _slicedToArray(_useState105, 2),
-    message = _useState106[0],
-    setMessage = _useState106[1];
-  var _useState107 = useState([]),
+    running = _useState106[0],
+    setRunning = _useState106[1];
+  var _useState107 = useState(""),
     _useState108 = _slicedToArray(_useState107, 2),
-    completed = _useState108[0],
-    setCompleted = _useState108[1];
+    message = _useState108[0],
+    setMessage = _useState108[1];
+  var _useState109 = useState([]),
+    _useState110 = _slicedToArray(_useState109, 2),
+    completed = _useState110[0],
+    setCompleted = _useState110[1];
   var checksAllowed = canControlRework(user) && canTraceability(user);
   var availableSources = sourceRows.length ? sourceRows : [row];
   var chosenSources = availableSources.filter(function (source) {
@@ -9595,14 +9669,14 @@ var ReworkImportModal = function ReworkImportModal(_ref76) {
       return unit.id === id;
     });
   });
-  var _useState109 = useState(preferred || ((_units$ = units[0]) === null || _units$ === void 0 ? void 0 : _units$.id) || "all"),
-    _useState110 = _slicedToArray(_useState109, 2),
-    targetId = _useState110[0],
-    setTargetId = _useState110[1];
-  var _useState111 = useState(""),
+  var _useState111 = useState(preferred || ((_units$ = units[0]) === null || _units$ === void 0 ? void 0 : _units$.id) || "all"),
     _useState112 = _slicedToArray(_useState111, 2),
-    text = _useState112[0],
-    setText = _useState112[1];
+    targetId = _useState112[0],
+    setTargetId = _useState112[1];
+  var _useState113 = useState(""),
+    _useState114 = _slicedToArray(_useState113, 2),
+    text = _useState114[0],
+    setText = _useState114[1];
   var parsed = React.useMemo(function () {
     return parseReworkClipboard(text);
   }, [text]);
@@ -10051,15 +10125,15 @@ var TabRework = function TabRework(_ref78) {
     onCopyAcross = _ref78.onCopyAcross,
     contextData = _ref78.contextData;
   var rows = data.rows || [];
-  var _useState113 = useState([]),
-    _useState114 = _slicedToArray(_useState113, 2),
-    requestIds = _useState114[0],
-    setRequestIds = _useState114[1];
-  var tableRef = React.useRef(null);
-  var _useState115 = useState(null),
+  var _useState115 = useState([]),
     _useState116 = _slicedToArray(_useState115, 2),
-    focusNewId = _useState116[0],
-    setFocusNewId = _useState116[1];
+    requestIds = _useState116[0],
+    setRequestIds = _useState116[1];
+  var tableRef = React.useRef(null);
+  var _useState117 = useState(null),
+    _useState118 = _slicedToArray(_useState117, 2),
+    focusNewId = _useState118[0],
+    setFocusNewId = _useState118[1];
   useEffect(function () {
     var _tableRef$current;
     if (!focusNewId) return;
@@ -10083,18 +10157,18 @@ var TabRework = function TabRework(_ref78) {
       next.focus();
     }
   };
-  var _useState117 = useState(false),
-    _useState118 = _slicedToArray(_useState117, 2),
-    showMaterialDraft = _useState118[0],
-    setShowMaterialDraft = _useState118[1];
   var _useState119 = useState(false),
     _useState120 = _slicedToArray(_useState119, 2),
-    showImport = _useState120[0],
-    setShowImport = _useState120[1];
-  var _useState121 = useState(null),
+    showMaterialDraft = _useState120[0],
+    setShowMaterialDraft = _useState120[1];
+  var _useState121 = useState(false),
     _useState122 = _slicedToArray(_useState121, 2),
-    substitutionTarget = _useState122[0],
-    setSubstitutionTarget = _useState122[1];
+    showImport = _useState122[0],
+    setShowImport = _useState122[1];
+  var _useState123 = useState(null),
+    _useState124 = _slicedToArray(_useState123, 2),
+    substitutionTarget = _useState124[0],
+    setSubstitutionTarget = _useState124[1];
   useEffect(function () {
     setRequestIds([]);
     setShowMaterialDraft(false);
@@ -10355,23 +10429,23 @@ var TabRework = function TabRework(_ref78) {
       rows: [].concat(_toConsumableArray(rows), _toConsumableArray(drafts.slice().reverse()))
     });
   };
-  var _useState123 = useState(null),
-    _useState124 = _slicedToArray(_useState123, 2),
-    deleteTarget = _useState124[0],
-    setDeleteTarget = _useState124[1];
   var _useState125 = useState(null),
     _useState126 = _slicedToArray(_useState125, 2),
-    restoreTarget = _useState126[0],
-    setRestoreTarget = _useState126[1];
-  var _useState127 = useState(false),
+    deleteTarget = _useState126[0],
+    setDeleteTarget = _useState126[1];
+  var _useState127 = useState(null),
     _useState128 = _slicedToArray(_useState127, 2),
-    showDeleted = _useState128[0],
-    setShowDeleted = _useState128[1];
-  var _useState129 = useState(true),
+    restoreTarget = _useState128[0],
+    setRestoreTarget = _useState128[1];
+  var _useState129 = useState(false),
     _useState130 = _slicedToArray(_useState129, 2),
-    hideAchevees = _useState130[0],
-    setHideAchevees = _useState130[1];
-  var _useState131 = useState({
+    showDeleted = _useState130[0],
+    setShowDeleted = _useState130[1];
+  var _useState131 = useState(true),
+    _useState132 = _slicedToArray(_useState131, 2),
+    hideAchevees = _useState132[0],
+    setHideAchevees = _useState132[1];
+  var _useState133 = useState({
       snTarget: workSnFilter(header),
       repere: "",
       action1: "",
@@ -10384,9 +10458,9 @@ var TabRework = function TabRework(_ref78) {
       etape: "",
       adjust: "all"
     }),
-    _useState132 = _slicedToArray(_useState131, 2),
-    filters = _useState132[0],
-    setFilters = _useState132[1];
+    _useState134 = _slicedToArray(_useState133, 2),
+    filters = _useState134[0],
+    setFilters = _useState134[1];
   useEffect(function () {
     return setFilters(function (s) {
       return _objectSpread(_objectSpread({}, s), {}, {
@@ -11884,22 +11958,22 @@ var ConsommableListManager = function ConsommableListManager(_ref81) {
   var items = _ref81.items,
     onClose = _ref81.onClose,
     onSave = _ref81.onSave;
-  var _useState133 = useState(items.map(function (i) {
+  var _useState135 = useState(items.map(function (i) {
       return _objectSpread({}, i);
     })),
-    _useState134 = _slicedToArray(_useState133, 2),
-    list = _useState134[0],
-    setList = _useState134[1];
-  var _useState135 = useState({
+    _useState136 = _slicedToArray(_useState135, 2),
+    list = _useState136[0],
+    setList = _useState136[1];
+  var _useState137 = useState({
       label: "",
       sap: "",
       code: "",
       cat: "Flux",
       polymerizationHours: ""
     }),
-    _useState136 = _slicedToArray(_useState135, 2),
-    newItem = _useState136[0],
-    setNewItem = _useState136[1];
+    _useState138 = _slicedToArray(_useState137, 2),
+    newItem = _useState138[0],
+    setNewItem = _useState138[1];
   var CATS = ["Flux", "Soudure", "Kapton", "Colle", "Coating", "Silicone", "Primer", "Autre"];
   var hasPolymerization = function hasPolymerization(item) {
     return supportsPolymerization(item);
@@ -12664,27 +12738,27 @@ var TabConsommables = function TabConsommables(_ref84) {
   var canEditItem = function canEditItem(op, it) {
     return canEditLine(user, it) && canEditLine(user, op);
   };
-  var _useState137 = useState(null),
-    _useState138 = _slicedToArray(_useState137, 2),
-    deleteOpTarget = _useState138[0],
-    setDeleteOpTarget = _useState138[1];
   var _useState139 = useState(null),
     _useState140 = _slicedToArray(_useState139, 2),
-    deleteItemTarget = _useState140[0],
-    setDeleteItemTarget = _useState140[1]; // {oid, iid}
+    deleteOpTarget = _useState140[0],
+    setDeleteOpTarget = _useState140[1];
   var _useState141 = useState(null),
     _useState142 = _slicedToArray(_useState141, 2),
-    restoreOpTarget = _useState142[0],
-    setRestoreOpTarget = _useState142[1];
+    deleteItemTarget = _useState142[0],
+    setDeleteItemTarget = _useState142[1]; // {oid, iid}
   var _useState143 = useState(null),
     _useState144 = _slicedToArray(_useState143, 2),
-    restoreItemTarget = _useState144[0],
-    setRestoreItemTarget = _useState144[1]; // {oid, iid}
-  var _useState145 = useState(false),
+    restoreOpTarget = _useState144[0],
+    setRestoreOpTarget = _useState144[1];
+  var _useState145 = useState(null),
     _useState146 = _slicedToArray(_useState145, 2),
-    showDeleted = _useState146[0],
-    setShowDeleted = _useState146[1];
-  var _useState147 = useState({
+    restoreItemTarget = _useState146[0],
+    setRestoreItemTarget = _useState146[1]; // {oid, iid}
+  var _useState147 = useState(false),
+    _useState148 = _slicedToArray(_useState147, 2),
+    showDeleted = _useState148[0],
+    setShowDeleted = _useState148[1];
+  var _useState149 = useState({
       snTarget: workSnFilter(header),
       date: "",
       visa: "",
@@ -12698,15 +12772,15 @@ var TabConsommables = function TabConsommables(_ref84) {
       traca: "all",
       remarque: ""
     }),
-    _useState148 = _slicedToArray(_useState147, 2),
-    filters = _useState148[0],
-    setFilters = _useState148[1];
-  var _useState149 = useState(function () {
+    _useState150 = _slicedToArray(_useState149, 2),
+    filters = _useState150[0],
+    setFilters = _useState150[1];
+  var _useState151 = useState(function () {
       return new Date();
     }),
-    _useState150 = _slicedToArray(_useState149, 2),
-    polymerizationNow = _useState150[0],
-    setPolymerizationNow = _useState150[1];
+    _useState152 = _slicedToArray(_useState151, 2),
+    polymerizationNow = _useState152[0],
+    setPolymerizationNow = _useState152[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setPolymerizationNow(new Date());
@@ -14252,18 +14326,18 @@ var TabTestEquip = function TabTestEquip(_ref91) {
       })])
     });
   };
-  var _useState151 = useState(null),
-    _useState152 = _slicedToArray(_useState151, 2),
-    deleteTarget = _useState152[0],
-    setDeleteTarget = _useState152[1];
   var _useState153 = useState(null),
     _useState154 = _slicedToArray(_useState153, 2),
-    restoreTarget = _useState154[0],
-    setRestoreTarget = _useState154[1];
-  var _useState155 = useState(false),
+    deleteTarget = _useState154[0],
+    setDeleteTarget = _useState154[1];
+  var _useState155 = useState(null),
     _useState156 = _slicedToArray(_useState155, 2),
-    showDeleted = _useState156[0],
-    setShowDeleted = _useState156[1];
+    restoreTarget = _useState156[0],
+    setRestoreTarget = _useState156[1];
+  var _useState157 = useState(false),
+    _useState158 = _slicedToArray(_useState157, 2),
+    showDeleted = _useState158[0],
+    setShowDeleted = _useState158[1];
   var snFilter = workSnFilter(header);
   var upd = function upd(id, f, v) {
     var r = rows.find(function (x) {
@@ -14793,20 +14867,20 @@ var FaitTypesManager = function FaitTypesManager(_ref92) {
   var types = _ref92.types,
     onClose = _ref92.onClose,
     onSave = _ref92.onSave;
-  var _useState157 = useState(types.map(function (t) {
+  var _useState159 = useState(types.map(function (t) {
       return _objectSpread({}, t);
     })),
-    _useState158 = _slicedToArray(_useState157, 2),
-    list = _useState158[0],
-    setList = _useState158[1];
-  var _useState159 = useState({
+    _useState160 = _slicedToArray(_useState159, 2),
+    list = _useState160[0],
+    setList = _useState160[1];
+  var _useState161 = useState({
       id: "",
       label: "",
       color: C.purple
     }),
-    _useState160 = _slicedToArray(_useState159, 2),
-    newT = _useState160[0],
-    setNewT = _useState160[1];
+    _useState162 = _slicedToArray(_useState161, 2),
+    newT = _useState162[0],
+    setNewT = _useState162[1];
   var COLORS = [C.red, C.blue, C.yellow, C.green, C.purple, C.accent, C.muted];
   var add = function add() {
     if (!newT.id.trim() || !newT.label.trim()) return;
@@ -15038,24 +15112,24 @@ var StatusTypesManager = function StatusTypesManager(_ref93) {
   var types = _ref93.types,
     onClose = _ref93.onClose,
     onSave = _ref93.onSave;
-  var _useState161 = useState(function () {
+  var _useState163 = useState(function () {
       return normalizeStatusTypes(types);
     }),
-    _useState162 = _slicedToArray(_useState161, 2),
-    list = _useState162[0],
-    setList = _useState162[1];
-  var _useState163 = useState(""),
     _useState164 = _slicedToArray(_useState163, 2),
-    label = _useState164[0],
-    setLabel = _useState164[1];
-  var _useState165 = useState("#8957e5"),
+    list = _useState164[0],
+    setList = _useState164[1];
+  var _useState165 = useState(""),
     _useState166 = _slicedToArray(_useState165, 2),
-    color = _useState166[0],
-    setColor = _useState166[1];
-  var _useState167 = useState(""),
+    label = _useState166[0],
+    setLabel = _useState166[1];
+  var _useState167 = useState("#8957e5"),
     _useState168 = _slicedToArray(_useState167, 2),
-    error = _useState168[0],
-    setError = _useState168[1];
+    color = _useState168[0],
+    setColor = _useState168[1];
+  var _useState169 = useState(""),
+    _useState170 = _slicedToArray(_useState169, 2),
+    error = _useState170[0],
+    setError = _useState170[1];
   var makeId = function makeId(value) {
     return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 32);
   };
@@ -15404,18 +15478,18 @@ var TabFaits = function TabFaits(_ref94) {
       })])
     });
   };
-  var _useState169 = useState(null),
-    _useState170 = _slicedToArray(_useState169, 2),
-    deleteTarget = _useState170[0],
-    setDeleteTarget = _useState170[1];
   var _useState171 = useState(null),
     _useState172 = _slicedToArray(_useState171, 2),
-    restoreTarget = _useState172[0],
-    setRestoreTarget = _useState172[1];
-  var _useState173 = useState(false),
+    deleteTarget = _useState172[0],
+    setDeleteTarget = _useState172[1];
+  var _useState173 = useState(null),
     _useState174 = _slicedToArray(_useState173, 2),
-    showDeleted = _useState174[0],
-    setShowDeleted = _useState174[1];
+    restoreTarget = _useState174[0],
+    setRestoreTarget = _useState174[1];
+  var _useState175 = useState(false),
+    _useState176 = _slicedToArray(_useState175, 2),
+    showDeleted = _useState176[0],
+    setShowDeleted = _useState176[1];
   var snFilter = workSnFilter(header);
   var del = function del(id) {
     var r = rows.find(function (x) {
@@ -16049,22 +16123,22 @@ var TabEtuvage = function TabEtuvage(_ref95) {
     return canEditLine(user, row);
   };
   var fours = uniqueOvenChoices(tstRows);
-  var _useState175 = useState(null),
-    _useState176 = _slicedToArray(_useState175, 2),
-    deleteTarget = _useState176[0],
-    setDeleteTarget = _useState176[1];
   var _useState177 = useState(null),
     _useState178 = _slicedToArray(_useState177, 2),
-    restoreTarget = _useState178[0],
-    setRestoreTarget = _useState178[1];
+    deleteTarget = _useState178[0],
+    setDeleteTarget = _useState178[1];
   var _useState179 = useState(null),
     _useState180 = _slicedToArray(_useState179, 2),
-    weekendTarget = _useState180[0],
-    setWeekendTarget = _useState180[1];
-  var _useState181 = useState(false),
+    restoreTarget = _useState180[0],
+    setRestoreTarget = _useState180[1];
+  var _useState181 = useState(null),
     _useState182 = _slicedToArray(_useState181, 2),
-    showDeleted = _useState182[0],
-    setShowDeleted = _useState182[1];
+    weekendTarget = _useState182[0],
+    setWeekendTarget = _useState182[1];
+  var _useState183 = useState(false),
+    _useState184 = _slicedToArray(_useState183, 2),
+    showDeleted = _useState184[0],
+    setShowDeleted = _useState184[1];
   var snFilter = workSnFilter(header);
   var add = function add() {
     if (!perms.canWrite) return;
@@ -16951,30 +17025,30 @@ var TabDeMating = function TabDeMating(_ref97) {
   var canEdit = function canEdit(row) {
     return canEditLine(user, row);
   };
-  var _useState183 = useState(null),
-    _useState184 = _slicedToArray(_useState183, 2),
-    deleteEvTarget = _useState184[0],
-    setDeleteEvTarget = _useState184[1]; // {cid,eid}
   var _useState185 = useState(null),
     _useState186 = _slicedToArray(_useState185, 2),
-    deleteConnTarget = _useState186[0],
-    setDeleteConnTarget = _useState186[1]; // cid
+    deleteEvTarget = _useState186[0],
+    setDeleteEvTarget = _useState186[1]; // {cid,eid}
   var _useState187 = useState(null),
     _useState188 = _slicedToArray(_useState187, 2),
-    restoreEvTarget = _useState188[0],
-    setRestoreEvTarget = _useState188[1]; // {cid,eid}
+    deleteConnTarget = _useState188[0],
+    setDeleteConnTarget = _useState188[1]; // cid
   var _useState189 = useState(null),
     _useState190 = _slicedToArray(_useState189, 2),
-    restoreConnTarget = _useState190[0],
-    setRestoreConnTarget = _useState190[1]; // cid
-  var _useState191 = useState(false),
+    restoreEvTarget = _useState190[0],
+    setRestoreEvTarget = _useState190[1]; // {cid,eid}
+  var _useState191 = useState(null),
     _useState192 = _slicedToArray(_useState191, 2),
-    showDeleted = _useState192[0],
-    setShowDeleted = _useState192[1];
-  var _useState193 = useState("all"),
+    restoreConnTarget = _useState192[0],
+    setRestoreConnTarget = _useState192[1]; // cid
+  var _useState193 = useState(false),
     _useState194 = _slicedToArray(_useState193, 2),
-    historyConnector = _useState194[0],
-    setHistoryConnector = _useState194[1];
+    showDeleted = _useState194[0],
+    setShowDeleted = _useState194[1];
+  var _useState195 = useState("all"),
+    _useState196 = _slicedToArray(_useState195, 2),
+    historyConnector = _useState196[0],
+    setHistoryConnector = _useState196[1];
   var snFilter = workSnFilter(header);
   var scopeIds = function scopeIds(row) {
     var snRows = snRowsFromHeader(header);
@@ -19764,22 +19838,22 @@ var RequiredPasswordChange = function RequiredPasswordChange(_ref114) {
   var user = _ref114.user,
     onDone = _ref114.onDone,
     onLogout = _ref114.onLogout;
-  var _useState195 = useState(""),
-    _useState196 = _slicedToArray(_useState195, 2),
-    password = _useState196[0],
-    setPassword = _useState196[1];
   var _useState197 = useState(""),
     _useState198 = _slicedToArray(_useState197, 2),
-    confirmation = _useState198[0],
-    setConfirmation = _useState198[1];
+    password = _useState198[0],
+    setPassword = _useState198[1];
   var _useState199 = useState(""),
     _useState200 = _slicedToArray(_useState199, 2),
-    error = _useState200[0],
-    setError = _useState200[1];
-  var _useState201 = useState(false),
+    confirmation = _useState200[0],
+    setConfirmation = _useState200[1];
+  var _useState201 = useState(""),
     _useState202 = _slicedToArray(_useState201, 2),
-    saving = _useState202[0],
-    setSaving = _useState202[1];
+    error = _useState202[0],
+    setError = _useState202[1];
+  var _useState203 = useState(false),
+    _useState204 = _slicedToArray(_useState203, 2),
+    saving = _useState204[0],
+    setSaving = _useState204[1];
   var save = /*#__PURE__*/function () {
     var _save = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee22(event) {
       var updated, result, stored, next, _t32;
@@ -19963,18 +20037,18 @@ var RequiredPasswordChange = function RequiredPasswordChange(_ref114) {
 };
 var LoginScreen = function LoginScreen(_ref115) {
   var onLogin = _ref115.onLogin;
-  var _useState203 = useState(""),
-    _useState204 = _slicedToArray(_useState203, 2),
-    tri = _useState204[0],
-    setTri = _useState204[1];
   var _useState205 = useState(""),
     _useState206 = _slicedToArray(_useState205, 2),
-    pwd = _useState206[0],
-    setPwd = _useState206[1];
+    tri = _useState206[0],
+    setTri = _useState206[1];
   var _useState207 = useState(""),
     _useState208 = _slicedToArray(_useState207, 2),
-    err = _useState208[0],
-    setErr = _useState208[1];
+    pwd = _useState208[0],
+    setPwd = _useState208[1];
+  var _useState209 = useState(""),
+    _useState210 = _slicedToArray(_useState209, 2),
+    err = _useState210[0],
+    setErr = _useState210[1];
   var reset = function reset() {
     setErr("");
   };
@@ -20435,10 +20509,10 @@ var FinishedProductSn = function FinishedProductSn(_ref121) {
   var of = _ref121.of,
     user = _ref121.user,
     onSave = _ref121.onSave;
-  var _useState209 = useState(of.snProduitFini || ""),
-    _useState210 = _slicedToArray(_useState209, 2),
-    draft = _useState210[0],
-    setDraft = _useState210[1];
+  var _useState211 = useState(of.snProduitFini || ""),
+    _useState212 = _slicedToArray(_useState211, 2),
+    draft = _useState212[0],
+    setDraft = _useState212[1];
   useEffect(function () {
     setDraft(of.snProduitFini || "");
   }, [of.snProduitFini]);
@@ -20885,57 +20959,57 @@ var HomeMailModal = function HomeMailModal(_ref127) {
     onClose = _ref127.onClose,
     onMarkForClosure = _ref127.onMarkForClosure;
   var isIp = kind === "ip";
-  var _useState211 = useState(""),
-    _useState212 = _slicedToArray(_useState211, 2),
-    ipName = _useState212[0],
-    setIpName = _useState212[1];
-  var _useState213 = useState(isIp ? "" : LOGISTICS_DIRECTORY_RECIPIENT),
+  var _useState213 = useState(""),
     _useState214 = _slicedToArray(_useState213, 2),
-    recipient = _useState214[0],
-    setRecipient = _useState214[1];
-  var _useState215 = useState(defaultMeetingSlot),
-    _useState216 = _slicedToArray(_useState215, 1),
-    meetingSlot = _useState216[0];
-  var _useState217 = useState(meetingSlot.date),
-    _useState218 = _slicedToArray(_useState217, 2),
-    meetingDate = _useState218[0],
-    setMeetingDate = _useState218[1];
-  var _useState219 = useState(meetingSlot.time),
+    ipName = _useState214[0],
+    setIpName = _useState214[1];
+  var _useState215 = useState(isIp ? "" : LOGISTICS_DIRECTORY_RECIPIENT),
+    _useState216 = _slicedToArray(_useState215, 2),
+    recipient = _useState216[0],
+    setRecipient = _useState216[1];
+  var _useState217 = useState(defaultMeetingSlot),
+    _useState218 = _slicedToArray(_useState217, 1),
+    meetingSlot = _useState218[0];
+  var _useState219 = useState(meetingSlot.date),
     _useState220 = _slicedToArray(_useState219, 2),
-    meetingTime = _useState220[0],
-    setMeetingTime = _useState220[1];
-  var _useState221 = useState("60"),
+    meetingDate = _useState220[0],
+    setMeetingDate = _useState220[1];
+  var _useState221 = useState(meetingSlot.time),
     _useState222 = _slicedToArray(_useState221, 2),
-    meetingDuration = _useState222[0],
-    setMeetingDuration = _useState222[1];
-  var _useState223 = useState(""),
+    meetingTime = _useState222[0],
+    setMeetingTime = _useState222[1];
+  var _useState223 = useState("60"),
     _useState224 = _slicedToArray(_useState223, 2),
-    meetingRoom = _useState224[0],
-    setMeetingRoom = _useState224[1];
+    meetingDuration = _useState224[0],
+    setMeetingDuration = _useState224[1];
   var _useState225 = useState(""),
     _useState226 = _slicedToArray(_useState225, 2),
-    meetingPlace = _useState226[0],
-    setMeetingPlace = _useState226[1];
-  var _useState227 = useState([]),
+    meetingRoom = _useState226[0],
+    setMeetingRoom = _useState226[1];
+  var _useState227 = useState(""),
     _useState228 = _slicedToArray(_useState227, 2),
-    copyTo = _useState228[0],
-    setCopyTo = _useState228[1];
+    meetingPlace = _useState228[0],
+    setMeetingPlace = _useState228[1];
   var _useState229 = useState([]),
     _useState230 = _slicedToArray(_useState229, 2),
-    inviteProjectTo = _useState230[0],
-    setInviteProjectTo = _useState230[1];
+    copyTo = _useState230[0],
+    setCopyTo = _useState230[1];
   var _useState231 = useState([]),
     _useState232 = _slicedToArray(_useState231, 2),
-    inviteAssuranceTo = _useState232[0],
-    setInviteAssuranceTo = _useState232[1];
+    inviteProjectTo = _useState232[0],
+    setInviteProjectTo = _useState232[1];
   var _useState233 = useState([]),
     _useState234 = _slicedToArray(_useState233, 2),
-    inviteCc = _useState234[0],
-    setInviteCc = _useState234[1];
+    inviteAssuranceTo = _useState234[0],
+    setInviteAssuranceTo = _useState234[1];
   var _useState235 = useState([]),
     _useState236 = _slicedToArray(_useState235, 2),
-    inviteOperatorCc = _useState236[0],
-    setInviteOperatorCc = _useState236[1];
+    inviteCc = _useState236[0],
+    setInviteCc = _useState236[1];
+  var _useState237 = useState([]),
+    _useState238 = _slicedToArray(_useState237, 2),
+    inviteOperatorCc = _useState238[0],
+    setInviteOperatorCc = _useState238[1];
   var _useCcManagers2 = useCcManagers(!isIp),
     managers = _useCcManagers2.managers,
     ccError = _useCcManagers2.error;
@@ -20973,22 +21047,22 @@ var HomeMailModal = function HomeMailModal(_ref127) {
       user: user
     });
   };
-  var _useState237 = useState(makeDraft),
-    _useState238 = _slicedToArray(_useState237, 2),
-    draft = _useState238[0],
-    setDraft = _useState238[1];
-  var _useState239 = useState(""),
+  var _useState239 = useState(makeDraft),
     _useState240 = _slicedToArray(_useState239, 2),
-    message = _useState240[0],
-    setMessage = _useState240[1];
-  var _useState241 = useState(false),
+    draft = _useState240[0],
+    setDraft = _useState240[1];
+  var _useState241 = useState(""),
     _useState242 = _slicedToArray(_useState241, 2),
-    draftOpened = _useState242[0],
-    setDraftOpened = _useState242[1];
+    message = _useState242[0],
+    setMessage = _useState242[1];
   var _useState243 = useState(false),
     _useState244 = _slicedToArray(_useState243, 2),
-    sending = _useState244[0],
-    setSending = _useState244[1];
+    draftOpened = _useState244[0],
+    setDraftOpened = _useState244[1];
+  var _useState245 = useState(false),
+    _useState246 = _slicedToArray(_useState245, 2),
+    sending = _useState246[0],
+    setSending = _useState246[1];
   useEffect(function () {
     if (isIp) setDraft(buildIpInvitation({
       rows: rows,
@@ -21771,103 +21845,103 @@ var OFSelector = function OFSelector(_ref129) {
     typeOF: "production",
     status: "en_cours"
   };
-  var _useState245 = useState(""),
-    _useState246 = _slicedToArray(_useState245, 2),
-    search = _useState246[0],
-    setSearch = _useState246[1];
-  var _useState247 = useState(0),
+  var _useState247 = useState(""),
     _useState248 = _slicedToArray(_useState247, 2),
-    page = _useState248[0],
-    setPage = _useState248[1];
-  var _useState249 = useState(25),
+    search = _useState248[0],
+    setSearch = _useState248[1];
+  var _useState249 = useState(0),
     _useState250 = _slicedToArray(_useState249, 2),
-    pageSize = _useState250[0],
-    setPageSize = _useState250[1];
-  var _useState251 = useState({}),
+    page = _useState250[0],
+    setPage = _useState250[1];
+  var _useState251 = useState(25),
     _useState252 = _slicedToArray(_useState251, 2),
-    columnFilters = _useState252[0],
-    setColumnFilters = _useState252[1];
+    pageSize = _useState252[0],
+    setPageSize = _useState252[1];
   var _useState253 = useState({}),
     _useState254 = _slicedToArray(_useState253, 2),
-    dataById = _useState254[0],
-    setDataById = _useState254[1];
-  var _useState255 = useState("opens"),
+    columnFilters = _useState254[0],
+    setColumnFilters = _useState254[1];
+  var _useState255 = useState({}),
     _useState256 = _slicedToArray(_useState255, 2),
-    sort = _useState256[0],
-    setSort = _useState256[1];
-  var _useState257 = useState({
+    dataById = _useState256[0],
+    setDataById = _useState256[1];
+  var _useState257 = useState("opens"),
+    _useState258 = _slicedToArray(_useState257, 2),
+    sort = _useState258[0],
+    setSort = _useState258[1];
+  var _useState259 = useState({
       key: "",
       direction: "asc"
     }),
-    _useState258 = _slicedToArray(_useState257, 2),
-    columnSort = _useState258[0],
-    setColumnSort = _useState258[1];
-  var _useState259 = useState([]),
     _useState260 = _slicedToArray(_useState259, 2),
-    filterStatus = _useState260[0],
-    setFilterStatus = _useState260[1];
-  var _useState261 = useState(true),
+    columnSort = _useState260[0],
+    setColumnSort = _useState260[1];
+  var _useState261 = useState([]),
     _useState262 = _slicedToArray(_useState261, 2),
-    onlyWorked = _useState262[0],
-    setOnlyWorked = _useState262[1];
-  var _useState263 = useState(false),
+    filterStatus = _useState262[0],
+    setFilterStatus = _useState262[1];
+  var _useState263 = useState(true),
     _useState264 = _slicedToArray(_useState263, 2),
-    onlyWarnings = _useState264[0],
-    setOnlyWarnings = _useState264[1];
-  var _useState265 = useState([]),
+    onlyWorked = _useState264[0],
+    setOnlyWorked = _useState264[1];
+  var _useState265 = useState(false),
     _useState266 = _slicedToArray(_useState265, 2),
-    workedIds = _useState266[0],
-    setWorkedIds = _useState266[1];
-  var _useState267 = useState({}),
+    onlyWarnings = _useState266[0],
+    setOnlyWarnings = _useState266[1];
+  var _useState267 = useState([]),
     _useState268 = _slicedToArray(_useState267, 2),
-    warningsById = _useState268[0],
-    setWarningsById = _useState268[1];
+    workedIds = _useState268[0],
+    setWorkedIds = _useState268[1];
   var _useState269 = useState({}),
     _useState270 = _slicedToArray(_useState269, 2),
-    openOWById = _useState270[0],
-    setOpenOWById = _useState270[1];
+    warningsById = _useState270[0],
+    setWarningsById = _useState270[1];
   var _useState271 = useState({}),
     _useState272 = _slicedToArray(_useState271, 2),
-    etuvagesById = _useState272[0],
-    setEtuvagesById = _useState272[1];
+    openOWById = _useState272[0],
+    setOpenOWById = _useState272[1];
   var _useState273 = useState({}),
     _useState274 = _slicedToArray(_useState273, 2),
-    contributorsById = _useState274[0],
-    setContributorsById = _useState274[1];
-  var _useState275 = useState(true),
+    etuvagesById = _useState274[0],
+    setEtuvagesById = _useState274[1];
+  var _useState275 = useState({}),
     _useState276 = _slicedToArray(_useState275, 2),
-    loadingWorked = _useState276[0],
-    setLoadingWorked = _useState276[1];
-  var _useState277 = useState([]),
+    contributorsById = _useState276[0],
+    setContributorsById = _useState276[1];
+  var _useState277 = useState(true),
     _useState278 = _slicedToArray(_useState277, 2),
-    selectedKeys = _useState278[0],
-    setSelectedKeys = _useState278[1];
+    loadingWorked = _useState278[0],
+    setLoadingWorked = _useState278[1];
   var _useState279 = useState([]),
     _useState280 = _slicedToArray(_useState279, 2),
-    expandedOfIds = _useState280[0],
-    setExpandedOfIds = _useState280[1];
-  var _useState281 = useState(null),
+    selectedKeys = _useState280[0],
+    setSelectedKeys = _useState280[1];
+  var _useState281 = useState([]),
     _useState282 = _slicedToArray(_useState281, 2),
-    homeMailKind = _useState282[0],
-    setHomeMailKind = _useState282[1];
-  var _useState283 = useState(false),
+    expandedOfIds = _useState282[0],
+    setExpandedOfIds = _useState282[1];
+  var _useState283 = useState(null),
     _useState284 = _slicedToArray(_useState283, 2),
-    showBulkPdf = _useState284[0],
-    setShowBulkPdf = _useState284[1];
-  var _useState285 = useState(null),
+    homeMailKind = _useState284[0],
+    setHomeMailKind = _useState284[1];
+  var _useState285 = useState(false),
     _useState286 = _slicedToArray(_useState285, 2),
-    bulkLabelEntries = _useState286[0],
-    setBulkLabelEntries = _useState286[1];
-  var _useState287 = useState(""),
+    showBulkPdf = _useState286[0],
+    setShowBulkPdf = _useState286[1];
+  var _useState287 = useState(null),
     _useState288 = _slicedToArray(_useState287, 2),
-    copiedTeamsKey = _useState288[0],
-    setCopiedTeamsKey = _useState288[1];
-  var _useState289 = useState(function () {
+    bulkLabelEntries = _useState288[0],
+    setBulkLabelEntries = _useState288[1];
+  var _useState289 = useState(""),
+    _useState290 = _slicedToArray(_useState289, 2),
+    copiedTeamsKey = _useState290[0],
+    setCopiedTeamsKey = _useState290[1];
+  var _useState291 = useState(function () {
       return new Date();
     }),
-    _useState290 = _slicedToArray(_useState289, 2),
-    homeNow = _useState290[0],
-    setHomeNow = _useState290[1];
+    _useState292 = _slicedToArray(_useState291, 2),
+    homeNow = _useState292[0],
+    setHomeNow = _useState292[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setHomeNow(new Date());
@@ -21986,34 +22060,34 @@ var OFSelector = function OFSelector(_ref129) {
       cancelled = true;
     };
   }, [ofList, user.trigram, consommables]);
-  var _useState291 = useState(true),
-    _useState292 = _slicedToArray(_useState291, 2),
-    hideCloture = _useState292[0],
-    setHideCloture = _useState292[1];
-  var _useState293 = useState(false),
+  var _useState293 = useState(true),
     _useState294 = _slicedToArray(_useState293, 2),
-    showNew = _useState294[0],
-    setShowNew = _useState294[1];
+    hideCloture = _useState294[0],
+    setHideCloture = _useState294[1];
   var _useState295 = useState(false),
     _useState296 = _slicedToArray(_useState295, 2),
-    showProfile = _useState296[0],
-    setShowProfile = _useState296[1];
-  var _useState297 = useState([]),
+    showNew = _useState296[0],
+    setShowNew = _useState296[1];
+  var _useState297 = useState(false),
     _useState298 = _slicedToArray(_useState297, 2),
-    favs = _useState298[0],
-    setFavs = _useState298[1];
-  var _useState299 = useState(blankForm),
+    showProfile = _useState298[0],
+    setShowProfile = _useState298[1];
+  var _useState299 = useState([]),
     _useState300 = _slicedToArray(_useState299, 2),
-    form = _useState300[0],
-    setForm = _useState300[1];
-  var _useState301 = useState(""),
+    favs = _useState300[0],
+    setFavs = _useState300[1];
+  var _useState301 = useState(blankForm),
     _useState302 = _slicedToArray(_useState301, 2),
-    importText = _useState302[0],
-    setImportText = _useState302[1];
+    form = _useState302[0],
+    setForm = _useState302[1];
   var _useState303 = useState(""),
     _useState304 = _slicedToArray(_useState303, 2),
-    importMsg = _useState304[0],
-    setImportMsg = _useState304[1];
+    importText = _useState304[0],
+    setImportText = _useState304[1];
+  var _useState305 = useState(""),
+    _useState306 = _slicedToArray(_useState305, 2),
+    importMsg = _useState306[0],
+    setImportMsg = _useState306[1];
 
   // Charger les favs de cet user
   useEffect(function () {
@@ -24406,46 +24480,46 @@ var AdminVisaModal = function AdminVisaModal(_ref150) {
     onConfirm = _ref150.onConfirm,
     onConfirmDate = _ref150.onConfirmDate;
   var entries = adminVisaEntries(data);
-  var _useState305 = useState("visa"),
-    _useState306 = _slicedToArray(_useState305, 2),
-    mode = _useState306[0],
-    setMode = _useState306[1];
-  var _useState307 = useState(""),
+  var _useState307 = useState("visa"),
     _useState308 = _slicedToArray(_useState307, 2),
-    query = _useState308[0],
-    setQuery = _useState308[1];
-  var _useState309 = useState([]),
+    mode = _useState308[0],
+    setMode = _useState308[1];
+  var _useState309 = useState(""),
     _useState310 = _slicedToArray(_useState309, 2),
-    selectedKeys = _useState310[0],
-    setSelectedKeys = _useState310[1];
-  var _useState311 = useState(""),
+    query = _useState310[0],
+    setQuery = _useState310[1];
+  var _useState311 = useState([]),
     _useState312 = _slicedToArray(_useState311, 2),
-    nextVisa = _useState312[0],
-    setNextVisa = _useState312[1];
+    selectedKeys = _useState312[0],
+    setSelectedKeys = _useState312[1];
   var _useState313 = useState(""),
     _useState314 = _slicedToArray(_useState313, 2),
-    nextDate = _useState314[0],
-    setNextDate = _useState314[1];
-  var _useState315 = useState(false),
+    nextVisa = _useState314[0],
+    setNextVisa = _useState314[1];
+  var _useState315 = useState(""),
     _useState316 = _slicedToArray(_useState315, 2),
-    updateDateWithVisa = _useState316[0],
-    setUpdateDateWithVisa = _useState316[1];
-  var _useState317 = useState(""),
+    nextDate = _useState316[0],
+    setNextDate = _useState316[1];
+  var _useState317 = useState(false),
     _useState318 = _slicedToArray(_useState317, 2),
-    reason = _useState318[0],
-    setReason = _useState318[1];
-  var _useState319 = useState(false),
+    updateDateWithVisa = _useState318[0],
+    setUpdateDateWithVisa = _useState318[1];
+  var _useState319 = useState(""),
     _useState320 = _slicedToArray(_useState319, 2),
-    busy = _useState320[0],
-    setBusy = _useState320[1];
-  var _useState321 = useState([]),
+    reason = _useState320[0],
+    setReason = _useState320[1];
+  var _useState321 = useState(false),
     _useState322 = _slicedToArray(_useState321, 2),
-    accounts = _useState322[0],
-    setAccounts = _useState322[1];
-  var _useState323 = useState(""),
+    busy = _useState322[0],
+    setBusy = _useState322[1];
+  var _useState323 = useState([]),
     _useState324 = _slicedToArray(_useState323, 2),
-    accountsError = _useState324[0],
-    setAccountsError = _useState324[1];
+    accounts = _useState324[0],
+    setAccounts = _useState324[1];
+  var _useState325 = useState(""),
+    _useState326 = _slicedToArray(_useState325, 2),
+    accountsError = _useState326[0],
+    setAccountsError = _useState326[1];
   useEffect(function () {
     var active = true;
     _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee38() {
@@ -24897,9 +24971,9 @@ var AdminVisaModal = function AdminVisaModal(_ref150) {
 };
 function App() {
   var _ofData$units0, _ofData$etuvage2, _ofData$testequip3;
-  var _useState325 = useState(0),
-    _useState326 = _slicedToArray(_useState325, 2),
-    setThemeRevision = _useState326[1];
+  var _useState327 = useState(0),
+    _useState328 = _slicedToArray(_useState327, 2),
+    setThemeRevision = _useState328[1];
   useEffect(function () {
     var refresh = function refresh() {
       return setThemeRevision(function (n) {
@@ -24911,27 +24985,27 @@ function App() {
       return window.removeEventListener("sp-f001-theme-change", refresh);
     };
   }, []);
-  var _useState327 = useState(null),
-    _useState328 = _slicedToArray(_useState327, 2),
-    user = _useState328[0],
-    setUser = _useState328[1];
-  var homeSaveQueue = React.useRef(Promise.resolve());
-  var _useState329 = useState([]),
+  var _useState329 = useState(null),
     _useState330 = _slicedToArray(_useState329, 2),
-    ofList = _useState330[0],
-    setOfList = _useState330[1];
-  var _useState331 = useState(null),
+    user = _useState330[0],
+    setUser = _useState330[1];
+  var homeSaveQueue = React.useRef(Promise.resolve());
+  var _useState331 = useState([]),
     _useState332 = _slicedToArray(_useState331, 2),
-    currentId = _useState332[0],
-    setCurrentId = _useState332[1];
-  var _useState333 = useState(DEFAULT_CONSOMMABLES),
+    ofList = _useState332[0],
+    setOfList = _useState332[1];
+  var _useState333 = useState(null),
     _useState334 = _slicedToArray(_useState333, 2),
-    consommables = _useState334[0],
-    setConsommables = _useState334[1];
-  var _useState335 = useState(false),
+    currentId = _useState334[0],
+    setCurrentId = _useState334[1];
+  var _useState335 = useState(DEFAULT_CONSOMMABLES),
     _useState336 = _slicedToArray(_useState335, 2),
-    showConsoEditor = _useState336[0],
-    setShowConsoEditor = _useState336[1];
+    consommables = _useState336[0],
+    setConsommables = _useState336[1];
+  var _useState337 = useState(false),
+    _useState338 = _slicedToArray(_useState337, 2),
+    showConsoEditor = _useState338[0],
+    setShowConsoEditor = _useState338[1];
   var catalogRead = React.useRef(null);
   var catalogEditBase = React.useRef(null);
   var readConsommables = useCallback(function () {
@@ -24980,118 +25054,118 @@ function App() {
     }
     return catalogRead.current;
   }, []);
-  var _useState337 = useState(function () {
+  var _useState339 = useState(function () {
       return ensureOpenWorkFactType(DEFAULT_FAIT_TYPES);
     }),
-    _useState338 = _slicedToArray(_useState337, 2),
-    faitTypes = _useState338[0],
-    setFaitTypes = _useState338[1];
-  var _useState339 = useState(false),
     _useState340 = _slicedToArray(_useState339, 2),
-    showFaitTypes = _useState340[0],
-    setShowFaitTypes = _useState340[1];
-  var _useState341 = useState(function () {
+    faitTypes = _useState340[0],
+    setFaitTypes = _useState340[1];
+  var _useState341 = useState(false),
+    _useState342 = _slicedToArray(_useState341, 2),
+    showFaitTypes = _useState342[0],
+    setShowFaitTypes = _useState342[1];
+  var _useState343 = useState(function () {
       return normalizeStatusTypes(DEFAULT_STATUS_TYPES);
     }),
-    _useState342 = _slicedToArray(_useState341, 2),
-    statusTypes = _useState342[0],
-    setStatusTypes = _useState342[1];
-  var _useState343 = useState(false),
     _useState344 = _slicedToArray(_useState343, 2),
-    showStatusTypes = _useState344[0],
-    setShowStatusTypes = _useState344[1];
-  var _useState345 = useState(null),
+    statusTypes = _useState344[0],
+    setStatusTypes = _useState344[1];
+  var _useState345 = useState(false),
     _useState346 = _slicedToArray(_useState345, 2),
-    ofData = _useState346[0],
-    setOfData = _useState346[1];
-  var _useState347 = useState("rework"),
+    showStatusTypes = _useState346[0],
+    setShowStatusTypes = _useState346[1];
+  var _useState347 = useState(null),
     _useState348 = _slicedToArray(_useState347, 2),
-    activeTab = _useState348[0],
-    setActiveTab = _useState348[1];
-  var _useState349 = useState(false),
+    ofData = _useState348[0],
+    setOfData = _useState348[1];
+  var _useState349 = useState("rework"),
     _useState350 = _slicedToArray(_useState349, 2),
-    saving = _useState350[0],
-    setSaving = _useState350[1];
+    activeTab = _useState350[0],
+    setActiveTab = _useState350[1];
   var _useState351 = useState(false),
     _useState352 = _slicedToArray(_useState351, 2),
-    godMode = _useState352[0],
-    setGodMode = _useState352[1];
-  var _useState353 = useState(null),
+    saving = _useState352[0],
+    setSaving = _useState352[1];
+  var _useState353 = useState(false),
     _useState354 = _slicedToArray(_useState353, 2),
-    lastSaved = _useState354[0],
-    setLastSaved = _useState354[1];
-  var _useState355 = useState(""),
+    godMode = _useState354[0],
+    setGodMode = _useState354[1];
+  var _useState355 = useState(null),
     _useState356 = _slicedToArray(_useState355, 2),
-    saveError = _useState356[0],
-    setSaveError = _useState356[1];
-  var _useState357 = useState(null),
+    lastSaved = _useState356[0],
+    setLastSaved = _useState356[1];
+  var _useState357 = useState(""),
     _useState358 = _slicedToArray(_useState357, 2),
-    pendingSave = _useState358[0],
-    setPendingSave = _useState358[1];
-  var _useState359 = useState(false),
+    saveError = _useState358[0],
+    setSaveError = _useState358[1];
+  var _useState359 = useState(null),
     _useState360 = _slicedToArray(_useState359, 2),
-    loaded = _useState360[0],
-    setLoaded = _useState360[1];
+    pendingSave = _useState360[0],
+    setPendingSave = _useState360[1];
   var _useState361 = useState(false),
     _useState362 = _slicedToArray(_useState361, 2),
-    ofListReady = _useState362[0],
-    setOfListReady = _useState362[1];
-  var _useState363 = useState([]),
+    loaded = _useState362[0],
+    setLoaded = _useState362[1];
+  var _useState363 = useState(false),
     _useState364 = _slicedToArray(_useState363, 2),
-    openHistory = _useState364[0],
-    setOpenHistory = _useState364[1]; // IDs des OF récemment ouverts
-  var _useState365 = useState(false),
+    ofListReady = _useState364[0],
+    setOfListReady = _useState364[1];
+  var _useState365 = useState([]),
     _useState366 = _slicedToArray(_useState365, 2),
-    showAdminUsers = _useState366[0],
-    setShowAdminUsers = _useState366[1];
+    openHistory = _useState366[0],
+    setOpenHistory = _useState366[1]; // IDs des OF récemment ouverts
   var _useState367 = useState(false),
     _useState368 = _slicedToArray(_useState367, 2),
-    showSettings = _useState368[0],
-    setShowSettings = _useState368[1];
+    showAdminUsers = _useState368[0],
+    setShowAdminUsers = _useState368[1];
   var _useState369 = useState(false),
     _useState370 = _slicedToArray(_useState369, 2),
-    showAdminVisaEditor = _useState370[0],
-    setShowAdminVisaEditor = _useState370[1];
-  var _useState371 = useState(null),
+    showSettings = _useState370[0],
+    setShowSettings = _useState370[1];
+  var _useState371 = useState(false),
     _useState372 = _slicedToArray(_useState371, 2),
-    copyAcrossRow = _useState372[0],
-    setCopyAcrossRow = _useState372[1];
-  var _useState373 = useState(false),
+    showAdminVisaEditor = _useState372[0],
+    setShowAdminVisaEditor = _useState372[1];
+  var _useState373 = useState(null),
     _useState374 = _slicedToArray(_useState373, 2),
-    copiedOfInfo = _useState374[0],
-    setCopiedOfInfo = _useState374[1];
+    copyAcrossRow = _useState374[0],
+    setCopyAcrossRow = _useState374[1];
   var _useState375 = useState(false),
     _useState376 = _slicedToArray(_useState375, 2),
-    copiedFolderLink = _useState376[0],
-    setCopiedFolderLink = _useState376[1];
+    copiedOfInfo = _useState376[0],
+    setCopiedOfInfo = _useState376[1];
   var _useState377 = useState(false),
     _useState378 = _slicedToArray(_useState377, 2),
-    printAll = _useState378[0],
-    setPrintAll = _useState378[1];
+    copiedFolderLink = _useState378[0],
+    setCopiedFolderLink = _useState378[1];
   var _useState379 = useState(false),
     _useState380 = _slicedToArray(_useState379, 2),
-    pdfIncludeHistory = _useState380[0],
-    setPdfIncludeHistory = _useState380[1];
+    printAll = _useState380[0],
+    setPrintAll = _useState380[1];
   var _useState381 = useState(false),
     _useState382 = _slicedToArray(_useState381, 2),
-    showPdfOptions = _useState382[0],
-    setShowPdfOptions = _useState382[1];
+    pdfIncludeHistory = _useState382[0],
+    setPdfIncludeHistory = _useState382[1];
   var _useState383 = useState(false),
     _useState384 = _slicedToArray(_useState383, 2),
-    showLabelOptions = _useState384[0],
-    setShowLabelOptions = _useState384[1];
-  var _useState385 = useState("all"),
+    showPdfOptions = _useState384[0],
+    setShowPdfOptions = _useState384[1];
+  var _useState385 = useState(false),
     _useState386 = _slicedToArray(_useState385, 2),
-    activeUnitId = _useState386[0],
-    setActiveUnitId = _useState386[1];
-  var _useState387 = useState(""),
+    showLabelOptions = _useState386[0],
+    setShowLabelOptions = _useState386[1];
+  var _useState387 = useState("all"),
     _useState388 = _slicedToArray(_useState387, 2),
-    entryUnitId = _useState388[0],
-    setEntryUnitId = _useState388[1];
-  var _useState389 = useState("dossier"),
+    activeUnitId = _useState388[0],
+    setActiveUnitId = _useState388[1];
+  var _useState389 = useState(""),
     _useState390 = _slicedToArray(_useState389, 2),
-    headerPanel = _useState390[0],
-    setHeaderPanel = _useState390[1];
+    entryUnitId = _useState390[0],
+    setEntryUnitId = _useState390[1];
+  var _useState391 = useState("dossier"),
+    _useState392 = _slicedToArray(_useState391, 2),
+    headerPanel = _useState392[0],
+    setHeaderPanel = _useState392[1];
   var pendingFolderLink = React.useRef(parseFolderLink());
   var folderLinkHandled = React.useRef(false);
   var perms = {
@@ -25407,10 +25481,10 @@ function App() {
     }
     return handleSaveProfile;
   }();
-  var _useState391 = useState(false),
-    _useState392 = _slicedToArray(_useState391, 2),
-    showProfile = _useState392[0],
-    setShowProfile = _useState392[1];
+  var _useState393 = useState(false),
+    _useState394 = _slicedToArray(_useState393, 2),
+    showProfile = _useState394[0],
+    setShowProfile = _useState394[1];
   var handleLogout = /*#__PURE__*/function () {
     var _handleLogout = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee44() {
       var _t68, _t69;

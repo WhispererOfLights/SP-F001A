@@ -219,20 +219,54 @@ const Btn = ({onClick,children,color=C.accent,small,disabled,full}) => (
   </button>
 );
 const MultiFilter = ({value,onChange,options,label="Tous",title="Filtre"}) => {
-  const [position,setPosition]=useState(null);
+  const [open,setOpen]=useState(false);
+  const [position,setPosition]=useState({top:0,left:0});
+  const buttonRef=React.useRef(null);
+  const panelRef=React.useRef(null);
   const selected=Array.isArray(value)?value:(!value||value==="all"?[]:[value]);
   const caption=selected.length===0?label:selected.length===1?(options.find(o=>o.value===selected[0])?.label||selected[0]):`${selected.length} choix`;
-  return <details onToggle={e=>{if(e.currentTarget.open){const r=e.currentTarget.getBoundingClientRect();setPosition({top:r.bottom+3,left:Math.max(8,Math.min(r.left,window.innerWidth-210))});}else setPosition(null);}} style={{position:"relative",fontWeight:400,minWidth:0}}>
-    <summary title={title} aria-label={title} style={{listStyle:"none",cursor:"pointer",background:C.input,border:`1px solid ${selected.length?C.blue:C.border}`,
-      borderRadius:4,color:selected.length?C.blue:C.text,padding:"4px 5px",fontSize:11,whiteSpace:"nowrap"}}>{caption} ▾</summary>
-    <div style={{position:"fixed",top:position?.top||0,left:position?.left||0,visibility:position?"visible":"hidden",zIndex:350,minWidth:180,maxHeight:260,overflowY:"auto",background:C.surface,
+  const place=()=>{
+    const r=buttonRef.current?.getBoundingClientRect();
+    if(!r) return;
+    const width=210;
+    setPosition({top:r.bottom+3,left:Math.max(8,Math.min(r.left,window.innerWidth-width-8))});
+  };
+  useEffect(()=>{
+    if(!open) return;
+    place();
+    const close=event=>{
+      if(buttonRef.current?.contains(event.target)||panelRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    const key=event=>{if(event.key==="Escape") setOpen(false);};
+    window.addEventListener("pointerdown",close);
+    window.addEventListener("keydown",key);
+    window.addEventListener("scroll",place,true);
+    window.addEventListener("resize",place);
+    return ()=>{
+      window.removeEventListener("pointerdown",close);
+      window.removeEventListener("keydown",key);
+      window.removeEventListener("scroll",place,true);
+      window.removeEventListener("resize",place);
+    };
+  },[open]);
+  return <span style={{position:"relative",display:"inline-block",fontWeight:400,minWidth:0}}>
+    <button ref={buttonRef} type="button" title={title} aria-label={title} aria-expanded={open}
+      onClick={()=>{place();setOpen(current=>!current);}}
+      style={{cursor:"pointer",background:C.input,border:`1px solid ${selected.length?C.blue:C.border}`,
+        borderRadius:4,color:selected.length?C.blue:C.text,padding:"4px 5px",fontSize:11,whiteSpace:"nowrap"}}>{caption} ▾</button>
+    {open&&<div ref={panelRef} role="group" aria-label={`${title} - choix`} style={{position:"fixed",top:position.top,left:position.left,zIndex:350,minWidth:180,maxHeight:260,overflowY:"auto",background:C.surface,
       color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:8,boxShadow:"0 4px 12px #00000022"}}>
-      <button type="button" onClick={()=>onChange([])} style={{background:"none",border:0,color:C.blue,cursor:"pointer",padding:"3px 0 7px"}}>{label}</button>
-      {options.map(o=><label key={o.value} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",fontSize:12,whiteSpace:"nowrap"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,borderBottom:`1px solid ${C.border}`,paddingBottom:5,marginBottom:3}}>
+        <button type="button" onClick={()=>{onChange([]);setOpen(false);}} style={{background:"none",border:0,color:C.blue,cursor:"pointer",padding:"2px 0"}}>{label}</button>
+        <button type="button" aria-label={`Fermer ${title}`} title="Fermer" onClick={()=>setOpen(false)}
+          style={{width:22,height:22,padding:0,border:0,borderRadius:4,background:C.border,color:C.text,cursor:"pointer",fontSize:15,lineHeight:1}}>×</button>
+      </div>
+      {options.map(o=><label key={o.value} style={{display:"flex",alignItems:"center",gap:7,padding:"5px 0",fontSize:12,whiteSpace:"nowrap",cursor:"pointer"}}>
         <input type="checkbox" checked={selected.includes(o.value)} onChange={e=>onChange(e.target.checked?[...selected,o.value]:selected.filter(v=>v!==o.value))}/>{o.label}
       </label>)}
-    </div>
-  </details>;
+    </div>}
+  </span>;
 };
 const filterHasValue = value => Array.isArray(value)?value.length>0:!!value;
 const filterMatches = (filter,value) => !filterHasValue(filter)||filter==="all"||(Array.isArray(filter)?filter.includes(value):filter===value);
