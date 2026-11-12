@@ -602,12 +602,33 @@ const groupHomeOvenAlerts = alerts => {
   })).sort((a,b)=>a.nextAt-b.nextAt);
 };
 const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
+  const [open,setOpen]=useState(false);
+  const overdueOvens=ovens.filter(alert=>!alert.timing?.anticipated&&!alert.timing?.today);
+  const dueOvens=ovens.length-overdueOvens.length;
+  const nextPolymerization=polymerizations[0];
   const listStyle={display:"flex",flexDirection:"column",gap:3,maxHeight:126,overflowY:"auto"};
   const itemStyle={display:"grid",gridTemplateColumns:"minmax(70px,.55fr) minmax(90px,.7fr) minmax(150px,1fr)",gap:8,alignItems:"center",
     width:"100%",padding:"5px 7px",border:0,borderBottom:`1px solid ${C.border}`,background:"transparent",color:C.text,cursor:"pointer",textAlign:"left",fontSize:11};
   const ovenItemStyle={...itemStyle,gridTemplateColumns:"minmax(70px,.45fr) minmax(75px,.55fr) minmax(180px,1.3fr) minmax(105px,.7fr)"};
   const empty=<span style={{color:C.muted,fontSize:11,padding:"8px 7px"}}>Aucun élément</span>;
-  return <section aria-label="Activités en cours sur tous les OF" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,background:C.surface,marginBottom:12}}>
+  return <section aria-label="Activités en cours sur tous les OF" style={{border:`1px solid ${overdueOvens.length?C.red:C.border}`,borderRadius:5,background:C.surface,marginBottom:8,overflow:"hidden"}}>
+    <div style={{minHeight:38,display:"flex",alignItems:"center",gap:8,padding:"5px 8px",flexWrap:"wrap"}}>
+      <button type="button" aria-expanded={open} onClick={()=>setOpen(current=>!current)}
+        style={{height:27,display:"inline-flex",alignItems:"center",gap:6,padding:"0 8px",border:0,borderRadius:4,background:C.raised,color:C.text,fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}}>
+        Suivi du jour <span aria-hidden="true">{open?"▴":"▾"}</span>
+      </button>
+      <button type="button" onClick={()=>setOpen(true)} style={{minWidth:0,display:"inline-flex",alignItems:"center",gap:6,padding:"3px 7px",border:`1px solid ${C.yellow}`,borderRadius:4,background:C.yellow+"12",color:C.yellow,fontSize:10,cursor:"pointer"}}>
+        <strong>Polymérisation</strong><Badge label={String(polymerizations.length)} color={C.yellow}/>
+        <span style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{loading?"Chargement…":nextPolymerization?`prochaine fin ${formatAvailabilityDT(nextPolymerization.readyAt)}`:"aucune en cours"}</span>
+      </button>
+      <button type="button" onClick={()=>setOpen(true)} style={{minWidth:0,display:"inline-flex",alignItems:"center",gap:6,padding:"3px 7px",border:`1px solid ${overdueOvens.length?C.red:C.yellow}`,borderRadius:4,background:(overdueOvens.length?C.red:C.yellow)+"12",color:overdueOvens.length?C.red:C.yellow,fontSize:10,cursor:"pointer"}}>
+        <strong>Étuvages</strong><Badge label={String(ovens.length)} color={ovens.length?(overdueOvens.length?C.red:C.yellow):C.green}/>
+        <span style={{color:C.muted,whiteSpace:"nowrap"}}>{loading?"Chargement…":overdueOvens.length?`${overdueOvens.length} en retard${dueOvens?` · ${dueOvens} à faire`:""}`:dueOvens?`${dueOvens} à faire ce soir`:"aucun à faire"}</span>
+      </button>
+      {open&&<button type="button" aria-label="Replier le suivi du jour" title="Replier" onClick={()=>setOpen(false)}
+        style={{marginLeft:"auto",width:25,height:25,padding:0,border:0,borderRadius:4,background:C.border,color:C.text,cursor:"pointer",fontSize:15}}>×</button>}
+    </div>
+    {open&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",borderTop:`1px solid ${C.border}`}}>
     <div style={{padding:"8px 10px",borderRight:`1px solid ${C.border}`,minWidth:0}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
         <strong style={{fontSize:11,color:C.yellow,textTransform:"uppercase"}}>Polymérisations en cours</strong>
@@ -621,8 +642,8 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
     </div>
     <div style={{padding:"8px 10px",minWidth:0}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-        <strong style={{fontSize:11,color:C.red,textTransform:"uppercase"}}>Étuvages à faire ce soir</strong>
-        <Badge label={String(ovens.length)} color={ovens.length?C.red:C.green}/>
+        <strong style={{fontSize:11,color:overdueOvens.length?C.red:C.yellow,textTransform:"uppercase"}}>Étuvages à faire / en retard</strong>
+        <Badge label={String(ovens.length)} color={ovens.length?(overdueOvens.length?C.red:C.yellow):C.green}/>
       </div>
       <div style={listStyle}>{loading?<span style={{color:C.muted,fontSize:11,padding:7}}>Chargement…</span>:ovens.length?ovens.map(alert=><button type="button" key={alert.key}
         aria-label={`Ouvrir étuvage OF ${alert.of} - ${alert.unit}`} onClick={()=>onSelect(alert.id,alert.unitId,"etuvage")} style={ovenItemStyle}>
@@ -635,6 +656,7 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
           : <><strong>{alert.timing.daysWithoutOven} jour{alert.timing.daysWithoutOven>1?"s":""}</strong> {alert.timing.text}</>}</span>
       </button>):empty}</div>
     </div>
+    </div>}
   </section>;
 };
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageSettings}) => {
@@ -1176,6 +1198,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const groupStart=i===0||paged[i-1].id!==o.id;
                 const displayUnitId=collapsed?null:o._homeUnitId;
                 const polymerization=pendingHomePolymerization(dataById[o.id],consommables,displayUnitId,homeNow);
+                const rowOvenAlert=collapsed?ovenAlerts.find(alert=>alert.id===o.id):null;
+                const rowOvenInfo=rowOvenAlert?{count:1,label:rowOvenAlert.label,nextAt:rowOvenAlert.nextAt}:nextEtuvageForRow(o);
+                const rowOvenTiming=rowOvenAlert?.timing||homeOvenAlertTiming(rowOvenInfo,homeNow);
+                const ovenOverdue=!!rowOvenTiming.due&&!rowOvenTiming.today&&!rowOvenTiming.anticipated;
+                const normalBackground=isFav?"#e05c0008":i%2===0?"transparent":C.stripe;
+                const rowBackground=selected?C.yellow+"20":ovenOverdue?C.red+"12":normalBackground;
                 const facts=[...(collapsed?ofRows.flatMap(row=>row._homeFacts||[]):o._homeFacts||[])]
                   .filter((fact,index,list)=>list.findIndex(item=>(item.id&&item.id===fact.id)||(!item.id&&item.type===fact.type&&item.numero===fact.numero))===index);
                 const snCount=ofRows.filter(row=>row.sn).length;
@@ -1190,9 +1218,9 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
                     onClick={()=>selectionMode?(collapsed?toggleOfSelection(o.id):toggleSelected(o)):onSelect(o.id,collapsed?null:o._homeUnitId)}
                     title={selectionMode?"Ajouter ou retirer cette ligne de la sélection":"Ouvrir ce dossier"}
-                    style={{background:selected?C.yellow+"20":isFav?"#e05c0008":i%2===0?"transparent":C.stripe,cursor:selectionMode?"cell":"pointer",transition:"background .1s",borderTop:groupStart?`2px solid ${C.border}`:undefined}}
+                    style={{background:rowBackground,cursor:selectionMode?"cell":"pointer",transition:"background .1s",borderTop:groupStart?`2px solid ${C.border}`:undefined,boxShadow:ovenOverdue?`inset 4px 0 ${C.red}`:undefined}}
                     onMouseEnter={e=>e.currentTarget.style.background=selectionMode?C.blue+"14":"#e05c0015"}
-                    onMouseLeave={e=>e.currentTarget.style.background=selected?C.yellow+"20":isFav?"#e05c0008":i%2===0?"transparent":C.stripe}>
+                    onMouseLeave={e=>e.currentTarget.style.background=rowBackground}>
                     <TD center onClick={e=>{e.stopPropagation();collapsed?toggleOfSelection(o.id):toggleSelected(o);}}><input type="checkbox" aria-label={collapsed?`Sélectionner les ${summaryName} - OF ${o.of}`:`Sélectionner ${homeUnitName(o)} - OF ${o.of}`} checked={selected} onClick={e=>e.stopPropagation()} onChange={()=>collapsed?toggleOfSelection(o.id):toggleSelected(o)} style={{width:17,height:17,cursor:"pointer"}}/></TD>
                     <TD center>
                       <span onClick={e=>{e.stopPropagation();toggleFav(o.id);}}
@@ -1236,13 +1264,11 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     </TD>
                     <TD center onClick={e=>e.stopPropagation()}>{(()=>{
                       try{
-                        const groupedAlert=collapsed?ovenAlerts.find(alert=>alert.id===o.id):null;
-                        const nei=groupedAlert?{count:1,label:groupedAlert.label,nextAt:groupedAlert.nextAt}:nextEtuvageForRow(o);
-                        if(!nei.count) return <span style={{color:C.muted,fontSize:10}}>—</span>;
-                        const timing=groupedAlert?.timing||homeOvenAlertTiming(nei,homeNow);
-                        const warning=!!timing.due;
-                        return <span title={warning?`Alerte étuvage : ${timing.title}`:undefined} style={{fontFamily:"monospace",fontSize:10,color:warning?C.red:C.blue,fontWeight:warning?800:400}}>
-                          {warning?"🔥 ":"🕐 "}{nei.label}
+                        if(!rowOvenInfo.count) return <span style={{color:C.muted,fontSize:10}}>—</span>;
+                        const warning=!!rowOvenTiming.due;
+                        const alertColor=ovenOverdue?C.red:warning?C.yellow:C.blue;
+                        return <span title={warning?`Alerte étuvage : ${rowOvenTiming.title}`:undefined} style={{fontFamily:"monospace",fontSize:10,color:alertColor,fontWeight:warning?800:400}}>
+                          {warning?"🔥 ":"🕐 "}{ovenOverdue?`EN RETARD · ${rowOvenTiming.daysWithoutOven} j · `:""}{rowOvenInfo.label}
                         </span>;
                       }catch(e){return <span style={{color:C.muted,fontSize:10}}>—</span>;}
                     })()}</TD>

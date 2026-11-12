@@ -2935,6 +2935,12 @@ export default function App(){
     _entrySnIds:entryUnit?[entryUnit.id]:[],
     _confirmMultiSn:true,
   };
+  const overdueOvenUnits=snRows.filter(unit=>!UNIT_STATUTS[unit.status||"en_cours"]?.closed).map(unit=>{
+    const info=nextEtuvageInfo(effectiveEtuvageRows(ofData).filter(row=>rowMatchesSn(row,unit,snRows)));
+    const timing=homeOvenAlertTiming(info,new Date());
+    return timing.due&&!timing.today&&!timing.anticipated?{unit,info,timing}:null;
+  }).filter(Boolean);
+  const maxOvenDelay=overdueOvenUnits.reduce((max,item)=>Math.max(max,item.timing.daysWithoutOven||0),0);
   const scopedFaits=effectiveScopedRows(ofData,"faits").filter(r=>rowMatchesSnFilter(r,activeUnitChoice,workHeader));
   const faits = scopedFaits.length;
   const faitsOpen = scopedFaits.filter(r=>!r.closedDate).length;
@@ -3184,6 +3190,17 @@ export default function App(){
               </select>:<strong>{snTitle(entryUnit)}</strong>}
             </div>}
           </div>
+          {overdueOvenUnits.length>0&&<button type="button" role="alert" onClick={()=>{
+              setActiveUnitId(overdueOvenUnits.length===1?overdueOvenUnits[0].unit.id:"all");
+              setActiveTab("etuvage");
+            }}
+            title="Ouvrir les étuvages concernés"
+            style={{width:"100%",margin:"0 0 8px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"6px 10px",background:C.red+"14",border:`1px solid ${C.red}`,borderRadius:5,color:C.red,cursor:"pointer",fontSize:11,fontWeight:800,textAlign:"left"}}>
+            <span>🔥 {overdueOvenUnits.length===1
+              ? `Étuvage en retard de ${overdueOvenUnits[0].timing.daysWithoutOven} jour${overdueOvenUnits[0].timing.daysWithoutOven>1?"s":""} · ${snTitle(overdueOvenUnits[0].unit)}`
+              : `${overdueOvenUnits.length} SN / LOT avec étuvage en retard · jusqu’à ${maxOvenDelay} jours`}</span>
+            <span style={{whiteSpace:"nowrap"}}>Ouvrir les étuvages →</span>
+          </button>}
           <Header of={workHeader} onUpdate={updateHeader} user={user} onCommentsChange={v=>{const u={...ofData,header:{...ofData.header,comments:v}};setOfData(u);save(u);}} onUpdateStatus={async status=>{
               if(!isAdminManager(user)) return;
               try{

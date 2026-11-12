@@ -21735,6 +21735,16 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
     ovens = _ref128.ovens,
     loading = _ref128.loading,
     onSelect = _ref128.onSelect;
+  var _useState247 = useState(false),
+    _useState248 = _slicedToArray(_useState247, 2),
+    open = _useState248[0],
+    setOpen = _useState248[1];
+  var overdueOvens = ovens.filter(function (alert) {
+    var _alert$timing, _alert$timing2;
+    return !((_alert$timing = alert.timing) !== null && _alert$timing !== void 0 && _alert$timing.anticipated) && !((_alert$timing2 = alert.timing) !== null && _alert$timing2 !== void 0 && _alert$timing2.today);
+  });
+  var dueOvens = ovens.length - overdueOvens.length;
+  var nextPolymerization = polymerizations[0];
   var listStyle = {
     display: "flex",
     flexDirection: "column",
@@ -21770,12 +21780,124 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
   return /*#__PURE__*/React.createElement("section", {
     "aria-label": "Activit\xE9s en cours sur tous les OF",
     style: {
+      border: "1px solid ".concat(overdueOvens.length ? C.red : C.border),
+      borderRadius: 5,
+      background: C.surface,
+      marginBottom: 8,
+      overflow: "hidden"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      minHeight: 38,
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "5px 8px",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-expanded": open,
+    onClick: function onClick() {
+      return setOpen(function (current) {
+        return !current;
+      });
+    },
+    style: {
+      height: 27,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "0 8px",
+      border: 0,
+      borderRadius: 4,
+      background: C.raised,
+      color: C.text,
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: "pointer",
+      whiteSpace: "nowrap"
+    }
+  }, "Suivi du jour ", /*#__PURE__*/React.createElement("span", {
+    "aria-hidden": "true"
+  }, open ? "▴" : "▾")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setOpen(true);
+    },
+    style: {
+      minWidth: 0,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "3px 7px",
+      border: "1px solid ".concat(C.yellow),
+      borderRadius: 4,
+      background: C.yellow + "12",
+      color: C.yellow,
+      fontSize: 10,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "Polym\xE9risation"), /*#__PURE__*/React.createElement(Badge, {
+    label: String(polymerizations.length),
+    color: C.yellow
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    }
+  }, loading ? "Chargement…" : nextPolymerization ? "prochaine fin ".concat(formatAvailabilityDT(nextPolymerization.readyAt)) : "aucune en cours")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: function onClick() {
+      return setOpen(true);
+    },
+    style: {
+      minWidth: 0,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "3px 7px",
+      border: "1px solid ".concat(overdueOvens.length ? C.red : C.yellow),
+      borderRadius: 4,
+      background: (overdueOvens.length ? C.red : C.yellow) + "12",
+      color: overdueOvens.length ? C.red : C.yellow,
+      fontSize: 10,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "\xC9tuvages"), /*#__PURE__*/React.createElement(Badge, {
+    label: String(ovens.length),
+    color: ovens.length ? overdueOvens.length ? C.red : C.yellow : C.green
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      whiteSpace: "nowrap"
+    }
+  }, loading ? "Chargement…" : overdueOvens.length ? "".concat(overdueOvens.length, " en retard").concat(dueOvens ? " \xB7 ".concat(dueOvens, " \xE0 faire") : "") : dueOvens ? "".concat(dueOvens, " \xE0 faire ce soir") : "aucun à faire")), open && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "Replier le suivi du jour",
+    title: "Replier",
+    onClick: function onClick() {
+      return setOpen(false);
+    },
+    style: {
+      marginLeft: "auto",
+      width: 25,
+      height: 25,
+      padding: 0,
+      border: 0,
+      borderRadius: 4,
+      background: C.border,
+      color: C.text,
+      cursor: "pointer",
+      fontSize: 15
+    }
+  }, "\xD7")), open && /*#__PURE__*/React.createElement("div", {
+    style: {
       display: "grid",
       gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))",
-      borderTop: "1px solid ".concat(C.border),
-      borderBottom: "1px solid ".concat(C.border),
-      background: C.surface,
-      marginBottom: 12
+      borderTop: "1px solid ".concat(C.border)
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -21841,12 +21963,12 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
   }, /*#__PURE__*/React.createElement("strong", {
     style: {
       fontSize: 11,
-      color: C.red,
+      color: overdueOvens.length ? C.red : C.yellow,
       textTransform: "uppercase"
     }
-  }, "\xC9tuvages \xE0 faire ce soir"), /*#__PURE__*/React.createElement(Badge, {
+  }, "\xC9tuvages \xE0 faire / en retard"), /*#__PURE__*/React.createElement(Badge, {
     label: String(ovens.length),
-    color: ovens.length ? C.red : C.green
+    color: ovens.length ? overdueOvens.length ? C.red : C.yellow : C.green
   })), /*#__PURE__*/React.createElement("div", {
     style: listStyle
   }, loading ? /*#__PURE__*/React.createElement("span", {
@@ -21891,7 +22013,7 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref128) {
     }, alert.article || "—"), alert.description ? " \u2014 ".concat(alert.description) : ""), /*#__PURE__*/React.createElement("span", {
       title: alert.timing.title
     }, alert.timing.anticipated ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Vendredi soir"), " \xB7 ", alert.timing.text) : alert.timing.today ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Aujourd'hui"), " \xB7 ", alert.timing.text) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, alert.timing.daysWithoutOven, " jour", alert.timing.daysWithoutOven > 1 ? "s" : ""), " ", alert.timing.text)));
-  }) : empty)));
+  }) : empty))));
 };
 var OFSelector = function OFSelector(_ref129) {
   var _STATUTS10, _STATUTS11, _STATUTS12;
@@ -21923,103 +22045,103 @@ var OFSelector = function OFSelector(_ref129) {
     typeOF: "production",
     status: "en_cours"
   };
-  var _useState247 = useState(""),
-    _useState248 = _slicedToArray(_useState247, 2),
-    search = _useState248[0],
-    setSearch = _useState248[1];
-  var _useState249 = useState(0),
+  var _useState249 = useState(""),
     _useState250 = _slicedToArray(_useState249, 2),
-    page = _useState250[0],
-    setPage = _useState250[1];
-  var _useState251 = useState(25),
+    search = _useState250[0],
+    setSearch = _useState250[1];
+  var _useState251 = useState(0),
     _useState252 = _slicedToArray(_useState251, 2),
-    pageSize = _useState252[0],
-    setPageSize = _useState252[1];
-  var _useState253 = useState({}),
+    page = _useState252[0],
+    setPage = _useState252[1];
+  var _useState253 = useState(25),
     _useState254 = _slicedToArray(_useState253, 2),
-    columnFilters = _useState254[0],
-    setColumnFilters = _useState254[1];
+    pageSize = _useState254[0],
+    setPageSize = _useState254[1];
   var _useState255 = useState({}),
     _useState256 = _slicedToArray(_useState255, 2),
-    dataById = _useState256[0],
-    setDataById = _useState256[1];
-  var _useState257 = useState("opens"),
+    columnFilters = _useState256[0],
+    setColumnFilters = _useState256[1];
+  var _useState257 = useState({}),
     _useState258 = _slicedToArray(_useState257, 2),
-    sort = _useState258[0],
-    setSort = _useState258[1];
-  var _useState259 = useState({
+    dataById = _useState258[0],
+    setDataById = _useState258[1];
+  var _useState259 = useState("opens"),
+    _useState260 = _slicedToArray(_useState259, 2),
+    sort = _useState260[0],
+    setSort = _useState260[1];
+  var _useState261 = useState({
       key: "",
       direction: "asc"
     }),
-    _useState260 = _slicedToArray(_useState259, 2),
-    columnSort = _useState260[0],
-    setColumnSort = _useState260[1];
-  var _useState261 = useState([]),
     _useState262 = _slicedToArray(_useState261, 2),
-    filterStatus = _useState262[0],
-    setFilterStatus = _useState262[1];
-  var _useState263 = useState(true),
+    columnSort = _useState262[0],
+    setColumnSort = _useState262[1];
+  var _useState263 = useState([]),
     _useState264 = _slicedToArray(_useState263, 2),
-    onlyWorked = _useState264[0],
-    setOnlyWorked = _useState264[1];
-  var _useState265 = useState(false),
+    filterStatus = _useState264[0],
+    setFilterStatus = _useState264[1];
+  var _useState265 = useState(true),
     _useState266 = _slicedToArray(_useState265, 2),
-    onlyWarnings = _useState266[0],
-    setOnlyWarnings = _useState266[1];
-  var _useState267 = useState([]),
+    onlyWorked = _useState266[0],
+    setOnlyWorked = _useState266[1];
+  var _useState267 = useState(false),
     _useState268 = _slicedToArray(_useState267, 2),
-    workedIds = _useState268[0],
-    setWorkedIds = _useState268[1];
-  var _useState269 = useState({}),
+    onlyWarnings = _useState268[0],
+    setOnlyWarnings = _useState268[1];
+  var _useState269 = useState([]),
     _useState270 = _slicedToArray(_useState269, 2),
-    warningsById = _useState270[0],
-    setWarningsById = _useState270[1];
+    workedIds = _useState270[0],
+    setWorkedIds = _useState270[1];
   var _useState271 = useState({}),
     _useState272 = _slicedToArray(_useState271, 2),
-    openOWById = _useState272[0],
-    setOpenOWById = _useState272[1];
+    warningsById = _useState272[0],
+    setWarningsById = _useState272[1];
   var _useState273 = useState({}),
     _useState274 = _slicedToArray(_useState273, 2),
-    etuvagesById = _useState274[0],
-    setEtuvagesById = _useState274[1];
+    openOWById = _useState274[0],
+    setOpenOWById = _useState274[1];
   var _useState275 = useState({}),
     _useState276 = _slicedToArray(_useState275, 2),
-    contributorsById = _useState276[0],
-    setContributorsById = _useState276[1];
-  var _useState277 = useState(true),
+    etuvagesById = _useState276[0],
+    setEtuvagesById = _useState276[1];
+  var _useState277 = useState({}),
     _useState278 = _slicedToArray(_useState277, 2),
-    loadingWorked = _useState278[0],
-    setLoadingWorked = _useState278[1];
-  var _useState279 = useState([]),
+    contributorsById = _useState278[0],
+    setContributorsById = _useState278[1];
+  var _useState279 = useState(true),
     _useState280 = _slicedToArray(_useState279, 2),
-    selectedKeys = _useState280[0],
-    setSelectedKeys = _useState280[1];
+    loadingWorked = _useState280[0],
+    setLoadingWorked = _useState280[1];
   var _useState281 = useState([]),
     _useState282 = _slicedToArray(_useState281, 2),
-    expandedOfIds = _useState282[0],
-    setExpandedOfIds = _useState282[1];
-  var _useState283 = useState(null),
+    selectedKeys = _useState282[0],
+    setSelectedKeys = _useState282[1];
+  var _useState283 = useState([]),
     _useState284 = _slicedToArray(_useState283, 2),
-    homeMailKind = _useState284[0],
-    setHomeMailKind = _useState284[1];
-  var _useState285 = useState(false),
+    expandedOfIds = _useState284[0],
+    setExpandedOfIds = _useState284[1];
+  var _useState285 = useState(null),
     _useState286 = _slicedToArray(_useState285, 2),
-    showBulkPdf = _useState286[0],
-    setShowBulkPdf = _useState286[1];
-  var _useState287 = useState(null),
+    homeMailKind = _useState286[0],
+    setHomeMailKind = _useState286[1];
+  var _useState287 = useState(false),
     _useState288 = _slicedToArray(_useState287, 2),
-    bulkLabelEntries = _useState288[0],
-    setBulkLabelEntries = _useState288[1];
-  var _useState289 = useState(""),
+    showBulkPdf = _useState288[0],
+    setShowBulkPdf = _useState288[1];
+  var _useState289 = useState(null),
     _useState290 = _slicedToArray(_useState289, 2),
-    copiedTeamsKey = _useState290[0],
-    setCopiedTeamsKey = _useState290[1];
-  var _useState291 = useState(function () {
+    bulkLabelEntries = _useState290[0],
+    setBulkLabelEntries = _useState290[1];
+  var _useState291 = useState(""),
+    _useState292 = _slicedToArray(_useState291, 2),
+    copiedTeamsKey = _useState292[0],
+    setCopiedTeamsKey = _useState292[1];
+  var _useState293 = useState(function () {
       return new Date();
     }),
-    _useState292 = _slicedToArray(_useState291, 2),
-    homeNow = _useState292[0],
-    setHomeNow = _useState292[1];
+    _useState294 = _slicedToArray(_useState293, 2),
+    homeNow = _useState294[0],
+    setHomeNow = _useState294[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setHomeNow(new Date());
@@ -22138,34 +22260,34 @@ var OFSelector = function OFSelector(_ref129) {
       cancelled = true;
     };
   }, [ofList, user.trigram, consommables]);
-  var _useState293 = useState(true),
-    _useState294 = _slicedToArray(_useState293, 2),
-    hideCloture = _useState294[0],
-    setHideCloture = _useState294[1];
-  var _useState295 = useState(false),
+  var _useState295 = useState(true),
     _useState296 = _slicedToArray(_useState295, 2),
-    showNew = _useState296[0],
-    setShowNew = _useState296[1];
+    hideCloture = _useState296[0],
+    setHideCloture = _useState296[1];
   var _useState297 = useState(false),
     _useState298 = _slicedToArray(_useState297, 2),
-    showProfile = _useState298[0],
-    setShowProfile = _useState298[1];
-  var _useState299 = useState([]),
+    showNew = _useState298[0],
+    setShowNew = _useState298[1];
+  var _useState299 = useState(false),
     _useState300 = _slicedToArray(_useState299, 2),
-    favs = _useState300[0],
-    setFavs = _useState300[1];
-  var _useState301 = useState(blankForm),
+    showProfile = _useState300[0],
+    setShowProfile = _useState300[1];
+  var _useState301 = useState([]),
     _useState302 = _slicedToArray(_useState301, 2),
-    form = _useState302[0],
-    setForm = _useState302[1];
-  var _useState303 = useState(""),
+    favs = _useState302[0],
+    setFavs = _useState302[1];
+  var _useState303 = useState(blankForm),
     _useState304 = _slicedToArray(_useState303, 2),
-    importText = _useState304[0],
-    setImportText = _useState304[1];
+    form = _useState304[0],
+    setForm = _useState304[1];
   var _useState305 = useState(""),
     _useState306 = _slicedToArray(_useState305, 2),
-    importMsg = _useState306[0],
-    setImportMsg = _useState306[1];
+    importText = _useState306[0],
+    setImportText = _useState306[1];
+  var _useState307 = useState(""),
+    _useState308 = _slicedToArray(_useState307, 2),
+    importMsg = _useState308[0],
+    setImportMsg = _useState308[1];
 
   // Charger les favs de cet user
   useEffect(function () {
@@ -23715,6 +23837,18 @@ var OFSelector = function OFSelector(_ref129) {
     var groupStart = i === 0 || paged[i - 1].id !== o.id;
     var displayUnitId = collapsed ? null : o._homeUnitId;
     var polymerization = pendingHomePolymerization(dataById[o.id], consommables, displayUnitId, homeNow);
+    var rowOvenAlert = collapsed ? ovenAlerts.find(function (alert) {
+      return alert.id === o.id;
+    }) : null;
+    var rowOvenInfo = rowOvenAlert ? {
+      count: 1,
+      label: rowOvenAlert.label,
+      nextAt: rowOvenAlert.nextAt
+    } : nextEtuvageForRow(o);
+    var rowOvenTiming = (rowOvenAlert === null || rowOvenAlert === void 0 ? void 0 : rowOvenAlert.timing) || homeOvenAlertTiming(rowOvenInfo, homeNow);
+    var ovenOverdue = !!rowOvenTiming.due && !rowOvenTiming.today && !rowOvenTiming.anticipated;
+    var normalBackground = isFav ? "#e05c0008" : i % 2 === 0 ? "transparent" : C.stripe;
+    var rowBackground = selected ? C.yellow + "20" : ovenOverdue ? C.red + "12" : normalBackground;
     var facts = _toConsumableArray(collapsed ? ofRows.flatMap(function (row) {
       return row._homeFacts || [];
     }) : o._homeFacts || []).filter(function (fact, index, list) {
@@ -23743,16 +23877,17 @@ var OFSelector = function OFSelector(_ref129) {
       },
       title: selectionMode ? "Ajouter ou retirer cette ligne de la sélection" : "Ouvrir ce dossier",
       style: {
-        background: selected ? C.yellow + "20" : isFav ? "#e05c0008" : i % 2 === 0 ? "transparent" : C.stripe,
+        background: rowBackground,
         cursor: selectionMode ? "cell" : "pointer",
         transition: "background .1s",
-        borderTop: groupStart ? "2px solid ".concat(C.border) : undefined
+        borderTop: groupStart ? "2px solid ".concat(C.border) : undefined,
+        boxShadow: ovenOverdue ? "inset 4px 0 ".concat(C.red) : undefined
       },
       onMouseEnter: function onMouseEnter(e) {
         return e.currentTarget.style.background = selectionMode ? C.blue + "14" : "#e05c0015";
       },
       onMouseLeave: function onMouseLeave(e) {
-        return e.currentTarget.style.background = selected ? C.yellow + "20" : isFav ? "#e05c0008" : i % 2 === 0 ? "transparent" : C.stripe;
+        return e.currentTarget.style.background = rowBackground;
       }
     }, /*#__PURE__*/React.createElement(TD, {
       center: true,
@@ -23955,31 +24090,23 @@ var OFSelector = function OFSelector(_ref129) {
       }
     }, function () {
       try {
-        var groupedAlert = collapsed ? ovenAlerts.find(function (alert) {
-          return alert.id === o.id;
-        }) : null;
-        var nei = groupedAlert ? {
-          count: 1,
-          label: groupedAlert.label,
-          nextAt: groupedAlert.nextAt
-        } : nextEtuvageForRow(o);
-        if (!nei.count) return /*#__PURE__*/React.createElement("span", {
+        if (!rowOvenInfo.count) return /*#__PURE__*/React.createElement("span", {
           style: {
             color: C.muted,
             fontSize: 10
           }
         }, "\u2014");
-        var timing = (groupedAlert === null || groupedAlert === void 0 ? void 0 : groupedAlert.timing) || homeOvenAlertTiming(nei, homeNow);
-        var warning = !!timing.due;
+        var warning = !!rowOvenTiming.due;
+        var alertColor = ovenOverdue ? C.red : warning ? C.yellow : C.blue;
         return /*#__PURE__*/React.createElement("span", {
-          title: warning ? "Alerte \xE9tuvage : ".concat(timing.title) : undefined,
+          title: warning ? "Alerte \xE9tuvage : ".concat(rowOvenTiming.title) : undefined,
           style: {
             fontFamily: "monospace",
             fontSize: 10,
-            color: warning ? C.red : C.blue,
+            color: alertColor,
             fontWeight: warning ? 800 : 400
           }
-        }, warning ? "🔥 " : "🕐 ", nei.label);
+        }, warning ? "🔥 " : "🕐 ", ovenOverdue ? "EN RETARD \xB7 ".concat(rowOvenTiming.daysWithoutOven, " j \xB7 ") : "", rowOvenInfo.label);
       } catch (e) {
         return /*#__PURE__*/React.createElement("span", {
           style: {
@@ -24558,46 +24685,46 @@ var AdminVisaModal = function AdminVisaModal(_ref150) {
     onConfirm = _ref150.onConfirm,
     onConfirmDate = _ref150.onConfirmDate;
   var entries = adminVisaEntries(data);
-  var _useState307 = useState("visa"),
-    _useState308 = _slicedToArray(_useState307, 2),
-    mode = _useState308[0],
-    setMode = _useState308[1];
-  var _useState309 = useState(""),
+  var _useState309 = useState("visa"),
     _useState310 = _slicedToArray(_useState309, 2),
-    query = _useState310[0],
-    setQuery = _useState310[1];
-  var _useState311 = useState([]),
+    mode = _useState310[0],
+    setMode = _useState310[1];
+  var _useState311 = useState(""),
     _useState312 = _slicedToArray(_useState311, 2),
-    selectedKeys = _useState312[0],
-    setSelectedKeys = _useState312[1];
-  var _useState313 = useState(""),
+    query = _useState312[0],
+    setQuery = _useState312[1];
+  var _useState313 = useState([]),
     _useState314 = _slicedToArray(_useState313, 2),
-    nextVisa = _useState314[0],
-    setNextVisa = _useState314[1];
+    selectedKeys = _useState314[0],
+    setSelectedKeys = _useState314[1];
   var _useState315 = useState(""),
     _useState316 = _slicedToArray(_useState315, 2),
-    nextDate = _useState316[0],
-    setNextDate = _useState316[1];
-  var _useState317 = useState(false),
+    nextVisa = _useState316[0],
+    setNextVisa = _useState316[1];
+  var _useState317 = useState(""),
     _useState318 = _slicedToArray(_useState317, 2),
-    updateDateWithVisa = _useState318[0],
-    setUpdateDateWithVisa = _useState318[1];
-  var _useState319 = useState(""),
+    nextDate = _useState318[0],
+    setNextDate = _useState318[1];
+  var _useState319 = useState(false),
     _useState320 = _slicedToArray(_useState319, 2),
-    reason = _useState320[0],
-    setReason = _useState320[1];
-  var _useState321 = useState(false),
+    updateDateWithVisa = _useState320[0],
+    setUpdateDateWithVisa = _useState320[1];
+  var _useState321 = useState(""),
     _useState322 = _slicedToArray(_useState321, 2),
-    busy = _useState322[0],
-    setBusy = _useState322[1];
-  var _useState323 = useState([]),
+    reason = _useState322[0],
+    setReason = _useState322[1];
+  var _useState323 = useState(false),
     _useState324 = _slicedToArray(_useState323, 2),
-    accounts = _useState324[0],
-    setAccounts = _useState324[1];
-  var _useState325 = useState(""),
+    busy = _useState324[0],
+    setBusy = _useState324[1];
+  var _useState325 = useState([]),
     _useState326 = _slicedToArray(_useState325, 2),
-    accountsError = _useState326[0],
-    setAccountsError = _useState326[1];
+    accounts = _useState326[0],
+    setAccounts = _useState326[1];
+  var _useState327 = useState(""),
+    _useState328 = _slicedToArray(_useState327, 2),
+    accountsError = _useState328[0],
+    setAccountsError = _useState328[1];
   useEffect(function () {
     var active = true;
     _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee38() {
@@ -25049,9 +25176,9 @@ var AdminVisaModal = function AdminVisaModal(_ref150) {
 };
 function App() {
   var _ofData$units0, _ofData$etuvage2, _ofData$testequip3;
-  var _useState327 = useState(0),
-    _useState328 = _slicedToArray(_useState327, 2),
-    setThemeRevision = _useState328[1];
+  var _useState329 = useState(0),
+    _useState330 = _slicedToArray(_useState329, 2),
+    setThemeRevision = _useState330[1];
   useEffect(function () {
     var refresh = function refresh() {
       return setThemeRevision(function (n) {
@@ -25063,27 +25190,27 @@ function App() {
       return window.removeEventListener("sp-f001-theme-change", refresh);
     };
   }, []);
-  var _useState329 = useState(null),
-    _useState330 = _slicedToArray(_useState329, 2),
-    user = _useState330[0],
-    setUser = _useState330[1];
-  var homeSaveQueue = React.useRef(Promise.resolve());
-  var _useState331 = useState([]),
+  var _useState331 = useState(null),
     _useState332 = _slicedToArray(_useState331, 2),
-    ofList = _useState332[0],
-    setOfList = _useState332[1];
-  var _useState333 = useState(null),
+    user = _useState332[0],
+    setUser = _useState332[1];
+  var homeSaveQueue = React.useRef(Promise.resolve());
+  var _useState333 = useState([]),
     _useState334 = _slicedToArray(_useState333, 2),
-    currentId = _useState334[0],
-    setCurrentId = _useState334[1];
-  var _useState335 = useState(DEFAULT_CONSOMMABLES),
+    ofList = _useState334[0],
+    setOfList = _useState334[1];
+  var _useState335 = useState(null),
     _useState336 = _slicedToArray(_useState335, 2),
-    consommables = _useState336[0],
-    setConsommables = _useState336[1];
-  var _useState337 = useState(false),
+    currentId = _useState336[0],
+    setCurrentId = _useState336[1];
+  var _useState337 = useState(DEFAULT_CONSOMMABLES),
     _useState338 = _slicedToArray(_useState337, 2),
-    showConsoEditor = _useState338[0],
-    setShowConsoEditor = _useState338[1];
+    consommables = _useState338[0],
+    setConsommables = _useState338[1];
+  var _useState339 = useState(false),
+    _useState340 = _slicedToArray(_useState339, 2),
+    showConsoEditor = _useState340[0],
+    setShowConsoEditor = _useState340[1];
   var catalogRead = React.useRef(null);
   var catalogEditBase = React.useRef(null);
   var readConsommables = useCallback(function () {
@@ -25132,118 +25259,118 @@ function App() {
     }
     return catalogRead.current;
   }, []);
-  var _useState339 = useState(function () {
+  var _useState341 = useState(function () {
       return ensureOpenWorkFactType(DEFAULT_FAIT_TYPES);
     }),
-    _useState340 = _slicedToArray(_useState339, 2),
-    faitTypes = _useState340[0],
-    setFaitTypes = _useState340[1];
-  var _useState341 = useState(false),
     _useState342 = _slicedToArray(_useState341, 2),
-    showFaitTypes = _useState342[0],
-    setShowFaitTypes = _useState342[1];
-  var _useState343 = useState(function () {
+    faitTypes = _useState342[0],
+    setFaitTypes = _useState342[1];
+  var _useState343 = useState(false),
+    _useState344 = _slicedToArray(_useState343, 2),
+    showFaitTypes = _useState344[0],
+    setShowFaitTypes = _useState344[1];
+  var _useState345 = useState(function () {
       return normalizeStatusTypes(DEFAULT_STATUS_TYPES);
     }),
-    _useState344 = _slicedToArray(_useState343, 2),
-    statusTypes = _useState344[0],
-    setStatusTypes = _useState344[1];
-  var _useState345 = useState(false),
     _useState346 = _slicedToArray(_useState345, 2),
-    showStatusTypes = _useState346[0],
-    setShowStatusTypes = _useState346[1];
-  var _useState347 = useState(null),
+    statusTypes = _useState346[0],
+    setStatusTypes = _useState346[1];
+  var _useState347 = useState(false),
     _useState348 = _slicedToArray(_useState347, 2),
-    ofData = _useState348[0],
-    setOfData = _useState348[1];
-  var _useState349 = useState("rework"),
+    showStatusTypes = _useState348[0],
+    setShowStatusTypes = _useState348[1];
+  var _useState349 = useState(null),
     _useState350 = _slicedToArray(_useState349, 2),
-    activeTab = _useState350[0],
-    setActiveTab = _useState350[1];
-  var _useState351 = useState(false),
+    ofData = _useState350[0],
+    setOfData = _useState350[1];
+  var _useState351 = useState("rework"),
     _useState352 = _slicedToArray(_useState351, 2),
-    saving = _useState352[0],
-    setSaving = _useState352[1];
+    activeTab = _useState352[0],
+    setActiveTab = _useState352[1];
   var _useState353 = useState(false),
     _useState354 = _slicedToArray(_useState353, 2),
-    godMode = _useState354[0],
-    setGodMode = _useState354[1];
-  var _useState355 = useState(null),
+    saving = _useState354[0],
+    setSaving = _useState354[1];
+  var _useState355 = useState(false),
     _useState356 = _slicedToArray(_useState355, 2),
-    lastSaved = _useState356[0],
-    setLastSaved = _useState356[1];
-  var _useState357 = useState(""),
+    godMode = _useState356[0],
+    setGodMode = _useState356[1];
+  var _useState357 = useState(null),
     _useState358 = _slicedToArray(_useState357, 2),
-    saveError = _useState358[0],
-    setSaveError = _useState358[1];
-  var _useState359 = useState(null),
+    lastSaved = _useState358[0],
+    setLastSaved = _useState358[1];
+  var _useState359 = useState(""),
     _useState360 = _slicedToArray(_useState359, 2),
-    pendingSave = _useState360[0],
-    setPendingSave = _useState360[1];
-  var _useState361 = useState(false),
+    saveError = _useState360[0],
+    setSaveError = _useState360[1];
+  var _useState361 = useState(null),
     _useState362 = _slicedToArray(_useState361, 2),
-    loaded = _useState362[0],
-    setLoaded = _useState362[1];
+    pendingSave = _useState362[0],
+    setPendingSave = _useState362[1];
   var _useState363 = useState(false),
     _useState364 = _slicedToArray(_useState363, 2),
-    ofListReady = _useState364[0],
-    setOfListReady = _useState364[1];
-  var _useState365 = useState([]),
+    loaded = _useState364[0],
+    setLoaded = _useState364[1];
+  var _useState365 = useState(false),
     _useState366 = _slicedToArray(_useState365, 2),
-    openHistory = _useState366[0],
-    setOpenHistory = _useState366[1]; // IDs des OF récemment ouverts
-  var _useState367 = useState(false),
+    ofListReady = _useState366[0],
+    setOfListReady = _useState366[1];
+  var _useState367 = useState([]),
     _useState368 = _slicedToArray(_useState367, 2),
-    showAdminUsers = _useState368[0],
-    setShowAdminUsers = _useState368[1];
+    openHistory = _useState368[0],
+    setOpenHistory = _useState368[1]; // IDs des OF récemment ouverts
   var _useState369 = useState(false),
     _useState370 = _slicedToArray(_useState369, 2),
-    showSettings = _useState370[0],
-    setShowSettings = _useState370[1];
+    showAdminUsers = _useState370[0],
+    setShowAdminUsers = _useState370[1];
   var _useState371 = useState(false),
     _useState372 = _slicedToArray(_useState371, 2),
-    showAdminVisaEditor = _useState372[0],
-    setShowAdminVisaEditor = _useState372[1];
-  var _useState373 = useState(null),
+    showSettings = _useState372[0],
+    setShowSettings = _useState372[1];
+  var _useState373 = useState(false),
     _useState374 = _slicedToArray(_useState373, 2),
-    copyAcrossRow = _useState374[0],
-    setCopyAcrossRow = _useState374[1];
-  var _useState375 = useState(false),
+    showAdminVisaEditor = _useState374[0],
+    setShowAdminVisaEditor = _useState374[1];
+  var _useState375 = useState(null),
     _useState376 = _slicedToArray(_useState375, 2),
-    copiedOfInfo = _useState376[0],
-    setCopiedOfInfo = _useState376[1];
+    copyAcrossRow = _useState376[0],
+    setCopyAcrossRow = _useState376[1];
   var _useState377 = useState(false),
     _useState378 = _slicedToArray(_useState377, 2),
-    copiedFolderLink = _useState378[0],
-    setCopiedFolderLink = _useState378[1];
+    copiedOfInfo = _useState378[0],
+    setCopiedOfInfo = _useState378[1];
   var _useState379 = useState(false),
     _useState380 = _slicedToArray(_useState379, 2),
-    printAll = _useState380[0],
-    setPrintAll = _useState380[1];
+    copiedFolderLink = _useState380[0],
+    setCopiedFolderLink = _useState380[1];
   var _useState381 = useState(false),
     _useState382 = _slicedToArray(_useState381, 2),
-    pdfIncludeHistory = _useState382[0],
-    setPdfIncludeHistory = _useState382[1];
+    printAll = _useState382[0],
+    setPrintAll = _useState382[1];
   var _useState383 = useState(false),
     _useState384 = _slicedToArray(_useState383, 2),
-    showPdfOptions = _useState384[0],
-    setShowPdfOptions = _useState384[1];
+    pdfIncludeHistory = _useState384[0],
+    setPdfIncludeHistory = _useState384[1];
   var _useState385 = useState(false),
     _useState386 = _slicedToArray(_useState385, 2),
-    showLabelOptions = _useState386[0],
-    setShowLabelOptions = _useState386[1];
-  var _useState387 = useState("all"),
+    showPdfOptions = _useState386[0],
+    setShowPdfOptions = _useState386[1];
+  var _useState387 = useState(false),
     _useState388 = _slicedToArray(_useState387, 2),
-    activeUnitId = _useState388[0],
-    setActiveUnitId = _useState388[1];
-  var _useState389 = useState(""),
+    showLabelOptions = _useState388[0],
+    setShowLabelOptions = _useState388[1];
+  var _useState389 = useState("all"),
     _useState390 = _slicedToArray(_useState389, 2),
-    entryUnitId = _useState390[0],
-    setEntryUnitId = _useState390[1];
-  var _useState391 = useState("dossier"),
+    activeUnitId = _useState390[0],
+    setActiveUnitId = _useState390[1];
+  var _useState391 = useState(""),
     _useState392 = _slicedToArray(_useState391, 2),
-    headerPanel = _useState392[0],
-    setHeaderPanel = _useState392[1];
+    entryUnitId = _useState392[0],
+    setEntryUnitId = _useState392[1];
+  var _useState393 = useState("dossier"),
+    _useState394 = _slicedToArray(_useState393, 2),
+    headerPanel = _useState394[0],
+    setHeaderPanel = _useState394[1];
   var pendingFolderLink = React.useRef(parseFolderLink());
   var folderLinkHandled = React.useRef(false);
   var perms = {
@@ -25559,10 +25686,10 @@ function App() {
     }
     return handleSaveProfile;
   }();
-  var _useState393 = useState(false),
-    _useState394 = _slicedToArray(_useState393, 2),
-    showProfile = _useState394[0],
-    setShowProfile = _useState394[1];
+  var _useState395 = useState(false),
+    _useState396 = _slicedToArray(_useState395, 2),
+    showProfile = _useState396[0],
+    setShowProfile = _useState396[1];
   var handleLogout = /*#__PURE__*/function () {
     var _handleLogout = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee44() {
       var _t68, _t69;
@@ -27673,6 +27800,23 @@ function App() {
     _entrySnIds: entryUnit ? [entryUnit.id] : [],
     _confirmMultiSn: true
   });
+  var overdueOvenUnits = snRows.filter(function (unit) {
+    var _UNIT_STATUTS8;
+    return !((_UNIT_STATUTS8 = UNIT_STATUTS[unit.status || "en_cours"]) !== null && _UNIT_STATUTS8 !== void 0 && _UNIT_STATUTS8.closed);
+  }).map(function (unit) {
+    var info = nextEtuvageInfo(effectiveEtuvageRows(ofData).filter(function (row) {
+      return rowMatchesSn(row, unit, snRows);
+    }));
+    var timing = homeOvenAlertTiming(info, new Date());
+    return timing.due && !timing.today && !timing.anticipated ? {
+      unit: unit,
+      info: info,
+      timing: timing
+    } : null;
+  }).filter(Boolean);
+  var maxOvenDelay = overdueOvenUnits.reduce(function (max, item) {
+    return Math.max(max, item.timing.daysWithoutOven || 0);
+  }, 0);
   var scopedFaits = effectiveScopedRows(ofData, "faits").filter(function (r) {
     return _rowMatchesSnFilter(r, activeUnitChoice, workHeader);
   });
@@ -28288,7 +28432,36 @@ function App() {
       key: unit.id,
       value: unit.id
     }, snTitle(unit));
-  })) : /*#__PURE__*/React.createElement("strong", null, snTitle(entryUnit)))), /*#__PURE__*/React.createElement(Header, {
+  })) : /*#__PURE__*/React.createElement("strong", null, snTitle(entryUnit)))), overdueOvenUnits.length > 0 && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "alert",
+    onClick: function onClick() {
+      setActiveUnitId(overdueOvenUnits.length === 1 ? overdueOvenUnits[0].unit.id : "all");
+      setActiveTab("etuvage");
+    },
+    title: "Ouvrir les \xE9tuvages concern\xE9s",
+    style: {
+      width: "100%",
+      margin: "0 0 8px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+      padding: "6px 10px",
+      background: C.red + "14",
+      border: "1px solid ".concat(C.red),
+      borderRadius: 5,
+      color: C.red,
+      cursor: "pointer",
+      fontSize: 11,
+      fontWeight: 800,
+      textAlign: "left"
+    }
+  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD25 ", overdueOvenUnits.length === 1 ? "\xC9tuvage en retard de ".concat(overdueOvenUnits[0].timing.daysWithoutOven, " jour").concat(overdueOvenUnits[0].timing.daysWithoutOven > 1 ? "s" : "", " \xB7 ").concat(snTitle(overdueOvenUnits[0].unit)) : "".concat(overdueOvenUnits.length, " SN / LOT avec \xE9tuvage en retard \xB7 jusqu\u2019\xE0 ").concat(maxOvenDelay, " jours")), /*#__PURE__*/React.createElement("span", {
+    style: {
+      whiteSpace: "nowrap"
+    }
+  }, "Ouvrir les \xE9tuvages \u2192")), /*#__PURE__*/React.createElement(Header, {
     of: workHeader,
     onUpdate: updateHeader,
     user: user,
