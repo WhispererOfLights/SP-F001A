@@ -824,12 +824,13 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
   const isAchevee = r => r.action1==="O"
     ? !!r.validated
     : r.action1!=="P" && (!["S","R"].includes(r.action1)||!!r.visaCtrl) && !!r.tracaOk && missingReworkTrace(r,true).length===0;
-  const acheveesCount = rows.filter(r=>!r.deleted&&isAchevee(r)).length;
+  const acheveesCount = rows.filter(r=>!r.deleted&&r.action1!=="O"&&isAchevee(r)).length;
   const visibleRows = sortByNewestOperation(rows).filter(r=>{
     if(r.deleted&&!showDeleted&&!forceShowDeleted) return false;
+    if(!rowMatchesSnFilter(r,filters.snTarget,header)) return false;
+    if(!r.deleted&&r.action1==="O") return true;
     if(!r.deleted&&hideAchevees&&!forceShowDeleted&&isAchevee(r)) return false;
     const txt = key => String(r[key]||"").toUpperCase();
-    if(!rowMatchesSnFilter(r,filters.snTarget,header)) return false;
     if(filters.repere&& !txt("repere").includes(filters.repere.toUpperCase())) return false;
     if(!filterMatches(filters.action1,r.action1)) return false;
     if(filters.codeERP&& !txt("codeERP").includes(filters.codeERP.toUpperCase())) return false;

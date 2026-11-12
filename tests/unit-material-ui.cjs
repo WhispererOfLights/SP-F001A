@@ -487,6 +487,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await observationDetail.locator('[data-entry-field="remarques"]').fill('C100 vérifié, laissé en état');
     await observationMain.getByTitle('Valider',{exact:true}).click();
     await page.waitForFunction(id=>window.testRecords['of:test-of'].rework.rows.some(row=>row.id===id&&row.validated&&row.remarques==='C100 vérifié, laissé en état'),observationId);
+    await observationMain.waitFor();
+    const repereFilter=page.getByTitle('Filtrer repère topo',{exact:true});
+    await repereFilter.fill('R96');
+    await observationMain.waitFor();
+    await repereFilter.fill('');
     await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
     const pointedNoValue=page.locator('[data-rework-row]').first();
     await pointedNoValue.locator('[data-entry-field="repere"]').fill('P-NOVALUE');
