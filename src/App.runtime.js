@@ -3617,16 +3617,20 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref35) {
       var substitutionRef = r.changeReason ? [r.changeReason, r.changeFactNumber].filter(Boolean).join(" ") : "";
       var fichePdf = [r.fiche, substitutionRef && "Justif. ".concat(substitutionRef)].filter(Boolean).join(" / ");
       var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), lotPdf, dcPdf, r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(fichePdf), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r);
+      var remarkPrefix = pdfValue(r.repere);
       var remark = String(r.remarques || "").trim() ? [{
-        text: "".concat(r.action1 === "O" ? "Observation" : "Remarque", " : ").concat(r.remarques),
+        text: "".concat(remarkPrefix, " - ").concat(r.action1 === "O" ? "Observation" : "Remarque", " : ").concat(r.remarques),
         maxLines: 18,
         bold: true,
         fill: "0.94 0.96 0.99",
         color: color.ink,
         stroke: color.blue
       }] : [];
+      var rowComments = base.comments.map(function (comment) {
+        return "".concat(remarkPrefix, " - ").concat(comment);
+      });
       return _objectSpread(_objectSpread({}, base), {}, {
-        comments: [].concat(remark, _toConsumableArray(base.comments)),
+        comments: [].concat(remark, _toConsumableArray(rowComments)),
         cellStyles: _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, hdArticles.some(function (hd) {
           return hd.id === r.id;
         }) ? {

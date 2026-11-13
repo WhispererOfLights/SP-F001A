@@ -13,7 +13,8 @@ const row=(id,action1,lot,dc,extra={})=>({id,repere:id,action1,lot,dc,codeERP:'2
 const rows=[row('BOTH','S','',''),row('DC_ONLY','M','0000020516',''),row('LOT_ONLY','S','','N/A'),
   row('POINTED','P','',''),row('OK','S','0000020516','N/A'),row('DESOLDER','D','',''),
   row('CANCELLED','S','','',{deleted:true,deletedReason:'Test',deletedDate:'18/09/2026',deletedVisa:'JGR'}),
-  row('OTHER_SN','S','','',{snIds:['u2']}),row('EXPIRED','S','0000020516','0101')];
+  row('OTHER_SN','S','','',{snIds:['u2']}),row('EXPIRED','S','0000020516','0101'),
+  row('R181','S','0000020516','N/A',{remarques:'Valeur mesurée 114k00',comments:[{visa:'JGR',dt:'06/11/2026 16:04',text:'Mauvaise valeur dans la NC'}]})];
 const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
   units:{rows:units},rework:{rows}},lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['rework']});
 (async()=>{
@@ -29,6 +30,8 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   assert.ok(!raw.includes('OTHER_SN'));
   const fills=raw.split("0.99 0.91 0.91 rg").length-1;
   assert.ok(fills>=6,'Missing LOT/DC cells on applicable live rows get red fills');
+  assert.ok(raw.includes('(R181 - Remarque : Valeur mesur'),'The main Adjust/Rework remark includes the TOPO reference');
+  assert.ok(raw.includes('(R181 - JGR - 06/11/2026 16:04 - Mauvaise valeur dans la NC)'),'Adjust/Rework comments include the TOPO reference');
   assert.ok(raw.includes('(MANQUANT)'),'Required empty LOT/DC cells are explicitly labelled as missing');
   assert.ok(/\/F2 6\.1 Tf 0\.95 0\.56 0\.00 rg[^\n]+\(N\/A\)/.test(raw),'N/A LOT/DC cells are highlighted in yellow');
   assert.ok(/\/F2 6\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(0101\)/.test(raw),'Expired DC remains red and bold');

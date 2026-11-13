@@ -953,10 +953,12 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
           : "";
         const fichePdf=[r.fiche,substitutionRef&&`Justif. ${substitutionRef}`].filter(Boolean).join(" / ");
         const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(fichePdf),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
+        const remarkPrefix=pdfValue(r.repere);
         const remark=String(r.remarques||"").trim()
-          ? [{text:`${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
+          ? [{text:`${remarkPrefix} - ${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
           : [];
-        return {...base,comments:[...remark,...base.comments],
+        const rowComments=base.comments.map(comment=>`${remarkPrefix} - ${comment}`);
+        return {...base,comments:[...remark,...rowComments],
         cellStyles:{
           ...(hdArticles.some(hd=>hd.id===r.id)?{6:{color:color.red,bold:true}}:{}),
           ...(!r.deleted&&r.action1!=="O"&&!missingTrace.includes("LOT")&&lotPdf==="N/A"
