@@ -1080,7 +1080,7 @@ const effectiveScopedRows = (data,tab) => {
 const effectiveEtuvageRows = data => effectiveScopedRows(data,"etuvage");
 const SAP_IB52_HEADERS = ["Valeur - description","N° OF","SN / LOT dossier","","","Article","","N° série","Qté","","","Lot"];
 const SAP_CO02_HEADERS = ["Valeur - description","N° OF","SN / LOT dossier","Article","","Qté","","Type","Opération","Séquence","Division","Magasin","","","Lot"];
-const SAP_FULL_HEADERS = ["Source","Date","Visa","SN cible","LOT cible","Fiche suiveuse","OP","Repère / Type","Action / Statut","Qté","N° échantillon / Fait","Code article","Valeur / Désignation","LOT / N° fait","DC / DP","CTRL","TRAÇA","Date ouverture","Visa ouverture","Date clôture","Visa clôture","Lien","Commentaires","Annulée","Annulée le","Annulée par","Motif annulation"];
+const SAP_FULL_HEADERS = ["N° OF","SN / LOT dossier","Source","Date","Visa","SN cible","LOT cible","Fiche suiveuse","OP","Repère / Type","Action / Statut","Qté","N° échantillon / Fait","Code article","Valeur / Désignation","LOT / N° fait","DC / DP","CTRL","TRAÇA","Date ouverture","Visa ouverture","Date clôture","Visa clôture","Lien","Commentaires","Annulée","Annulée le","Annulée par","Motif annulation"];
 const sapExcelDocumentHeader = ({ofData={},selectedSnIds=null}) => {
   const header=ofData.header||{};
   const units=(ofData.units?.rows||[]).map(normalizeTrackedUnit).filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
@@ -1173,21 +1173,21 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
 
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
   (ofData.rework?.rows||[]).forEach(row=>targetRows(row).forEach(target=>full.push([
-    "Adjust/Rework",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"",row.fiche||"",row.etape||"",
+    header.of||"",targetIdentity(target),"Adjust/Rework",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"",row.fiche||"",row.etape||"",
     row.repere||"",ACTION_LABELS[row.action1]||row.action1||"",row.action1==="O"?"":row.qty||"",row.action1==="O"?"":row.sn||"",row.action1==="O"?"":article(row.codeERP),row.action1==="O"?"":row.valeur||"",row.action1==="O"?"":row.lot||"",row.action1==="O"?"":row.dc||"",
     row.action1==="O"?"":visaStamp(row.visaCtrl,row.dateCtrl),row.action1==="O"?"":visaStamp(row.visaTraca,row.dateTraca),"","","","","",[row.remarques||"",comments(row.comments)].filter(Boolean).join(" | "),...deletedInfo(row),
   ])));
   (ofData.consommables?.ops||[]).forEach(op=>(op.items||[]).forEach(item=>{
     const conso=consoById[item.consoId]||{};
     targetRows(op).forEach(target=>full.push([
-      "Consommable",item.createdDT||op.createdDT||"",item.createdVisa||op.createdVisa||"",target.sn||"",target.lot||"",op.fiche||"",op.op||"",
+      header.of||"",targetIdentity(target),"Consommable",item.createdDT||op.createdDT||"",item.createdVisa||op.createdVisa||"",target.sn||"",target.lot||"",op.fiche||"",op.op||"",
       consoDescriptionForCsv(conso,item.consoId),"",consoQty(item.qty||item.qte||op.qty||op.qte),item.echantillon||"",article(conso.sap||conso.code||item.consoId),
       consoDescriptionForCsv(conso,item.consoId),item.lot||"",item.dp||"","",visaStamp(item.visaTraca,item.dateTraca),"","","","","",comments(item.comments),
       ...deletedInfo(item.deleted?item:op),
     ]));
   }));
   (ofData.faits?.rows||[]).forEach(row=>targetRows(row).forEach(target=>full.push([
-    "Fait technique",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"","","",row.type||"",row.closedDate?"Clôturé":"Ouvert","1",
+    header.of||"",targetIdentity(target),"Fait technique",row.createdDT||"",row.createdVisa||"",target.sn||"",target.lot||"","","",row.type||"",row.closedDate?"Clôturé":"Ouvert","1",
     row.numero||"",factSapArticle(row.type),row.commentaires||"",row.numero||"","","","",row.date||"",row.visa||"",row.closedDate||"",row.closedVisa||"",
     row.lien||"",[row.commentaires||"",comments(row.comments)].filter(Boolean).join(" | "),...deletedInfo(row),
   ])));

@@ -1994,7 +1994,7 @@ var buildExcelWorkbook = function buildExcelWorkbook(sheets) {
     data: "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">".concat(workbookRels).concat(styleRel, "</Relationships>")
   }, {
     name: "xl/styles.xml",
-    data: "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts><fills count=\"2\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFD9E1E8\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"1\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/></cellXfs></styleSheet>"
+    data: "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?><styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font><font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts><fills count=\"3\"><fill><patternFill patternType=\"none\"/></fill><fill><patternFill patternType=\"gray125\"/></fill><fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFD9E1E8\"/><bgColor indexed=\"64\"/></patternFill></fill></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/><xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/></cellXfs></styleSheet>"
   }].concat(_toConsumableArray(sheetEntries)));
 };
 var compactArticleCode = function compactArticleCode(v) {
@@ -6097,7 +6097,7 @@ var effectiveEtuvageRows = function effectiveEtuvageRows(data) {
 };
 var SAP_IB52_HEADERS = ["Valeur - description", "N° OF", "SN / LOT dossier", "", "", "Article", "", "N° série", "Qté", "", "", "Lot"];
 var SAP_CO02_HEADERS = ["Valeur - description", "N° OF", "SN / LOT dossier", "Article", "", "Qté", "", "Type", "Opération", "Séquence", "Division", "Magasin", "", "", "Lot"];
-var SAP_FULL_HEADERS = ["Source", "Date", "Visa", "SN cible", "LOT cible", "Fiche suiveuse", "OP", "Repère / Type", "Action / Statut", "Qté", "N° échantillon / Fait", "Code article", "Valeur / Désignation", "LOT / N° fait", "DC / DP", "CTRL", "TRAÇA", "Date ouverture", "Visa ouverture", "Date clôture", "Visa clôture", "Lien", "Commentaires", "Annulée", "Annulée le", "Annulée par", "Motif annulation"];
+var SAP_FULL_HEADERS = ["N° OF", "SN / LOT dossier", "Source", "Date", "Visa", "SN cible", "LOT cible", "Fiche suiveuse", "OP", "Repère / Type", "Action / Statut", "Qté", "N° échantillon / Fait", "Code article", "Valeur / Désignation", "LOT / N° fait", "DC / DP", "CTRL", "TRAÇA", "Date ouverture", "Visa ouverture", "Date clôture", "Visa clôture", "Lien", "Commentaires", "Annulée", "Annulée le", "Annulée par", "Motif annulation"];
 var sapExcelDocumentHeader = function sapExcelDocumentHeader(_ref56) {
   var _ofData$units4;
   var _ref56$ofData = _ref56.ofData,
@@ -6282,20 +6282,20 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
   (((_ofData$rework3 = ofData.rework) === null || _ofData$rework3 === void 0 ? void 0 : _ofData$rework3.rows) || []).forEach(function (row) {
     return targetRows(row).forEach(function (target) {
-      return full.push(["Adjust/Rework", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", row.fiche || "", row.etape || "", row.repere || "", ACTION_LABELS[row.action1] || row.action1 || "", row.action1 === "O" ? "" : row.qty || "", row.action1 === "O" ? "" : row.sn || "", row.action1 === "O" ? "" : article(row.codeERP), row.action1 === "O" ? "" : row.valeur || "", row.action1 === "O" ? "" : row.lot || "", row.action1 === "O" ? "" : row.dc || "", row.action1 === "O" ? "" : visaStamp(row.visaCtrl, row.dateCtrl), row.action1 === "O" ? "" : visaStamp(row.visaTraca, row.dateTraca), "", "", "", "", "", [row.remarques || "", comments(row.comments)].filter(Boolean).join(" | ")].concat(_toConsumableArray(deletedInfo(row))));
+      return full.push([header.of || "", targetIdentity(target), "Adjust/Rework", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", row.fiche || "", row.etape || "", row.repere || "", ACTION_LABELS[row.action1] || row.action1 || "", row.action1 === "O" ? "" : row.qty || "", row.action1 === "O" ? "" : row.sn || "", row.action1 === "O" ? "" : article(row.codeERP), row.action1 === "O" ? "" : row.valeur || "", row.action1 === "O" ? "" : row.lot || "", row.action1 === "O" ? "" : row.dc || "", row.action1 === "O" ? "" : visaStamp(row.visaCtrl, row.dateCtrl), row.action1 === "O" ? "" : visaStamp(row.visaTraca, row.dateTraca), "", "", "", "", "", [row.remarques || "", comments(row.comments)].filter(Boolean).join(" | ")].concat(_toConsumableArray(deletedInfo(row))));
     });
   });
   (((_ofData$consommables3 = ofData.consommables) === null || _ofData$consommables3 === void 0 ? void 0 : _ofData$consommables3.ops) || []).forEach(function (op) {
     return (op.items || []).forEach(function (item) {
       var conso = consoById[item.consoId] || {};
       targetRows(op).forEach(function (target) {
-        return full.push(["Consommable", item.createdDT || op.createdDT || "", item.createdVisa || op.createdVisa || "", target.sn || "", target.lot || "", op.fiche || "", op.op || "", consoDescriptionForCsv(conso, item.consoId), "", consoQty(item.qty || item.qte || op.qty || op.qte), item.echantillon || "", article(conso.sap || conso.code || item.consoId), consoDescriptionForCsv(conso, item.consoId), item.lot || "", item.dp || "", "", visaStamp(item.visaTraca, item.dateTraca), "", "", "", "", "", comments(item.comments)].concat(_toConsumableArray(deletedInfo(item.deleted ? item : op))));
+        return full.push([header.of || "", targetIdentity(target), "Consommable", item.createdDT || op.createdDT || "", item.createdVisa || op.createdVisa || "", target.sn || "", target.lot || "", op.fiche || "", op.op || "", consoDescriptionForCsv(conso, item.consoId), "", consoQty(item.qty || item.qte || op.qty || op.qte), item.echantillon || "", article(conso.sap || conso.code || item.consoId), consoDescriptionForCsv(conso, item.consoId), item.lot || "", item.dp || "", "", visaStamp(item.visaTraca, item.dateTraca), "", "", "", "", "", comments(item.comments)].concat(_toConsumableArray(deletedInfo(item.deleted ? item : op))));
       });
     });
   });
   (((_ofData$faits2 = ofData.faits) === null || _ofData$faits2 === void 0 ? void 0 : _ofData$faits2.rows) || []).forEach(function (row) {
     return targetRows(row).forEach(function (target) {
-      return full.push(["Fait technique", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", "", "", row.type || "", row.closedDate ? "Clôturé" : "Ouvert", "1", row.numero || "", factSapArticle(row.type), row.commentaires || "", row.numero || "", "", "", "", row.date || "", row.visa || "", row.closedDate || "", row.closedVisa || "", row.lien || "", [row.commentaires || "", comments(row.comments)].filter(Boolean).join(" | ")].concat(_toConsumableArray(deletedInfo(row))));
+      return full.push([header.of || "", targetIdentity(target), "Fait technique", row.createdDT || "", row.createdVisa || "", target.sn || "", target.lot || "", "", "", row.type || "", row.closedDate ? "Clôturé" : "Ouvert", "1", row.numero || "", factSapArticle(row.type), row.commentaires || "", row.numero || "", "", "", "", row.date || "", row.visa || "", row.closedDate || "", row.closedVisa || "", row.lien || "", [row.commentaires || "", comments(row.comments)].filter(Boolean).join(" | ")].concat(_toConsumableArray(deletedInfo(row))));
     });
   });
   return {

@@ -96,15 +96,16 @@ assert.deepEqual(Array.from(multiRows.IB52,row=>row[2]),['SN-FINI','SN-SECOND'],
 const groupedMulti=multiRows.CO02.find(row=>row[3]==='1600000046'&&row[14]==='LOT-MULTI');
 assert.equal(groupedMulti[5],'2','CO02 additionne la quantité sur les deux SN');
 assert.equal(groupedMulti[2],'SN-FINI ; SN-SECOND','CO02 conserve la liste des SN regroupés');
-assert.ok(rows.FULL.every(row=>row.length===27));
-const fullObservation=rows.FULL.find(row=>row[8]==='Observation');
-assert.equal(fullObservation[7],'C100');
-assert.equal(fullObservation[9],'');
+assert.ok(rows.FULL.every(row=>row.length===29));
+assert.ok(rows.FULL.every(row=>row[0]==='1000'&&row[1]==='SN-FINI'),'Toutes les infos identifie l’OF et le SN / LOT sur chaque ligne');
+const fullObservation=rows.FULL.find(row=>row[10]==='Observation');
+assert.equal(fullObservation[9],'C100');
 assert.equal(fullObservation[11],'');
-assert.equal(fullObservation[12],'');
-assert.equal(fullObservation[22],'Constat vérifié, laissé en l’état');
-const fullFacts=rows.FULL.filter(row=>row[0]==='Fait technique');
-assert.deepEqual(Array.from(fullFacts,row=>[row[7],row[11],row[13]]),[
+assert.equal(fullObservation[13],'');
+assert.equal(fullObservation[14],'');
+assert.equal(fullObservation[24],'Constat vérifié, laissé en l’état');
+const fullFacts=rows.FULL.filter(row=>row[2]==='Fait technique');
+assert.deepEqual(Array.from(fullFacts,row=>[row[9],row[13],row[15]]),[
   ['NC','2920000656','NC-001'],['DM','2920000657','DM-001'],['ISS','2920000656','ISS-001'],
 ]);
 assert.deepEqual(Array.from(documentHeader,row=>Array.from(row)),[
@@ -116,7 +117,7 @@ assert.deepEqual(Array.from(documentHeader,row=>Array.from(row)),[
 (async()=>{
   const ib52Headers=['Valeur - description','N° OF','SN / LOT dossier','','','Article','','N° série','Qté','','','Lot'];
   const co02Headers=['Valeur - description','N° OF','SN / LOT dossier','Article','','Qté','','Type','Opération','Séquence','Division','Magasin','','','Lot'];
-  const fullHeaders=['Source','Date','Visa','SN cible','LOT cible','Fiche suiveuse','OP','Repère / Type','Action / Statut','Qté','N° échantillon / Fait','Code article','Valeur / Désignation','LOT / N° fait','DC / DP','CTRL','TRAÇA','Date ouverture','Visa ouverture','Date clôture','Visa clôture','Lien','Commentaires','Annulée','Annulée le','Annulée par','Motif annulation'];
+  const fullHeaders=['N° OF','SN / LOT dossier','Source','Date','Visa','SN cible','LOT cible','Fiche suiveuse','OP','Repère / Type','Action / Statut','Qté','N° échantillon / Fait','Code article','Valeur / Désignation','LOT / N° fait','DC / DP','CTRL','TRAÇA','Date ouverture','Visa ouverture','Date clôture','Visa clôture','Lien','Commentaires','Annulée','Annulée le','Annulée par','Motif annulation'];
   const sheetRows=(headers,data)=>[...documentHeader,headers,...data];
   const blob=context.excelWorkbook([
     {name:'IB52',rows:sheetRows(ib52Headers,rows.IB52),headerRows:[0,3]},
@@ -128,6 +129,9 @@ assert.deepEqual(Array.from(documentHeader,row=>Array.from(row)),[
   assert.equal(bytes.subarray(0,2).toString(),'PK');
   const raw=bytes.toString('utf8');
   for(const marker of ['xl/workbook.xml','xl/worksheets/sheet1.xml','xl/worksheets/sheet2.xml','xl/worksheets/sheet3.xml','name="IB52"','name="CO02"','name="Toutes les infos"']) assert.ok(raw.includes(marker),marker);
+  assert.ok(raw.includes('<fills count="3">'),'Excel declares the two required base fills and the solid header fill');
+  assert.ok(raw.includes('<patternFill patternType="gray125"/>'),'Excel gray125 compatibility fill is present');
+  assert.ok(raw.includes('fillId="2"'),'Header cells use the solid fill instead of the compatibility pattern');
   for(const marker of ['N° OF','N° article','Description','SN du dossier export','SN-FINI','Valeur - description','N° série','Opération','Séquence','Division','Magasin','s="1"']) assert.ok(raw.includes(marker),marker);
   const tempFile=path.join(os.tmpdir(),`sp-f001a-sap-${process.pid}.xlsx`);
   fs.writeFileSync(tempFile,bytes);
