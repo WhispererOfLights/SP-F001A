@@ -1078,8 +1078,8 @@ const effectiveScopedRows = (data,tab) => {
   return (data?.[tab]?.rows||[]).filter(r=>!r.deleted&&(!units.length||units.some(u=>rowMatchesSn(r,u,units))));
 };
 const effectiveEtuvageRows = data => effectiveScopedRows(data,"etuvage");
-const SAP_IB52_HEADERS = ["","","Article","","N° série","Qté","","","Lot"];
-const SAP_CO02_HEADERS = ["Article","","Qté","","Type","Opération","Séquence","Division","Magasin","","","Lot"];
+const SAP_IB52_HEADERS = ["Valeur - description","N° OF","SN / LOT dossier","","","Article","","N° série","Qté","","","Lot"];
+const SAP_CO02_HEADERS = ["Valeur - description","N° OF","SN / LOT dossier","Article","","Qté","","Type","Opération","Séquence","Division","Magasin","","","Lot"];
 const SAP_FULL_HEADERS = ["Source","Date","Visa","SN cible","LOT cible","Fiche suiveuse","OP","Repère / Type","Action / Statut","Qté","N° échantillon / Fait","Code article","Valeur / Désignation","LOT / N° fait","DC / DP","CTRL","TRAÇA","Date ouverture","Visa ouverture","Date clôture","Visa clôture","Lien","Commentaires","Annulée","Annulée le","Annulée par","Motif annulation"];
 const sapExcelDocumentHeader = ({ofData={},selectedSnIds=null}) => {
   const header=ofData.header||{};
@@ -1111,6 +1111,7 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const qty=(value,fallback="1")=>String(value??"").trim()||fallback;
   const consoQty=value=>qty(value,"1");
   const article=value=>compactArticleCode(value);
+  const targetIdentity=target=>String(target?.sn||target?.lot||header.sn||header.lot||"");
   const comments=value=>(value||[]).map(comment=>[comment.dt,comment.visa,comment.text].filter(Boolean).join(" - ")).join(" | ");
   const deletedInfo=row=>[
     row?.deleted?"X":"",row?.deletedDate||"",row?.deletedVisa||"",row?.deletedReason||"",
@@ -1120,8 +1121,8 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
   const full=[];
 
   // IB52 : tous les consommables.
-  consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>ib52.push([
-    "","",article(conso.sap||conso.code||item.consoId),"","",consoQty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
+  consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(target=>ib52.push([
+    consoDescriptionForCsv(conso,item.consoId),header.of||"",targetIdentity(target),"","",article(conso.sap||conso.code||item.consoId),"","",consoQty(item.qty||item.qte||op.qty||op.qte),"","",String(item.lot||""),
   ])));
 
   // IB52 : état final de chaque repère TOPO pour chaque SN / LOT sélectionné.
@@ -1134,29 +1135,29 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
       .sort((a,b)=>a.time-b.time||a.index-b.index)
       .forEach(({row})=>finalByRepere.set(String(row.repere).trim().toUpperCase(),row));
     [...finalByRepere.values()].filter(row=>["S","P","M"].includes(row.action1)).forEach(row=>ib52.push([
-      "","",article(row.codeERP),"",String(row.sn||""),qty(row.qty),"","",String(row.lot||""),
+      String(row.valeur||""),header.of||"",targetIdentity(target),"","",article(row.codeERP),"",String(row.sn||""),qty(row.qty),"","",String(row.lot||""),
     ]));
   });
 
   // IB52 : faits techniques actifs.
-  facts.forEach(row=>targetRows(row).forEach(()=>ib52.push([
-    "","",factSapArticle(row.type),"","","1","","",String(row.numero||""),
+  facts.forEach(row=>targetRows(row).forEach(target=>ib52.push([
+    String(row.commentaires||row.type||""),header.of||"",targetIdentity(target),"","",factSapArticle(row.type),"","","1","","",String(row.numero||""),
   ])));
 
   // CO02 : composants montés, puis consommables.
-  rework.filter(row=>["S","M","P"].includes(row.action1)).forEach(row=>targetRows(row).forEach(()=>co02.push([
-    article(row.codeERP),"",qty(row.qty),"","L","0010","0","7700","PRD3","","",String(row.lot||""),
+  rework.filter(row=>["S","M","P"].includes(row.action1)).forEach(row=>targetRows(row).forEach(target=>co02.push([
+    String(row.valeur||""),header.of||"",targetIdentity(target),article(row.codeERP),"",qty(row.qty),"","L","0010","0","7700","PRD3","","",String(row.lot||""),
   ])));
-  consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(()=>co02.push([
-    article(conso.sap||conso.code||item.consoId),"",consoQty(item.qty||item.qte||op.qty||op.qte),"","L","0010","0","7700","PRD3","","",String(item.lot||""),
+  consoLines.forEach(({op,item,conso})=>targetRows(op).forEach(target=>co02.push([
+    consoDescriptionForCsv(conso,item.consoId),header.of||"",targetIdentity(target),article(conso.sap||conso.code||item.consoId),"",consoQty(item.qty||item.qte||op.qty||op.qte),"","L","0010","0","7700","PRD3","","",String(item.lot||""),
   ])));
 
   // CO02 : une seule sortie par article + lot dans l'OF, avec somme des quantités.
   const groupedCo02=[];
   const groupedCo02ByKey=new Map();
   co02.forEach(row=>{
-    const value=Number(String(row[2]||"").replace(",","."));
-    const key=`${String(row[0]||"").trim()}\u0000${String(row[11]||"").trim()}`;
+    const value=Number(String(row[5]||"").replace(",","."));
+    const key=`${String(row[3]||"").trim()}\u0000${String(row[14]||"").trim()}`;
     const existing=groupedCo02ByKey.get(key);
     if(!existing||!Number.isFinite(value)){
       const copy=[...row];
@@ -1164,8 +1165,10 @@ const buildSapExcelRows = ({ofData={},consommables=[],selectedSnIds=null}) => {
       if(Number.isFinite(value)) groupedCo02ByKey.set(key,copy);
       return;
     }
-    const current=Number(String(existing[2]||"").replace(",","."));
-    existing[2]=String(Math.round((current+value)*1000000)/1000000);
+    const current=Number(String(existing[5]||"").replace(",","."));
+    existing[5]=String(Math.round((current+value)*1000000)/1000000);
+    const identities=new Set([existing[2],row[2]].flatMap(value=>String(value||"").split(" ; ")).filter(Boolean));
+    existing[2]=[...identities].join(" ; ");
   });
 
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.

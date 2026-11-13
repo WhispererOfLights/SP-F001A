@@ -6095,8 +6095,8 @@ var effectiveScopedRows = function effectiveScopedRows(data, tab) {
 var effectiveEtuvageRows = function effectiveEtuvageRows(data) {
   return effectiveScopedRows(data, "etuvage");
 };
-var SAP_IB52_HEADERS = ["", "", "Article", "", "N° série", "Qté", "", "", "Lot"];
-var SAP_CO02_HEADERS = ["Article", "", "Qté", "", "Type", "Opération", "Séquence", "Division", "Magasin", "", "", "Lot"];
+var SAP_IB52_HEADERS = ["Valeur - description", "N° OF", "SN / LOT dossier", "", "", "Article", "", "N° série", "Qté", "", "", "Lot"];
+var SAP_CO02_HEADERS = ["Valeur - description", "N° OF", "SN / LOT dossier", "Article", "", "Qté", "", "Type", "Opération", "Séquence", "Division", "Magasin", "", "", "Lot"];
 var SAP_FULL_HEADERS = ["Source", "Date", "Visa", "SN cible", "LOT cible", "Fiche suiveuse", "OP", "Repère / Type", "Action / Statut", "Qté", "N° échantillon / Fait", "Code article", "Valeur / Désignation", "LOT / N° fait", "DC / DP", "CTRL", "TRAÇA", "Date ouverture", "Visa ouverture", "Date clôture", "Visa clôture", "Lien", "Commentaires", "Annulée", "Annulée le", "Annulée par", "Motif annulation"];
 var sapExcelDocumentHeader = function sapExcelDocumentHeader(_ref56) {
   var _ofData$units4;
@@ -6183,6 +6183,9 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
   var article = function article(value) {
     return compactArticleCode(value);
   };
+  var targetIdentity = function targetIdentity(target) {
+    return String((target === null || target === void 0 ? void 0 : target.sn) || (target === null || target === void 0 ? void 0 : target.lot) || header.sn || header.lot || "");
+  };
   var comments = function comments(value) {
     return (value || []).map(function (comment) {
       return [comment.dt, comment.visa, comment.text].filter(Boolean).join(" - ");
@@ -6200,8 +6203,8 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
     var op = _ref58.op,
       item = _ref58.item,
       conso = _ref58.conso;
-    return targetRows(op).forEach(function () {
-      return ib52.push(["", "", article(conso.sap || conso.code || item.consoId), "", "", consoQty(item.qty || item.qte || op.qty || op.qte), "", "", String(item.lot || "")]);
+    return targetRows(op).forEach(function (target) {
+      return ib52.push([consoDescriptionForCsv(conso, item.consoId), header.of || "", targetIdentity(target), "", "", article(conso.sap || conso.code || item.consoId), "", "", consoQty(item.qty || item.qte || op.qty || op.qte), "", "", String(item.lot || "")]);
     });
   });
 
@@ -6227,14 +6230,14 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
     _toConsumableArray(finalByRepere.values()).filter(function (row) {
       return ["S", "P", "M"].includes(row.action1);
     }).forEach(function (row) {
-      return ib52.push(["", "", article(row.codeERP), "", String(row.sn || ""), qty(row.qty), "", "", String(row.lot || "")]);
+      return ib52.push([String(row.valeur || ""), header.of || "", targetIdentity(target), "", "", article(row.codeERP), "", String(row.sn || ""), qty(row.qty), "", "", String(row.lot || "")]);
     });
   });
 
   // IB52 : faits techniques actifs.
   facts.forEach(function (row) {
-    return targetRows(row).forEach(function () {
-      return ib52.push(["", "", factSapArticle(row.type), "", "", "1", "", "", String(row.numero || "")]);
+    return targetRows(row).forEach(function (target) {
+      return ib52.push([String(row.commentaires || row.type || ""), header.of || "", targetIdentity(target), "", "", factSapArticle(row.type), "", "", "1", "", "", String(row.numero || "")]);
     });
   });
 
@@ -6242,16 +6245,16 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
   rework.filter(function (row) {
     return ["S", "M", "P"].includes(row.action1);
   }).forEach(function (row) {
-    return targetRows(row).forEach(function () {
-      return co02.push([article(row.codeERP), "", qty(row.qty), "", "L", "0010", "0", "7700", "PRD3", "", "", String(row.lot || "")]);
+    return targetRows(row).forEach(function (target) {
+      return co02.push([String(row.valeur || ""), header.of || "", targetIdentity(target), article(row.codeERP), "", qty(row.qty), "", "L", "0010", "0", "7700", "PRD3", "", "", String(row.lot || "")]);
     });
   });
   consoLines.forEach(function (_ref60) {
     var op = _ref60.op,
       item = _ref60.item,
       conso = _ref60.conso;
-    return targetRows(op).forEach(function () {
-      return co02.push([article(conso.sap || conso.code || item.consoId), "", consoQty(item.qty || item.qte || op.qty || op.qte), "", "L", "0010", "0", "7700", "PRD3", "", "", String(item.lot || "")]);
+    return targetRows(op).forEach(function (target) {
+      return co02.push([consoDescriptionForCsv(conso, item.consoId), header.of || "", targetIdentity(target), article(conso.sap || conso.code || item.consoId), "", consoQty(item.qty || item.qte || op.qty || op.qte), "", "L", "0010", "0", "7700", "PRD3", "", "", String(item.lot || "")]);
     });
   });
 
@@ -6259,8 +6262,8 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
   var groupedCo02 = [];
   var groupedCo02ByKey = new Map();
   co02.forEach(function (row) {
-    var value = Number(String(row[2] || "").replace(",", "."));
-    var key = "".concat(String(row[0] || "").trim(), "\0").concat(String(row[11] || "").trim());
+    var value = Number(String(row[5] || "").replace(",", "."));
+    var key = "".concat(String(row[3] || "").trim(), "\0").concat(String(row[14] || "").trim());
     var existing = groupedCo02ByKey.get(key);
     if (!existing || !Number.isFinite(value)) {
       var copy = _toConsumableArray(row);
@@ -6268,8 +6271,12 @@ var buildSapExcelRows = function buildSapExcelRows(_ref57) {
       if (Number.isFinite(value)) groupedCo02ByKey.set(key, copy);
       return;
     }
-    var current = Number(String(existing[2] || "").replace(",", "."));
-    existing[2] = String(Math.round((current + value) * 1000000) / 1000000);
+    var current = Number(String(existing[5] || "").replace(",", "."));
+    existing[5] = String(Math.round((current + value) * 1000000) / 1000000);
+    var identities = new Set([existing[2], row[2]].flatMap(function (value) {
+      return String(value || "").split(" ; ");
+    }).filter(Boolean));
+    existing[2] = _toConsumableArray(identities).join(" ; ");
   });
 
   // Export complet : reprend toutes les informations, y compris brouillons et annulations.
