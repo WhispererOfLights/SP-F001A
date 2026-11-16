@@ -20815,9 +20815,9 @@ var homeWorkedFilter = function homeWorkedFilter(rows, workedIds, onlyWorked, se
 var homeSearchMatches = function homeSearchMatches(row, query) {
   var _STATUTS7, _STATUTS8;
   var contributors = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : [];
-  var q = String(query || "").toLowerCase().trim();
+  var q = String(query || "").trim();
   return !q || [row.of, row.sn, row.lot, row.snProduitFini, row.description, row.otp, row.projet, row.ofRework, row.codeArticle, (_STATUTS7 = STATUTS[row.status || "en_cours"]) === null || _STATUTS7 === void 0 ? void 0 : _STATUTS7.label, (_STATUTS8 = STATUTS[row.unitStatus || "en_cours"]) === null || _STATUTS8 === void 0 ? void 0 : _STATUTS8.label, row._homeFactSearch].concat(_toConsumableArray(contributors)).some(function (value) {
-    return String(value || "").toLowerCase().includes(q);
+    return textFilterMatches(value, q);
   });
 };
 var homeRowKey = function homeRowKey(row) {

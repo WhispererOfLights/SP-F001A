@@ -168,11 +168,11 @@ const homeWorkedFilter = (rows,workedIds,onlyWorked,searchActive) => {
   return {active,rows:active?rows.filter(row=>worked.has(row.id)):rows};
 };
 const homeSearchMatches = (row,query,contributors=[]) => {
-  const q=String(query||"").toLowerCase().trim();
+  const q=String(query||"").trim();
   return !q||[row.of,row.sn,row.lot,row.snProduitFini,row.description,row.otp,row.projet,row.ofRework,row.codeArticle,
     STATUTS[row.status||"en_cours"]?.label,STATUTS[row.unitStatus||"en_cours"]?.label,
     row._homeFactSearch,...contributors
-  ].some(value=>String(value||"").toLowerCase().includes(q));
+  ].some(value=>textFilterMatches(value,q));
 };
 const homeRowKey = row => `${row.id}:${row._homeUnitId||"of"}`;
 const homeUnitName = row => row.sn||row.lot||"Sans SN / LOT";
