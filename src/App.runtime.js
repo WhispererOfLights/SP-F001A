@@ -7761,9 +7761,6 @@ var CommentBtn = function CommentBtn(_ref68) {
       alignItems: "center",
       justifyContent: "center",
       padding: 24
-    },
-    onClick: function onClick(e) {
-      if (e.target === e.currentTarget) close();
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -9960,9 +9957,6 @@ var ReworkSubstitutionModal = function ReworkSubstitutionModal(_ref78) {
       alignItems: "center",
       justifyContent: "center",
       padding: 20
-    },
-    onClick: function onClick(event) {
-      if (event.target === event.currentTarget) onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -15182,9 +15176,6 @@ var StatusTypesManager = function StatusTypesManager(_ref94) {
       alignItems: "center",
       justifyContent: "center",
       padding: 24
-    },
-    onClick: function onClick(event) {
-      if (event.target === event.currentTarget) onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -18825,6 +18816,9 @@ var ProfileModal = function ProfileModal(_ref106) {
     return changePwd;
   }();
   return /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": "Mon profil",
     style: {
       position: "fixed",
       inset: 0,
@@ -18834,9 +18828,6 @@ var ProfileModal = function ProfileModal(_ref106) {
       alignItems: "center",
       justifyContent: "center",
       padding: 24
-    },
-    onClick: function onClick(e) {
-      if (e.target === e.currentTarget) onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -19639,6 +19630,9 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
   }, [users, userSearch, roleFilter, activeFilter]);
   var hasUserFilters = !!userSearch.trim() || roleFilter !== "all" || activeFilter !== "all";
   return /*#__PURE__*/React.createElement("div", {
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": "Administration utilisateurs",
     style: {
       position: "fixed",
       inset: 0,
@@ -19648,9 +19642,6 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
       alignItems: "center",
       justifyContent: "center",
       padding: 24
-    },
-    onClick: function onClick(e) {
-      if (e.target === e.currentTarget) onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -19658,7 +19649,7 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
       border: "1px solid ".concat(C.accent),
       borderRadius: 8,
       width: "100%",
-      maxWidth: 1080,
+      maxWidth: 1280,
       maxHeight: "86vh",
       overflow: "hidden",
       display: "flex",
@@ -19683,13 +19674,10 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
       fontSize: 11,
       color: C.muted
     }
-  }, users.length, " utilisateur", users.length > 1 ? "s" : "")), /*#__PURE__*/React.createElement("span", {
+  }, users.length, " utilisateur", users.length > 1 ? "s" : "")), /*#__PURE__*/React.createElement(IconBtn, {
     onClick: onClose,
-    style: {
-      cursor: "pointer",
-      color: C.muted,
-      fontSize: 22
-    }
+    title: "Fermer",
+    color: C.border
   }, "\xD7")), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: 16,
@@ -20036,7 +20024,7 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
       borderCollapse: "collapse",
       fontSize: 12
     }
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement(TH, null, "Trigramme"), /*#__PURE__*/React.createElement(TH, null, "Nom"), /*#__PURE__*/React.createElement(TH, null, "Service"), /*#__PURE__*/React.createElement(TH, null, "R\xF4le"), /*#__PURE__*/React.createElement(TH, {
+  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement(TH, null, "Trigramme"), /*#__PURE__*/React.createElement(TH, null, "Nom"), /*#__PURE__*/React.createElement(TH, null, "E-mail"), /*#__PURE__*/React.createElement(TH, null, "Service"), /*#__PURE__*/React.createElement(TH, null, "R\xF4le"), /*#__PURE__*/React.createElement(TH, {
     w: 80
   }, "\xC9tat"), /*#__PURE__*/React.createElement(TH, {
     w: 180
@@ -20058,6 +20046,16 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
         fontWeight: 650
       }
     }, [u.prenom, u.nom].filter(Boolean).join(" ") || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+      title: u.email || "",
+      style: {
+        display: "block",
+        maxWidth: 210,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        color: u.email ? C.blue : C.muted
+      }
+    }, u.email || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         color: C.text
       }
@@ -20103,7 +20101,7 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
       disabled: u.trigram === ADMIN_TRIGRAM || u.trigram === (currentUser === null || currentUser === void 0 ? void 0 : currentUser.trigram)
     }, u.active === false ? "Réactiver" : "Désactiver"))));
   }), !filteredUsers.length && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-    colSpan: 6,
+    colSpan: 7,
     style: {
       padding: 18,
       textAlign: "center",
@@ -24603,9 +24601,6 @@ var SettingsModal = function SettingsModal(_ref146) {
       alignItems: "center",
       justifyContent: "center",
       padding: 24
-    },
-    onClick: function onClick(event) {
-      if (event.target === event.currentTarget) onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {

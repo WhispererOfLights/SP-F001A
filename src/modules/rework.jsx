@@ -607,8 +607,7 @@ const ReworkSubstitutionModal = ({row,substitution,facts=[],onChooseFact,onChoos
   const previous=substitution?.previous;
   const current=substitution?.current||row;
   return <div role="dialog" aria-modal="true" aria-labelledby="rework-substitution-title"
-    style={{position:"fixed",inset:0,zIndex:420,background:"#000000b8",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}
-    onClick={event=>{if(event.target===event.currentTarget) onClose();}}>
+    style={{position:"fixed",inset:0,zIndex:420,background:"#000000b8",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:720,maxHeight:"86vh",overflow:"hidden",display:"flex",flexDirection:"column",background:C.surface,border:`1px solid ${C.yellow}`,borderRadius:8}}>
       <div style={{padding:"16px 18px",borderBottom:`1px solid ${C.border}`}}>
         <h2 id="rework-substitution-title" style={{margin:0,fontSize:17,color:C.text}}>Justifier le changement de valeur</h2>

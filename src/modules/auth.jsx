@@ -178,8 +178,7 @@ const ProfileModal = ({user, onClose, onSave}) => {
   };
 
   return (
-    <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+    <div role="dialog" aria-modal="true" aria-label="Mon profil" style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:10,width:"100%",maxWidth:480,overflow:"hidden"}}>
         {/* Header */}
         <div style={{padding:"14px 20px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -446,15 +445,14 @@ const AdminUsersModal = ({onClose,currentUser}) => {
   const hasUserFilters=!!userSearch.trim()||roleFilter!=="all"||activeFilter!=="all";
 
   return (
-    <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,width:"100%",maxWidth:1080,maxHeight:"86vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
+    <div role="dialog" aria-modal="true" aria-label="Administration utilisateurs" style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,width:"100%",maxWidth:1280,maxHeight:"86vh",overflow:"hidden",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
             <div style={{fontWeight:800,color:C.accent,fontSize:14}}>Administration utilisateurs</div>
             <div style={{fontSize:11,color:C.muted}}>{users.length} utilisateur{users.length>1?"s":""}</div>
           </div>
-          <span onClick={onClose} style={{cursor:"pointer",color:C.muted,fontSize:22}}>×</span>
+          <IconBtn onClick={onClose} title="Fermer" color={C.border}>×</IconBtn>
         </div>
         <div style={{padding:16,display:"grid",gridTemplateColumns:"320px minmax(0,1fr)",gap:16,overflow:"auto"}}>
           <div style={{border:`1px solid ${C.border}`,borderRadius:6,padding:12}}>
@@ -532,12 +530,13 @@ const AdminUsersModal = ({onClose,currentUser}) => {
             <div style={{fontSize:10,color:C.muted,marginBottom:6}}>{filteredUsers.length} affiché{filteredUsers.length>1?"s":""} sur {users.length}</div>
             <div style={{overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-              <thead><tr><TH>Trigramme</TH><TH>Nom</TH><TH>Service</TH><TH>Rôle</TH><TH w={80}>État</TH><TH w={180}>Actions</TH></tr></thead>
+              <thead><tr><TH>Trigramme</TH><TH>Nom</TH><TH>E-mail</TH><TH>Service</TH><TH>Rôle</TH><TH w={80}>État</TH><TH w={180}>Actions</TH></tr></thead>
               <tbody>
                 {filteredUsers.map(u=>(
                   <tr key={u.trigram} style={{opacity:u.active===false?.62:1}}>
                     <TD><span style={{fontFamily:"monospace",fontWeight:800,color:u.trigram===ADMIN_TRIGRAM?C.accent:C.text}}>{u.trigram}</span></TD>
                     <TD><span style={{color:C.text,fontWeight:650}}>{[u.prenom,u.nom].filter(Boolean).join(" ")||"—"}</span></TD>
+                    <TD><span title={u.email||""} style={{display:"block",maxWidth:210,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",color:u.email?C.blue:C.muted}}>{u.email||"—"}</span></TD>
                     <TD><span style={{color:C.text}}>{u.service||"—"}</span></TD>
                     <TD>
                       <span style={{display:"inline-flex",alignItems:"center",border:`1px solid ${roleColor(u.role)}`,
@@ -556,7 +555,7 @@ const AdminUsersModal = ({onClose,currentUser}) => {
                     </TD>
                   </tr>
                 ))}
-                {!filteredUsers.length&&<tr><td colSpan={6} style={{padding:18,textAlign:"center",color:C.muted,borderBottom:`1px solid ${C.border}`}}>Aucun utilisateur ne correspond aux filtres.</td></tr>}
+                {!filteredUsers.length&&<tr><td colSpan={7} style={{padding:18,textAlign:"center",color:C.muted,borderBottom:`1px solid ${C.border}`}}>Aucun utilisateur ne correspond aux filtres.</td></tr>}
               </tbody>
             </table>
             </div>

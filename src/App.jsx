@@ -1667,8 +1667,7 @@ const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null})
 
       {open&&(
         <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,
-          display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-          onClick={e=>{if(e.target===e.currentTarget)close();}}>
+          display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
           <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:10,
             width:"100%",maxWidth:560,maxHeight:"82vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
 
@@ -1821,8 +1820,7 @@ const SettingsModal = ({user,onClose,onUsers,onStatuses,onConsumables}) => {
     canManageLists(user)&&{id:"statuses",label:"Statuts",detail:"Statuts communs aux OF et aux SN / LOT",action:onStatuses,color:C.green},
     canManageLists(user)&&{id:"consumables",label:"Consommables",detail:"Catalogue, articles SAP et polymérisation",action:onConsumables,color:C.yellow},
   ].filter(Boolean);
-  return <div role="dialog" aria-modal="true" aria-label="Paramètres" style={{position:"fixed",inset:0,zIndex:190,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-    onClick={event=>{if(event.target===event.currentTarget)onClose();}}>
+  return <div role="dialog" aria-modal="true" aria-label="Paramètres" style={{position:"fixed",inset:0,zIndex:190,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
     <div style={{width:680,maxWidth:"100%",background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,overflow:"hidden"}}>
       <div style={{padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${C.border}`}}>
         <div><div style={{fontSize:15,fontWeight:800,color:C.text}}>Paramètres</div><div style={{fontSize:11,color:C.muted}}>Tables d'administration partagées</div></div>

@@ -103,8 +103,7 @@ const StatusTypesManager = ({types,onClose,onSave}) => {
     setLabel("");setError("");
   };
   const update=(id,field,value)=>setList(current=>current.map(item=>item.id===id?{...item,[field]:value}:item));
-  return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
-    onClick={event=>{if(event.target===event.currentTarget) onClose();}}>
+  return <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
     <div style={{width:"100%",maxWidth:720,maxHeight:"84vh",overflow:"hidden",display:"flex",flexDirection:"column",background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8}}>
       <div style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,borderBottom:`1px solid ${C.border}`}}>
         <div>
