@@ -263,6 +263,9 @@ const AdminUsersModal = ({onClose,currentUser}) => {
   const [importText,setImportText] = React.useState("");
   const [err,setErr] = React.useState("");
   const [ok,setOk] = React.useState("");
+  const [userSearch,setUserSearch] = React.useState("");
+  const [roleFilter,setRoleFilter] = React.useState("all");
+  const [activeFilter,setActiveFilter] = React.useState("all");
   const roleColor = role => {
     const r=normalizeRole({role});
     if(r==="Admin") return C.red;
@@ -428,6 +431,20 @@ const AdminUsersModal = ({onClose,currentUser}) => {
     }catch{setErr("Erreur lors de la réinitialisation du mot de passe");}
   };
 
+  const filteredUsers=React.useMemo(()=>{
+    const normalize=value=>String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLocaleLowerCase("fr");
+    const query=normalize(userSearch.trim());
+    return users.filter(account=>{
+      if(roleFilter!=="all"&&normalizeRole(account)!==roleFilter) return false;
+      if(activeFilter==="active"&&account.active===false) return false;
+      if(activeFilter==="inactive"&&account.active!==false) return false;
+      if(!query) return true;
+      return [account.trigram,account.prenom,account.nom,account.service,account.email,normalizeRole(account)]
+        .some(value=>normalize(value).includes(query));
+    });
+  },[users,userSearch,roleFilter,activeFilter]);
+  const hasUserFilters=!!userSearch.trim()||roleFilter!=="all"||activeFilter!=="all";
+
   return (
     <div style={{position:"fixed",inset:0,background:"#000000cc",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
       onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
@@ -492,11 +509,32 @@ const AdminUsersModal = ({onClose,currentUser}) => {
               <Btn onClick={importUsers} color={importText.trim()?C.green:C.border} small disabled={!importText.trim()}>Importer</Btn>
             </div>
           </div>
-          <div style={{overflow:"auto",maxHeight:"62vh"}}>
+          <div style={{display:"flex",flexDirection:"column",minWidth:0,maxHeight:"62vh"}}>
+            <div style={{display:"grid",gridTemplateColumns:"minmax(180px,1fr) 150px 120px 28px",gap:6,alignItems:"center",marginBottom:8}}>
+              <input aria-label="Rechercher un utilisateur" value={userSearch} onChange={event=>setUserSearch(event.target.value)}
+                placeholder="Rechercher trigramme, nom, service, rôle…"
+                style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:12,outline:"none"}}/>
+              <select aria-label="Filtrer les utilisateurs par rôle" value={roleFilter} onChange={event=>setRoleFilter(event.target.value)}
+                style={{background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:11}}>
+                <option value="all">Tous les rôles</option>
+                {ROLES.map(role=><option key={role} value={role}>{role}</option>)}
+              </select>
+              <select aria-label="Filtrer les utilisateurs par état" value={activeFilter} onChange={event=>setActiveFilter(event.target.value)}
+                style={{background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,padding:"6px 8px",fontSize:11}}>
+                <option value="all">Tous les états</option>
+                <option value="active">Actifs</option>
+                <option value="inactive">Inactifs</option>
+              </select>
+              <button type="button" aria-label="Effacer les filtres utilisateurs" title="Effacer les filtres" disabled={!hasUserFilters}
+                onClick={()=>{setUserSearch("");setRoleFilter("all");setActiveFilter("all");}}
+                style={{width:28,height:28,border:0,borderRadius:4,background:hasUserFilters?C.blue:C.border,color:"#fff",cursor:hasUserFilters?"pointer":"default",fontSize:16,lineHeight:1}}>×</button>
+            </div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:6}}>{filteredUsers.length} affiché{filteredUsers.length>1?"s":""} sur {users.length}</div>
+            <div style={{overflow:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
               <thead><tr><TH>Trigramme</TH><TH>Nom</TH><TH>Service</TH><TH>Rôle</TH><TH w={80}>État</TH><TH w={180}>Actions</TH></tr></thead>
               <tbody>
-                {users.map(u=>(
+                {filteredUsers.map(u=>(
                   <tr key={u.trigram} style={{opacity:u.active===false?.62:1}}>
                     <TD><span style={{fontFamily:"monospace",fontWeight:800,color:u.trigram===ADMIN_TRIGRAM?C.accent:C.text}}>{u.trigram}</span></TD>
                     <TD><span style={{color:C.text,fontWeight:650}}>{[u.prenom,u.nom].filter(Boolean).join(" ")||"—"}</span></TD>
@@ -518,8 +556,10 @@ const AdminUsersModal = ({onClose,currentUser}) => {
                     </TD>
                   </tr>
                 ))}
+                {!filteredUsers.length&&<tr><td colSpan={6} style={{padding:18,textAlign:"center",color:C.muted,borderBottom:`1px solid ${C.border}`}}>Aucun utilisateur ne correspond aux filtres.</td></tr>}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>

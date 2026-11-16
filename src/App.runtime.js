@@ -19115,6 +19115,18 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
     _React$useState38 = _slicedToArray(_React$useState37, 2),
     ok = _React$useState38[0],
     setOk = _React$useState38[1];
+  var _React$useState39 = React.useState(""),
+    _React$useState40 = _slicedToArray(_React$useState39, 2),
+    userSearch = _React$useState40[0],
+    setUserSearch = _React$useState40[1];
+  var _React$useState41 = React.useState("all"),
+    _React$useState42 = _slicedToArray(_React$useState41, 2),
+    roleFilter = _React$useState42[0],
+    setRoleFilter = _React$useState42[1];
+  var _React$useState43 = React.useState("all"),
+    _React$useState44 = _slicedToArray(_React$useState43, 2),
+    activeFilter = _React$useState44[0],
+    setActiveFilter = _React$useState44[1];
   var roleColor = function roleColor(role) {
     var r = normalizeRole({
       role: role
@@ -19610,6 +19622,22 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
     }
     return resetPassword;
   }();
+  var filteredUsers = React.useMemo(function () {
+    var normalize = function normalize(value) {
+      return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr");
+    };
+    var query = normalize(userSearch.trim());
+    return users.filter(function (account) {
+      if (roleFilter !== "all" && normalizeRole(account) !== roleFilter) return false;
+      if (activeFilter === "active" && account.active === false) return false;
+      if (activeFilter === "inactive" && account.active !== false) return false;
+      if (!query) return true;
+      return [account.trigram, account.prenom, account.nom, account.service, account.email, normalizeRole(account)].some(function (value) {
+        return normalize(value).includes(query);
+      });
+    });
+  }, [users, userSearch, roleFilter, activeFilter]);
+  var hasUserFilters = !!userSearch.trim() || roleFilter !== "all" || activeFilter !== "all";
   return /*#__PURE__*/React.createElement("div", {
     style: {
       position: "fixed",
@@ -19900,8 +19928,107 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
     disabled: !importText.trim()
   }, "Importer"))), /*#__PURE__*/React.createElement("div", {
     style: {
-      overflow: "auto",
+      display: "flex",
+      flexDirection: "column",
+      minWidth: 0,
       maxHeight: "62vh"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "minmax(180px,1fr) 150px 120px 28px",
+      gap: 6,
+      alignItems: "center",
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    "aria-label": "Rechercher un utilisateur",
+    value: userSearch,
+    onChange: function onChange(event) {
+      return setUserSearch(event.target.value);
+    },
+    placeholder: "Rechercher trigramme, nom, service, r\xF4le\u2026",
+    style: {
+      width: "100%",
+      background: C.input,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      color: C.text,
+      padding: "6px 8px",
+      fontSize: 12,
+      outline: "none"
+    }
+  }), /*#__PURE__*/React.createElement("select", {
+    "aria-label": "Filtrer les utilisateurs par r\xF4le",
+    value: roleFilter,
+    onChange: function onChange(event) {
+      return setRoleFilter(event.target.value);
+    },
+    style: {
+      background: C.input,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      color: C.text,
+      padding: "6px 8px",
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Tous les r\xF4les"), ROLES.map(function (role) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: role,
+      value: role
+    }, role);
+  })), /*#__PURE__*/React.createElement("select", {
+    "aria-label": "Filtrer les utilisateurs par \xE9tat",
+    value: activeFilter,
+    onChange: function onChange(event) {
+      return setActiveFilter(event.target.value);
+    },
+    style: {
+      background: C.input,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      color: C.text,
+      padding: "6px 8px",
+      fontSize: 11
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "all"
+  }, "Tous les \xE9tats"), /*#__PURE__*/React.createElement("option", {
+    value: "active"
+  }, "Actifs"), /*#__PURE__*/React.createElement("option", {
+    value: "inactive"
+  }, "Inactifs")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "Effacer les filtres utilisateurs",
+    title: "Effacer les filtres",
+    disabled: !hasUserFilters,
+    onClick: function onClick() {
+      setUserSearch("");
+      setRoleFilter("all");
+      setActiveFilter("all");
+    },
+    style: {
+      width: 28,
+      height: 28,
+      border: 0,
+      borderRadius: 4,
+      background: hasUserFilters ? C.blue : C.border,
+      color: "#fff",
+      cursor: hasUserFilters ? "pointer" : "default",
+      fontSize: 16,
+      lineHeight: 1
+    }
+  }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 10,
+      color: C.muted,
+      marginBottom: 6
+    }
+  }, filteredUsers.length, " affich\xE9", filteredUsers.length > 1 ? "s" : "", " sur ", users.length), /*#__PURE__*/React.createElement("div", {
+    style: {
+      overflow: "auto"
     }
   }, /*#__PURE__*/React.createElement("table", {
     style: {
@@ -19913,7 +20040,7 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
     w: 80
   }, "\xC9tat"), /*#__PURE__*/React.createElement(TH, {
     w: 180
-  }, "Actions"))), /*#__PURE__*/React.createElement("tbody", null, users.map(function (u) {
+  }, "Actions"))), /*#__PURE__*/React.createElement("tbody", null, filteredUsers.map(function (u) {
     return /*#__PURE__*/React.createElement("tr", {
       key: u.trigram,
       style: {
@@ -19975,7 +20102,15 @@ var AdminUsersModal = function AdminUsersModal(_ref111) {
       small: true,
       disabled: u.trigram === ADMIN_TRIGRAM || u.trigram === (currentUser === null || currentUser === void 0 ? void 0 : currentUser.trigram)
     }, u.active === false ? "Réactiver" : "Désactiver"))));
-  })))))));
+  }), !filteredUsers.length && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: 6,
+    style: {
+      padding: 18,
+      textAlign: "center",
+      color: C.muted,
+      borderBottom: "1px solid ".concat(C.border)
+    }
+  }, "Aucun utilisateur ne correspond aux filtres.")))))))));
 };
 var RequiredPasswordChange = function RequiredPasswordChange(_ref115) {
   var user = _ref115.user,
