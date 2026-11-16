@@ -284,6 +284,10 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     const folderLinkCopy=page.getByRole('button',{name:'Copier le lien vers ce dossier',exact:true});
     await folderLinkCopy.click();
     assert.equal((await folderLinkCopy.textContent()).trim(),'✓');
+    const photoPathCopy=page.getByRole('button',{name:"Copier le chemin du dossier photos de l'OF",exact:true});
+    await photoPathCopy.click();
+    assert.equal(await page.evaluate(()=>window.copiedHomeText),'\\\\neu.orolia\\Data\\ORO\\Dpts\\OP_SPACE\\Photos_OF\\100TEST');
+    assert.equal((await photoPathCopy.textContent()).trim(),'✓');
     await page.getByRole('button',{name:'Article : 250001163. Double-cliquer pour copier',exact:true}).dblclick();
     await page.getByRole('button',{name:'Article copié',exact:true}).waitFor();
     assert.ok((await page.locator('.folder-header-value').first().evaluate(element=>parseFloat(getComputedStyle(element).fontSize)))>=13);

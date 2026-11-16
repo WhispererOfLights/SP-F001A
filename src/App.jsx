@@ -793,7 +793,6 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState({});
   const [copiedField,setCopiedField] = useState("");
-  const [photoFolderBusy,setPhotoFolderBusy] = useState(false);
 
   const startEdit = () => { if(!isAdminManager(user)) return; setDraft({...h}); setEditing(true); };
   const save      = () => {
@@ -810,51 +809,6 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
     setCopiedField(label);
     setTimeout(()=>setCopiedField(current=>current===label?"":current),1400);
   };
-  const openPhotoFolderUrl=(url,path)=>{
-    copyToClipboard(path);
-    const link=document.createElement("a");
-    link.href=url;
-    link.target="_blank";
-    link.rel="noopener";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-  const openPhotoFolder=async()=>{
-    if(photoFolderBusy||!h.of) return;
-    setPhotoFolderBusy(true);
-    try{
-      const response=await fetch(`/api/photo-folder?of=${encodeURIComponent(h.of)}`);
-      const status=await response.json();
-      if(!response.ok) throw new Error(status.error||"Dossier photos inaccessible");
-      if(status.exists){
-        openPhotoFolderUrl(status.url,status.path);
-        return;
-      }
-      const create=window.confirm(
-        `Le dossier photos de l'OF ${h.of} n'existe pas.\n\n`
-        +"OK : créer puis ouvrir le dossier de l'OF\n"
-        +"Annuler : ouvrir le dossier racine des photos"
-      );
-      if(!create){
-        openPhotoFolderUrl(status.rootUrl,status.rootPath);
-        return;
-      }
-      const createResponse=await fetch("/api/photo-folder",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({of:h.of}),
-      });
-      const created=await createResponse.json();
-      if(!createResponse.ok) throw new Error(created.error||"Création du dossier impossible");
-      openPhotoFolderUrl(created.url,created.path);
-    }catch(error){
-      window.alert(`${error.message||error}\n\nLe chemin peut toujours être copié avec le bouton ⎘.`);
-    }finally{
-      setPhotoFolderBusy(false);
-    }
-  };
-
   const FIELDS = [
     {key:"of",          label:"OF"},
     {key:"codeArticle",    label:"N° Article"},
@@ -902,7 +856,7 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
 
   return (
     <div style={{display:"flex",alignItems:"stretch",gap:1,marginBottom:8}}>
-      <div style={{display:"grid",gridTemplateColumns:"0.9fr 1fr 2.1fr .75fr 1fr .7fr .85fr .75fr",gap:1,flex:1,
+      <div style={{display:"grid",gridTemplateColumns:"0.9fr 1fr 2.1fr .75fr 1fr .7fr .85fr",gap:1,flex:1,
         background:C.border,border:`1px solid ${C.border}`,borderRadius:"6px 0 0 6px",
         overflow:"hidden",fontSize:13}}>
         {[
@@ -924,32 +878,6 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{copied?"✓ ":""}{val}</div>
           </div>
         })}
-        {/* Photo folder */}
-        {h.of&&(
-          <div role="button" tabIndex={0} aria-label={`Ouvrir le dossier photos de l'OF ${h.of}`}
-            onClick={openPhotoFolder}
-            onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoFolder();}}}
-            title="Ouvrir le dossier photos de l'OF"
-            style={{background:C.surface,padding:"6px 10px",minWidth:0,cursor:photoFolderBusy?"wait":"pointer",outline:"none"}}>
-            <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Photos</div>
-            <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <span style={{fontSize:12}}>📁</span>
-              <span style={{fontFamily:"monospace",fontSize:10,color:C.muted,
-                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}
-                title={`S:\\OP_SPACE\\Photos_OF\\${h.of}`}>
-                {photoFolderBusy?"…":"OF"}
-              </span>
-              <button type="button" onClick={e=>{
-                e.stopPropagation();
-                copyToClipboard(`\\\\neu.orolia\\Data\\ORO\\Dpts\\OP_SPACE\\Photos_OF\\${h.of}`);
-              }} style={{cursor:"pointer",color:C.blue,fontSize:10,flexShrink:0,
-                background:C.blue+"22",border:`1px solid ${C.blue}`,borderRadius:3,
-                padding:"1px 5px",whiteSpace:"nowrap"}} title="Copier le chemin">
-                ⎘
-              </button>
-            </div>
-          </div>
-        )}
         {/* Statut */}
         <div style={{background:C.surface,padding:"6px 10px",display:"flex",flexDirection:"column",justifyContent:"center",minWidth:0}}>
           <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>Statut OF</div>
@@ -2170,6 +2098,7 @@ export default function App(){
   const [copyAcrossRow,setCopyAcrossRow] = useState(null);
   const [copiedOfInfo,setCopiedOfInfo] = useState(false);
   const [copiedFolderLink,setCopiedFolderLink] = useState(false);
+  const [copiedPhotoPath,setCopiedPhotoPath] = useState(false);
   const [printAll,setPrintAll]       = useState(false);
   const [pdfIncludeHistory,setPdfIncludeHistory] = useState(false);
   const [showPdfOptions,setShowPdfOptions] = useState(false);
@@ -3247,6 +3176,10 @@ export default function App(){
                 copyToClipboard(buildFolderLink({ofId:currentId,unitId:activeUnit?.id||"all",ofNumber:h.of,sn:activeUnit?.sn||"",lot:activeUnit?.lot||"",tab:activeTab}));
                 setCopiedFolderLink(true);setTimeout(()=>setCopiedFolderLink(false),1800);
               }} style={{width:28,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:0,borderRadius:4,background:copiedFolderLink?C.green:C.blue,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800}}>{copiedFolderLink?"✓":"🔗"}</button>
+              <button type="button" className="no-print" title="Copier le chemin du dossier photos de l'OF" aria-label="Copier le chemin du dossier photos de l'OF" onClick={()=>{
+                copyToClipboard(`\\\\neu.orolia\\Data\\ORO\\Dpts\\OP_SPACE\\Photos_OF\\${h.of}`);
+                setCopiedPhotoPath(true);setTimeout(()=>setCopiedPhotoPath(false),1800);
+              }} style={{width:28,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:0,borderRadius:4,background:copiedPhotoPath?C.green:C.blue,color:"#fff",cursor:"pointer",fontSize:13,fontWeight:800}}>{copiedPhotoPath?"✓":"📁"}</button>
             </div>
             {perms.canWrite&&entryUnit&&<div className="no-print" style={{display:"flex",alignItems:"center",gap:8,fontSize:12,flexWrap:"wrap"}}>
               <label htmlFor="entry-target-sn" style={{fontWeight:700,color:C.accent}}>Nouvelle ligne pour</label>
