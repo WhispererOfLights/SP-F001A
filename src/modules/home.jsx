@@ -813,7 +813,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     if(hideCloture&&STATUTS[o.status||"en_cours"]?.closed) return false;
     if(onlyWarnings&&!warningsById[o.id]?.length) return false;
     if(filterStatus.length&&!filterStatus.includes(o.status||"en_cours")&&!filterStatus.includes(o.unitStatus||"en_cours")) return false;
-    if(Object.entries(columnFilters).some(([key,value])=>value&&!columnValue(o,key).toLowerCase().includes(value.toLowerCase().trim()))) return false;
+    if(Object.entries(columnFilters).some(([key,value])=>value&&!textFilterMatches(columnValue(o,key),value))) return false;
     return homeSearchMatches(o,q,contributorsById[o.id]);
   });
   const searchActive=!!search.trim()||Object.values(columnFilters).some(value=>String(value).trim());

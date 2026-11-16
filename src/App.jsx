@@ -270,6 +270,18 @@ const MultiFilter = ({value,onChange,options,label="Tous",title="Filtre"}) => {
 };
 const filterHasValue = value => Array.isArray(value)?value.length>0:!!value;
 const filterMatches = (filter,value) => !filterHasValue(filter)||filter==="all"||(Array.isArray(filter)?filter.includes(value):filter===value);
+const textFilterMatches = (value,filter) => {
+  const source=String(value??"").trim().toUpperCase();
+  const expression=String(filter??"").trim().toUpperCase();
+  if(!expression) return true;
+  if(!expression.includes("*")) return source.includes(expression);
+  if(!expression.replace(/\*/g,"")) return true;
+  const escapeRegex=part=>part.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  const pattern=expression.split("*").map(escapeRegex).join(".*");
+  const start=expression.startsWith("*")?"":"^";
+  const end=expression.endsWith("*")?"":"$";
+  return new RegExp(start+pattern+end).test(source);
+};
 const activityVisasOf = data => {
   const visas=new Set();
   const visit=value=>{

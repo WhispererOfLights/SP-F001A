@@ -808,6 +808,20 @@ var filterHasValue = function filterHasValue(value) {
 var filterMatches = function filterMatches(filter, value) {
   return !filterHasValue(filter) || filter === "all" || (Array.isArray(filter) ? filter.includes(value) : filter === value);
 };
+var textFilterMatches = function textFilterMatches(value, filter) {
+  var source = String(value !== null && value !== void 0 ? value : "").trim().toUpperCase();
+  var expression = String(filter !== null && filter !== void 0 ? filter : "").trim().toUpperCase();
+  if (!expression) return true;
+  if (!expression.includes("*")) return source.includes(expression);
+  if (!expression.replace(/\*/g, "")) return true;
+  var escapeRegex = function escapeRegex(part) {
+    return part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+  var pattern = expression.split("*").map(escapeRegex).join(".*");
+  var start = expression.startsWith("*") ? "" : "^";
+  var end = expression.endsWith("*") ? "" : "$";
+  return new RegExp(start + pattern + end).test(source);
+};
 var activityVisasOf = function activityVisasOf(data) {
   var visas = new Set();
   var _visit = function visit(value) {
@@ -10673,15 +10687,15 @@ var TabRework = function TabRework(_ref78) {
     var txt = function txt(key) {
       return String(r[key] || "").toUpperCase();
     };
-    if (filters.repere && !txt("repere").includes(filters.repere.toUpperCase())) return false;
+    if (filters.repere && !textFilterMatches(txt("repere"), filters.repere)) return false;
     if (!filterMatches(filters.action1, r.action1)) return false;
-    if (filters.codeERP && !txt("codeERP").includes(filters.codeERP.toUpperCase())) return false;
-    if (filters.valeur && !"".concat(txt("valeur"), " ").concat(txt("remarques")).includes(filters.valeur.toUpperCase())) return false;
-    if (filters.lot && !txt("lot").includes(filters.lot.toUpperCase())) return false;
-    if (filters.dc && !txt("dc").includes(filters.dc.toUpperCase())) return false;
-    if (filters.sn && !txt("sn").includes(filters.sn.toUpperCase())) return false;
-    if (filters.fiche && !txt("fiche").includes(filters.fiche.toUpperCase())) return false;
-    if (filters.etape && !txt("etape").includes(filters.etape.toUpperCase())) return false;
+    if (filters.codeERP && !textFilterMatches(txt("codeERP"), filters.codeERP)) return false;
+    if (filters.valeur && !textFilterMatches("".concat(txt("valeur"), " ").concat(txt("remarques")), filters.valeur)) return false;
+    if (filters.lot && !textFilterMatches(txt("lot"), filters.lot)) return false;
+    if (filters.dc && !textFilterMatches(txt("dc"), filters.dc)) return false;
+    if (filters.sn && !textFilterMatches(txt("sn"), filters.sn)) return false;
+    if (filters.fiche && !textFilterMatches(txt("fiche"), filters.fiche)) return false;
+    if (filters.etape && !textFilterMatches(txt("etape"), filters.etape)) return false;
     if (filters.adjust === "yes" && !isAdjustRow(r)) return false;
     if (filters.adjust === "no" && isAdjustRow(r)) return false;
     return true;
@@ -13409,19 +13423,19 @@ var TabConsommables = function TabConsommables(_ref84) {
     var txt = function txt(v) {
       return String(v || "").toUpperCase();
     };
-    if (filters.date && !txt(it.createdDT || o.createdDT).includes(txt(filters.date))) return false;
-    if (filters.visa && !txt(it.createdVisa || o.createdVisa).includes(txt(filters.visa))) return false;
-    if (filters.fiche && !txt(o.fiche).includes(txt(filters.fiche))) return false;
-    if (filters.op && !txt(o.op).includes(txt(filters.op))) return false;
-    if (filters.sap && !compactArticleCode((conso === null || conso === void 0 ? void 0 : conso.sap) || (conso === null || conso === void 0 ? void 0 : conso.code) || "").toUpperCase().includes(compactArticleCode(filters.sap).toUpperCase())) return false;
-    if (filters.conso && !txt(consoText).includes(txt(filters.conso))) return false;
-    if (filters.echantillon && !txt(it.echantillon).includes(txt(filters.echantillon))) return false;
-    if (filters.lot && !txt(it.lot).includes(txt(filters.lot))) return false;
-    if (filters.dp && !txt(it.dp).includes(txt(filters.dp))) return false;
+    if (filters.date && !textFilterMatches(txt(it.createdDT || o.createdDT), filters.date)) return false;
+    if (filters.visa && !textFilterMatches(txt(it.createdVisa || o.createdVisa), filters.visa)) return false;
+    if (filters.fiche && !textFilterMatches(txt(o.fiche), filters.fiche)) return false;
+    if (filters.op && !textFilterMatches(txt(o.op), filters.op)) return false;
+    if (filters.sap && !textFilterMatches(compactArticleCode((conso === null || conso === void 0 ? void 0 : conso.sap) || (conso === null || conso === void 0 ? void 0 : conso.code) || ""), compactArticleCode(filters.sap))) return false;
+    if (filters.conso && !textFilterMatches(txt(consoText), filters.conso)) return false;
+    if (filters.echantillon && !textFilterMatches(txt(it.echantillon), filters.echantillon)) return false;
+    if (filters.lot && !textFilterMatches(txt(it.lot), filters.lot)) return false;
+    if (filters.dp && !textFilterMatches(txt(it.dp), filters.dp)) return false;
     var commentText = (it.comments || []).map(function (c) {
       return c.text;
     }).join(" ");
-    if (filters.remarque && !txt([it.remarque, commentText].filter(Boolean).join(" ")).includes(txt(filters.remarque))) return false;
+    if (filters.remarque && !textFilterMatches(txt([it.remarque, commentText].filter(Boolean).join(" ")), filters.remarque)) return false;
     if (filters.traca === "yes" && !it.tracaOk) return false;
     if (filters.traca === "no" && it.tracaOk) return false;
     return true;
@@ -22590,7 +22604,7 @@ var OFSelector = function OFSelector(_ref129) {
       var _ref134 = _slicedToArray(_ref133, 2),
         key = _ref134[0],
         value = _ref134[1];
-      return value && !columnValue(o, key).toLowerCase().includes(value.toLowerCase().trim());
+      return value && !textFilterMatches(columnValue(o, key), value);
     })) return false;
     return homeSearchMatches(o, q, contributorsById[o.id]);
   });
