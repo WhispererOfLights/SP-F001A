@@ -793,6 +793,7 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState({});
   const [copiedField,setCopiedField] = useState("");
+  const [photoFolderBusy,setPhotoFolderBusy] = useState(false);
 
   const startEdit = () => { if(!isAdminManager(user)) return; setDraft({...h}); setEditing(true); };
   const save      = () => {
@@ -808,6 +809,50 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
     copyToClipboard(value);
     setCopiedField(label);
     setTimeout(()=>setCopiedField(current=>current===label?"":current),1400);
+  };
+  const openPhotoFolderUrl=(url,path)=>{
+    copyToClipboard(path);
+    const link=document.createElement("a");
+    link.href=url;
+    link.target="_blank";
+    link.rel="noopener";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+  const openPhotoFolder=async()=>{
+    if(photoFolderBusy||!h.of) return;
+    setPhotoFolderBusy(true);
+    try{
+      const response=await fetch(`/api/photo-folder?of=${encodeURIComponent(h.of)}`);
+      const status=await response.json();
+      if(!response.ok) throw new Error(status.error||"Dossier photos inaccessible");
+      if(status.exists){
+        openPhotoFolderUrl(status.url,status.path);
+        return;
+      }
+      const create=window.confirm(
+        `Le dossier photos de l'OF ${h.of} n'existe pas.\n\n`
+        +"OK : créer puis ouvrir le dossier de l'OF\n"
+        +"Annuler : ouvrir le dossier racine des photos"
+      );
+      if(!create){
+        openPhotoFolderUrl(status.rootUrl,status.rootPath);
+        return;
+      }
+      const createResponse=await fetch("/api/photo-folder",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({of:h.of}),
+      });
+      const created=await createResponse.json();
+      if(!createResponse.ok) throw new Error(created.error||"Création du dossier impossible");
+      openPhotoFolderUrl(created.url,created.path);
+    }catch(error){
+      window.alert(`${error.message||error}\n\nLe chemin peut toujours être copié avec le bouton ⎘.`);
+    }finally{
+      setPhotoFolderBusy(false);
+    }
   };
 
   const FIELDS = [
@@ -881,30 +926,27 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
         })}
         {/* Photo folder */}
         {h.of&&(
-          <div style={{background:C.surface,padding:"6px 10px",minWidth:0}}>
+          <div role="button" tabIndex={0} aria-label={`Ouvrir le dossier photos de l'OF ${h.of}`}
+            onClick={openPhotoFolder}
+            onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openPhotoFolder();}}}
+            title="Ouvrir le dossier photos de l'OF"
+            style={{background:C.surface,padding:"6px 10px",minWidth:0,cursor:photoFolderBusy?"wait":"pointer",outline:"none"}}>
             <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Photos</div>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
               <span style={{fontSize:12}}>📁</span>
               <span style={{fontFamily:"monospace",fontSize:10,color:C.muted,
                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}
                 title={`S:\\OP_SPACE\\Photos_OF\\${h.of}`}>
-                OF
+                {photoFolderBusy?"…":"OF"}
               </span>
-              <span onClick={e=>{
+              <button type="button" onClick={e=>{
                 e.stopPropagation();
-                const path=`S:\\OP_SPACE\\Photos_OF\\${h.of}`;
-                try{
-                  const ta=document.createElement("textarea");
-                  ta.value=path;ta.style.position="fixed";ta.style.opacity="0";
-                  document.body.appendChild(ta);ta.select();
-                  document.execCommand("copy");
-                  document.body.removeChild(ta);
-                }catch{window.prompt("Copier (Ctrl+C):",path);}
+                copyToClipboard(`\\\\neu.orolia\\Data\\ORO\\Dpts\\OP_SPACE\\Photos_OF\\${h.of}`);
               }} style={{cursor:"pointer",color:C.blue,fontSize:10,flexShrink:0,
                 background:C.blue+"22",border:`1px solid ${C.blue}`,borderRadius:3,
                 padding:"1px 5px",whiteSpace:"nowrap"}} title="Copier le chemin">
                 ⎘
-              </span>
+              </button>
             </div>
           </div>
         )}

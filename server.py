@@ -21,7 +21,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path
 from threading import Lock
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 from relational_store import (
     SCHEMA_VERSION, ConflictError, init_schema, migrate,
     read_document as sqlite_read_document,
@@ -44,6 +44,14 @@ SESSIONS: dict[str, dict] = {}
 HOME_DOCUMENTS_CACHE: dict[str, tuple[tuple, dict[str, dict]]] = {}
 HOME_CACHE_LOCK = Lock()
 REPLICATION_WORKER = None
+PHOTO_ROOT = Path(os.environ.get(
+    "SP_F001A_PHOTO_ROOT",
+    r"\\neu.orolia\Data\ORO\Dpts\OP_SPACE\Photos_OF",
+))
+PHOTO_ROOT_URL = os.environ.get(
+    "SP_F001A_PHOTO_ROOT_URL",
+    "file://neu.orolia/Data/ORO/Dpts/OP_SPACE/Photos_OF",
+).rstrip("/")
 READ_ONLY_ROLES = {"consultation", "lecteur seul", "lecture seule", "lecteur"}
 MANAGER_ROLES = {"Admin", "Manager"}
 PROTECTED_HEADER_FIELDS = {
@@ -64,6 +72,28 @@ APPEND_ONLY_HISTORIES = {
     "ctrlCancellationHistory": "cancelledVisa",
     "tracaCancellationHistory": "cancelledVisa",
 }
+
+
+def photo_folder_name(value: object) -> str:
+    name = str(value or "").strip()
+    invalid = set('<>:"/\\|?*')
+    if (not name or name in {".", ".."} or name.endswith((".", " "))
+            or any(char in invalid or ord(char) < 32 for char in name)):
+        raise ValueError("Numéro d'OF invalide")
+    return name
+
+
+def photo_folder_payload(value: object) -> dict:
+    name = photo_folder_name(value)
+    folder = PHOTO_ROOT / name
+    return {
+        "of": name,
+        "exists": folder.is_dir(),
+        "path": str(folder),
+        "rootPath": str(PHOTO_ROOT),
+        "url": f"{PHOTO_ROOT_URL}/{quote(name)}",
+        "rootUrl": PHOTO_ROOT_URL,
+    }
 
 
 def legacy_hash(value: str) -> str:
@@ -750,6 +780,15 @@ class StorageServer(SimpleHTTPRequestHandler):
             if not self.require_session():
                 return
             return self.send_json({"ok": True, "documents": home_documents(self.db_path)})
+        if path == "/api/photo-folder":
+            if not self.require_session():
+                return
+            try:
+                values = parse_qs(urlparse(self.path).query)
+                payload = photo_folder_payload(values.get("of", [""])[0])
+            except (ValueError, OSError) as exc:
+                return self.send_json({"ok": False, "error": str(exc)}, 400)
+            return self.send_json({"ok": True, **payload})
         if path == "/api/storage":
             if not self.require_session():
                 return
@@ -798,6 +837,8 @@ class StorageServer(SimpleHTTPRequestHandler):
             return self.update_work_order_section()
         if path == "/api/work-orders/update-sections":
             return self.update_work_order_sections()
+        if path == "/api/photo-folder":
+            return self.create_photo_folder()
         if path == "/api/admin/users/import":
             return self.admin_import_users()
         if path.startswith("/api/admin/users/") and path.endswith("/reset-password"):
@@ -807,6 +848,23 @@ class StorageServer(SimpleHTTPRequestHandler):
             trigram = unquote(path[len("/api/admin/users/"):-len("/active")]).strip("/")
             return self.admin_set_user_active(trigram)
         self.send_error(404, "not found")
+
+    def create_photo_folder(self) -> None:
+        session = self.require_session()
+        if not session:
+            return
+        if str(session["user"].get("role") or "").lower() in READ_ONLY_ROLES:
+            return self.send_json({"ok": False, "error": "Compte en lecture seule"}, 403)
+        try:
+            payload = self.read_json_body()
+            name = photo_folder_name(payload.get("of"))
+            if not PHOTO_ROOT.is_dir():
+                raise OSError("Le dossier racine des photos n'est pas accessible")
+            (PHOTO_ROOT / name).mkdir(exist_ok=True)
+            result = photo_folder_payload(name)
+        except (ValueError, OSError, AttributeError) as exc:
+            return self.send_json({"ok": False, "error": str(exc)}, 400)
+        self.send_json({"ok": True, **result})
 
     def close_work_item(self) -> None:
         session = self.require_session()

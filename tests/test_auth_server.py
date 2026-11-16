@@ -15,6 +15,11 @@ import server
 class AuthServerTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.previous_photo_root = server.PHOTO_ROOT
+        self.previous_photo_root_url = server.PHOTO_ROOT_URL
+        server.PHOTO_ROOT = Path(self.tmp.name) / "Photos_OF"
+        server.PHOTO_ROOT.mkdir()
+        server.PHOTO_ROOT_URL = "file://test-server/Photos_OF"
         db_path, _ = server.init_database(Path(self.tmp.name))
         server.ensure_admin_database(db_path)
         self.db_path = db_path
@@ -75,6 +80,8 @@ class AuthServerTests(unittest.TestCase):
         self.httpd.server_close()
         self.thread.join(timeout=2)
         self.tmp.cleanup()
+        server.PHOTO_ROOT = self.previous_photo_root
+        server.PHOTO_ROOT_URL = self.previous_photo_root_url
         with server.SESSION_LOCK:
             server.SESSIONS.clear()
 
@@ -136,6 +143,44 @@ class AuthServerTests(unittest.TestCase):
         self.assertTrue(record["mustChangePassword"])
         self.assertTrue(server.verify_password(record, "admin"))
         self.assertNotIn("pwd", record)
+
+    def test_photo_folder_status_and_creation(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+
+        status, payload, _ = self.request("/api/photo-folder?of=1000")
+        self.assertEqual(status, 200)
+        self.assertFalse(payload["exists"])
+        self.assertEqual(payload["rootUrl"], "file://test-server/Photos_OF")
+
+        status, payload, _ = self.request(
+            "/api/photo-folder", "POST", {"of": "1000"}
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(payload["exists"])
+        self.assertTrue((server.PHOTO_ROOT / "1000").is_dir())
+        self.assertEqual(payload["url"], "file://test-server/Photos_OF/1000")
+
+    def test_photo_folder_rejects_traversal_and_read_only_creation(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, _ = self.request("/api/photo-folder?of=..%2Fsecret")
+        self.assertEqual(status, 400)
+
+        self.request("/api/auth/logout", "POST", {})
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "LCT", "password": "lecture-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, _ = self.request(
+            "/api/photo-folder", "POST", {"of": "1001"}
+        )
+        self.assertEqual(status, 403)
+        self.assertFalse((server.PHOTO_ROOT / "1001").exists())
 
     def test_manager_can_deactivate_user_without_losing_activity(self):
         status, _, _ = self.request(
