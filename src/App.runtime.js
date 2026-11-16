@@ -5623,14 +5623,14 @@ var Header = function Header(_ref47) {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
-      gridTemplateColumns: "0.9fr 1fr 1.9fr .7fr 1fr .7fr .85fr .7fr",
+      gridTemplateColumns: "0.9fr 1fr 2.1fr .75fr 1fr .7fr .85fr .75fr",
       gap: 1,
       flex: 1,
       background: C.border,
       border: "1px solid ".concat(C.border),
       borderRadius: "6px 0 0 6px",
       overflow: "hidden",
-      fontSize: 11
+      fontSize: 13
     }
   }, [["OF", h.of || "—"], ["Article", h.codeArticle || "—"], ["Description", h.description || "—"], ["SN", headerSnDisplay, headerSnFull], ["OTP", h.otp || h.projet || "—"], ["OF reprise", String(h.ofRework || "non").toLowerCase() === "oui" || String(h.ofRework || "").toLowerCase() === "true" ? "Oui" : "Non"]].map(function (_ref51) {
     var _ref52 = _slicedToArray(_ref51, 3),
@@ -5655,7 +5655,7 @@ var Header = function Header(_ref47) {
       },
       style: {
         background: copied ? C.green + "20" : C.surface,
-        padding: "4px 10px",
+        padding: "6px 10px",
         minWidth: 0,
         cursor: "copy",
         outline: "none",
@@ -5664,16 +5664,19 @@ var Header = function Header(_ref47) {
     }, /*#__PURE__*/React.createElement("div", {
       style: {
         color: C.muted,
-        fontSize: 8,
+        fontSize: 9,
         letterSpacing: 1,
         textTransform: "uppercase",
-        marginBottom: 1
+        marginBottom: 2
       }
     }, label), /*#__PURE__*/React.createElement("div", {
+      className: "folder-header-value",
       title: "".concat(copyValue, " \u2014 double-cliquer pour copier"),
       style: {
         color: copied ? C.green : C.text,
-        fontWeight: 700,
+        fontSize: 13,
+        lineHeight: 1.25,
+        fontWeight: 750,
         fontFamily: "monospace",
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -5683,16 +5686,16 @@ var Header = function Header(_ref47) {
   }), h.of && /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.surface,
-      padding: "4px 10px",
+      padding: "6px 10px",
       minWidth: 0
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
-      fontSize: 8,
+      fontSize: 9,
       letterSpacing: 1,
       textTransform: "uppercase",
-      marginBottom: 1
+      marginBottom: 2
     }
   }, "Photos"), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -5702,12 +5705,12 @@ var Header = function Header(_ref47) {
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontSize: 11
+      fontSize: 12
     }
   }, "\uD83D\uDCC1"), /*#__PURE__*/React.createElement("span", {
     style: {
       fontFamily: "monospace",
-      fontSize: 9,
+      fontSize: 10,
       color: C.muted,
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -5735,7 +5738,7 @@ var Header = function Header(_ref47) {
     style: {
       cursor: "pointer",
       color: C.blue,
-      fontSize: 9,
+      fontSize: 10,
       flexShrink: 0,
       background: C.blue + "22",
       border: "1px solid ".concat(C.blue),
@@ -5747,7 +5750,7 @@ var Header = function Header(_ref47) {
   }, "\u2398"))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: C.surface,
-      padding: "4px 10px",
+      padding: "6px 10px",
       display: "flex",
       flexDirection: "column",
       justifyContent: "center",
@@ -5756,10 +5759,10 @@ var Header = function Header(_ref47) {
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
-      fontSize: 8,
+      fontSize: 9,
       letterSpacing: 1,
       textTransform: "uppercase",
-      marginBottom: 2
+      marginBottom: 3
     }
   }, "Statut OF"), /*#__PURE__*/React.createElement("select", {
     disabled: !isAdminManager(user),
@@ -5771,8 +5774,8 @@ var Header = function Header(_ref47) {
       background: ((_STATUTS4 = STATUTS[h.status || "en_cours"]) === null || _STATUTS4 === void 0 ? void 0 : _STATUTS4.color) + "22",
       border: "1px solid ".concat((_STATUTS5 = STATUTS[h.status || "en_cours"]) === null || _STATUTS5 === void 0 ? void 0 : _STATUTS5.color),
       borderRadius: 14,
-      padding: "2px 8px",
-      fontSize: 10,
+      padding: "3px 8px",
+      fontSize: 11,
       fontWeight: 700,
       color: (_STATUTS6 = STATUTS[h.status || "en_cours"]) === null || _STATUTS6 === void 0 ? void 0 : _STATUTS6.color,
       outline: "none",

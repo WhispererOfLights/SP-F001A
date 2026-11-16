@@ -857,9 +857,9 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
 
   return (
     <div style={{display:"flex",alignItems:"stretch",gap:1,marginBottom:8}}>
-      <div style={{display:"grid",gridTemplateColumns:"0.9fr 1fr 1.9fr .7fr 1fr .7fr .85fr .7fr",gap:1,flex:1,
+      <div style={{display:"grid",gridTemplateColumns:"0.9fr 1fr 2.1fr .75fr 1fr .7fr .85fr .75fr",gap:1,flex:1,
         background:C.border,border:`1px solid ${C.border}`,borderRadius:"6px 0 0 6px",
-        overflow:"hidden",fontSize:11}}>
+        overflow:"hidden",fontSize:13}}>
         {[
           ["OF",                h.of||"—"],
           ["Article",           h.codeArticle||"—"],
@@ -873,19 +873,19 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
             aria-label={copied?`${label} copié`:`${label} : ${copyValue}. Double-cliquer pour copier`}
             onDoubleClick={()=>copyHeaderField(label,copyValue)}
             onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();copyHeaderField(label,copyValue);}}}
-            style={{background:copied?C.green+"20":C.surface,padding:"4px 10px",minWidth:0,cursor:"copy",outline:"none",boxShadow:copied?`inset 0 0 0 1px ${C.green}`:undefined}}>
-            <div style={{color:C.muted,fontSize:8,letterSpacing:1,textTransform:"uppercase",marginBottom:1}}>{label}</div>
-            <div title={`${copyValue} — double-cliquer pour copier`} style={{color:copied?C.green:C.text,fontWeight:700,fontFamily:"monospace",
+            style={{background:copied?C.green+"20":C.surface,padding:"6px 10px",minWidth:0,cursor:"copy",outline:"none",boxShadow:copied?`inset 0 0 0 1px ${C.green}`:undefined}}>
+            <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>{label}</div>
+            <div className="folder-header-value" title={`${copyValue} — double-cliquer pour copier`} style={{color:copied?C.green:C.text,fontSize:13,lineHeight:1.25,fontWeight:750,fontFamily:"monospace",
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{copied?"✓ ":""}{val}</div>
           </div>
         })}
         {/* Photo folder */}
         {h.of&&(
-          <div style={{background:C.surface,padding:"4px 10px",minWidth:0}}>
-            <div style={{color:C.muted,fontSize:8,letterSpacing:1,textTransform:"uppercase",marginBottom:1}}>Photos</div>
+          <div style={{background:C.surface,padding:"6px 10px",minWidth:0}}>
+            <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Photos</div>
             <div style={{display:"flex",alignItems:"center",gap:5}}>
-              <span style={{fontSize:11}}>📁</span>
-              <span style={{fontFamily:"monospace",fontSize:9,color:C.muted,
+              <span style={{fontSize:12}}>📁</span>
+              <span style={{fontFamily:"monospace",fontSize:10,color:C.muted,
                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:70}}
                 title={`S:\\OP_SPACE\\Photos_OF\\${h.of}`}>
                 OF
@@ -900,7 +900,7 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
                   document.execCommand("copy");
                   document.body.removeChild(ta);
                 }catch{window.prompt("Copier (Ctrl+C):",path);}
-              }} style={{cursor:"pointer",color:C.blue,fontSize:9,flexShrink:0,
+              }} style={{cursor:"pointer",color:C.blue,fontSize:10,flexShrink:0,
                 background:C.blue+"22",border:`1px solid ${C.blue}`,borderRadius:3,
                 padding:"1px 5px",whiteSpace:"nowrap"}} title="Copier le chemin">
                 ⎘
@@ -909,12 +909,12 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
           </div>
         )}
         {/* Statut */}
-        <div style={{background:C.surface,padding:"4px 10px",display:"flex",flexDirection:"column",justifyContent:"center",minWidth:0}}>
-          <div style={{color:C.muted,fontSize:8,letterSpacing:1,textTransform:"uppercase",marginBottom:2}}>Statut OF</div>
+        <div style={{background:C.surface,padding:"6px 10px",display:"flex",flexDirection:"column",justifyContent:"center",minWidth:0}}>
+          <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>Statut OF</div>
           <select disabled={!isAdminManager(user)} value={h.status||"en_cours"} onChange={e=>onUpdateStatus&&onUpdateStatus(e.target.value)}
             style={{background:STATUTS[h.status||"en_cours"]?.color+"22",
               border:`1px solid ${STATUTS[h.status||"en_cours"]?.color}`,
-              borderRadius:14,padding:"2px 8px",fontSize:10,fontWeight:700,
+              borderRadius:14,padding:"3px 8px",fontSize:11,fontWeight:700,
               color:STATUTS[h.status||"en_cours"]?.color,outline:"none",cursor:"pointer",width:"100%"}}>
             {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
           </select>

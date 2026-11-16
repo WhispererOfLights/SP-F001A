@@ -286,6 +286,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal((await folderLinkCopy.textContent()).trim(),'✓');
     await page.getByRole('button',{name:'Article : 250001163. Double-cliquer pour copier',exact:true}).dblclick();
     await page.getByRole('button',{name:'Article copié',exact:true}).waitFor();
+    assert.ok((await page.locator('.folder-header-value').first().evaluate(element=>parseFloat(getComputedStyle(element).fontSize)))>=13);
     const quickOf=page.getByRole('textbox',{name:"Rechercher ou scanner un numéro d'OF",exact:true});
     await quickOf.focus();
     await page.keyboard.press('PageDown');
