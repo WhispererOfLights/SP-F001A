@@ -321,9 +321,7 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
       </div>
 
       {connectors.length===0&&(
-        <div style={{textAlign:"center",color:C.muted,padding:48,fontSize:13}}>
-          Cliquez <strong>+ Connecteur</strong> pour ajouter un connecteur (J13, J15…)
-        </div>
+        <EmptyTableAction message="Aucun connecteur enregistré" actionLabel="+ Ajouter le premier connecteur" onAction={addC} canAdd={!!perms.canWrite}/>
       )}
 
       {connectors.length>0&&connectorGroups.map(group=>(

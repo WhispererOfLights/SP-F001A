@@ -1196,7 +1196,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
             })}
           </tbody>
         </table>
-        {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucune ligne</div>}
+        {rows.length===0&&<EmptyTableAction message="Aucune opération Adjust/Rework enregistrée" actionLabel="+ Ajouter la première opération" onAction={add} canAdd={!!perms.canWrite}/>}
       </div>
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>✦ Visa Opér. pré-rempli hors import · ✓ Valider pour verrouiller · × Annuler sur ligne validée = barre et conserve la traçabilité</div>
       {showImport&&perms.canWrite&&<ReworkImportModal header={header} existingRows={rows} onImport={importDrafts} onClose={()=>setShowImport(false)}/>}

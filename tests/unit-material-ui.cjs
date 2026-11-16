@@ -46,8 +46,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       }});
       window.testRecords = {'session': user, 'of-list': [entry,otherEntry], 'of:test-of': data,'of:other-of':{header:otherEntry,units:{rows:otherEntry._snRows}}};
       const different={id:'different-of',of:'100DIFFERENT',codeArticle:'999',status:'en_cours',_snRows:[{id:'different-unit',sn:'DIFFERENTSN'}]};
+      const empty={id:'empty-of',of:'100EMPTY',codeArticle:'888',status:'en_cours',_snRows:[{id:'empty-unit',sn:'EMPTYSN'}]};
       window.testRecords['of-list'].push(different);
+      window.testRecords['of-list'].push(empty);
       window.testRecords['of:different-of']={header:different,units:{rows:different._snRows}};
+      window.testRecords['of:empty-of']={header:empty,units:{rows:empty._snRows}};
       Object.assign(window.testRecords,{'users-list':['JGR','MGR','EMPTY','PA1','CDP','OPR'],
         'user:JGR':{...user,email:'jgr@example.com'},
         'user:MGR':{trigram:'MGR',prenom:'Autre',nom:'Manager',role:'Manager',email:'manager@example.com'},
@@ -293,7 +296,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.keyboard.press('PageDown');
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100DIFFERENT');
     await page.keyboard.press('PageDown');
-    assert.equal(await quickOf.inputValue(),'100DIFFERENT');
+    await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100EMPTY');
+    await page.keyboard.press('PageDown');
+    assert.equal(await quickOf.inputValue(),'100EMPTY');
+    await page.keyboard.press('PageUp');
+    await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100DIFFERENT');
     await page.keyboard.press('PageUp');
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100OTHER');
     await page.keyboard.press('PageUp');
@@ -781,6 +788,30 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     });
     await page.locator('body').click({position:{x:1800,y:950}});
     await page.keyboard.press('PageDown');
+    await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100OTHER');
+    await page.keyboard.press('PageDown');
+    await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100DIFFERENT');
+    await page.keyboard.press('PageDown');
+    await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100EMPTY');
+    for(const [tab,action] of [
+      ['Adjust/Rework','+ Ajouter la première opération'],
+      ['Consommables','+ Ajouter le premier consommable'],
+      ['Étuvages','+ Ajouter le premier étuvage'],
+      ['Test Équipement','+ Ajouter le premier équipement'],
+      ['Mating','+ Ajouter le premier connecteur'],
+      ['Suivi technique','+ Ajouter le premier suivi'],
+    ]){
+      await page.getByRole('button',{name:tab,exact:true}).click();
+      await page.getByRole('button',{name:action,exact:true}).waitFor();
+    }
+    await page.getByRole('button',{name:'Adjust/Rework',exact:true}).click();
+    await page.getByRole('button',{name:'+ Ajouter la première opération',exact:true}).click();
+    await page.waitForFunction(()=>window.testRecords['of:empty-of'].rework?.rows?.length===1);
+    assert.equal(await page.getByRole('button',{name:'+ Ajouter la première opération',exact:true}).count(),0);
+    await page.locator('body').click({position:{x:1800,y:950}});
+    await page.keyboard.press('PageUp');
+    await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100DIFFERENT');
+    await page.keyboard.press('PageUp');
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100OTHER');
     await page.keyboard.press('PageUp');
     await page.waitForFunction(()=>document.querySelector('input[aria-label="Rechercher ou scanner un numéro d\'OF"]')?.value==='100TEST');

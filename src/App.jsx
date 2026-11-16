@@ -218,6 +218,13 @@ const Btn = ({onClick,children,color=C.accent,small,disabled,full}) => (
     {children}
   </button>
 );
+const EmptyTableAction = ({message,actionLabel,onAction,canAdd=true}) => (
+  <div className="no-print" style={{minHeight:112,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,
+    padding:20,textAlign:"center",background:C.blue+"08",borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`}}>
+    <div style={{fontSize:13,fontWeight:700,color:C.text}}>{message}</div>
+    {canAdd&&onAction&&<Btn onClick={onAction} color={C.blue}>{actionLabel}</Btn>}
+  </div>
+);
 const MultiFilter = ({value,onChange,options,label="Tous",title="Filtre"}) => {
   const [open,setOpen]=useState(false);
   const [position,setPosition]=useState({top:0,left:0});

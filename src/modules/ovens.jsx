@@ -337,7 +337,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
             })}
           </tbody>
         </table>
-        {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun étuvage</div>}
+        {rows.length===0&&<EmptyTableAction message="Aucun étuvage enregistré" actionLabel="+ Ajouter le premier étuvage" onAction={add} canAdd={!!perms.canWrite}/>}
       </div>
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}
       {restoreTarget&&<RestoreModal onConfirm={restore} onCancel={()=>setRestoreTarget(null)}/>}

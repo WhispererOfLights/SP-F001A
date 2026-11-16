@@ -834,7 +834,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
             })}
           </tbody>
         </table>
-        {ops.length===0&&<div style={{textAlign:"center",color:C.muted,padding:32}}>Cliquez <strong>+ Ligne</strong> pour commencer</div>}
+        {ops.length===0&&<EmptyTableAction message="Aucun consommable enregistré" actionLabel="+ Ajouter le premier consommable" onAction={addOp} canAdd={!!perms.canWrite}/>}
       </div>
       {deleteOpTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDelOp} onCancel={()=>setDeleteOpTarget(null)}/>}
       {deleteItemTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDelItem} onCancel={()=>setDeleteItemTarget(null)}/>}

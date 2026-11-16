@@ -215,7 +215,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
           </tbody>
         </table>
       </div>
-      {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun équipement</div>}
+      {rows.length===0&&<EmptyTableAction message="Aucun équipement enregistré" actionLabel="+ Ajouter le premier équipement" onAction={add} canAdd={!!perms.canWrite}/>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
         ✦ Visa pré-rempli · × annule et barre la ligne · Date calibration : AAAA-MM (ex: 2026-06) ou N/A
       </div>

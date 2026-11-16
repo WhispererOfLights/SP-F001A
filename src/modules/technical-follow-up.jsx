@@ -409,7 +409,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
         </tbody>
       </table>
       </div>
-      {rows.length===0&&<div style={{textAlign:"center",color:C.muted,padding:24}}>Aucun suivi technique enregistré</div>}
+      {rows.length===0&&<EmptyTableAction message="Aucun suivi technique enregistré" actionLabel="+ Ajouter le premier suivi" onAction={add} canAdd={!!perms.canWrite}/>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
         ✦ Visa pré-rempli · N° saisi manuellement · × annule et barre la ligne
       </div>
