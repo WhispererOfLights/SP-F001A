@@ -52,6 +52,26 @@ const buildMeasurementsExcel = ({data,units,selectedUnitIds=null,header={}}) => 
   const selected=selectedUnitIds?.length?units.filter(unit=>selectedUnitIds.includes(unit.id)):units;
   const rows=(data?.rows||[]).filter(row=>!row.deleted);
   const identity=unit=>snTitle(unit);
+  const measurementHeader=row=>`${row.mesure||"Mesure"}${row.unite?` [${row.unite}]`:""}`;
+  const gridHeader=["SN / LOT",...rows.map(measurementHeader)];
+  const gridValues=selected.map(unit=>[
+    identity(unit),
+    ...rows.map(row=>measurementResultForUnit(row,unit.id)?.value||""),
+  ]);
+  const gridStats=rows.map(row=>measurementStats(row,selected));
+  const article=[header.codeArticle,header.description].filter(Boolean).join(" - ");
+  const grid=[
+    ["N° OF",header.of||"","Article",article,"OTP",header.otp||""],
+    [],
+    gridHeader,
+    ["Min attendu",...rows.map(row=>row.min||"")],
+    ["Max attendu",...rows.map(row=>row.max||"")],
+    ...gridValues,
+    [],
+    ["OF min",...gridStats.map(stats=>measurementDisplayNumber(stats.min))],
+    ["OF moyenne",...gridStats.map(stats=>measurementDisplayAverage(stats.average))],
+    ["OF max",...gridStats.map(stats=>measurementDisplayNumber(stats.max))],
+  ];
   const plan=rows.map((row,index)=>[
     index+1,row.fiche||"",row.etape||"",row.mesure||"",row.unite||"",row.min||"",row.max||"",
   ]);
@@ -67,7 +87,10 @@ const buildMeasurementsExcel = ({data,units,selectedUnitIds=null,header={}}) => 
       stats.count,measurementDisplayNumber(stats.min),measurementDisplayAverage(stats.average),measurementDisplayNumber(stats.max),
       stats.minUnits.join(" ; "),stats.maxUnits.join(" ; ")];
   });
+  const gridSummaryStart=6+selected.length;
   return buildExcelWorkbook([
+    {name:"Grille mesures",headerRows:[0,2,gridSummaryStart,gridSummaryStart+1,gridSummaryStart+2],rows:grid,
+      freezeRows:5,freezeColumns:1,columnWidths:[18,...rows.map(row=>Math.max(14,Math.min(28,measurementHeader(row).length+3)))]},
     {name:"Résumé OF",headerRows:1,rows:[["Fiche suiveuse","Étape / OP","Mesure","Unité","Min attendu","Max attendu","Nb mesuré","Min observé","Moyenne","Max observé","SN au min","SN au max"],...summary]},
     {name:"Valeurs par SN",headerRows:1,rows:[["N° OF","SN / LOT","Fiche suiveuse","Étape / OP","Mesure","Unité","Min attendu","Valeur","Max attendu","Statut","Visa","Date / heure"],...details]},
     {name:"Plan de mesures",headerRows:1,rows:[["Ligne","Fiche suiveuse","Étape / OP","Mesure","Unité","Min attendu","Max attendu"],...plan]},
@@ -84,25 +107,40 @@ const MeasurementField = ({value,onCommit,placeholder,style={},readOnly=false}) 
 const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,onCommit}) => {
   const result=measurementResultForUnit(row,unit.id);
   const [draft,setDraft]=useState(result?.value||"");
-  useEffect(()=>setDraft(result?.value||""),[result?.value]);
+  const [editing,setEditing]=useState(!String(result?.value||"").trim());
+  const inputRef=React.useRef(null);
+  useEffect(()=>{
+    setDraft(result?.value||"");
+    setEditing(!String(result?.value||"").trim());
+  },[result?.value]);
   const status=measurementStatus(row,{...result,value:draft});
   const changed=draft!==String(result?.value||"");
-  const commit=()=>changed&&onCommit(draft.trim(),result);
+  const locked=canWrite&&!!String(result?.value||"").trim()&&!editing;
+  const commit=()=>{
+    if(!changed){if(result?.value) setEditing(false);return true;}
+    const saved=onCommit(draft.trim(),result);
+    if(saved===false){setDraft(result?.value||"");setEditing(false);return false;}
+    setEditing(false);
+    return true;
+  };
   const moveDown=event=>{
     event.preventDefault();
-    commit();
+    if(commit()===false) return;
     const selector=`[data-measure-cell="${rowIndex+1}-${columnIndex}"]`;
     requestAnimationFrame(()=>{const next=document.querySelector(selector);next?.focus();next?.select?.();});
   };
   const audit=result?.lastEditedDT
-    ? `Mesuré ${result.dt||""} par ${result.visa||"?"} · modifié ${result.lastEditedDT} par ${result.lastEditedVisa||"?"}`
+    ? `Mesuré ${result.dt||""} par ${result.visa||"?"} · modifié ${result.lastEditedDT} par ${result.lastEditedVisa||"?"}${result.lastEditedReason?` · motif : ${result.lastEditedReason}`:""}`
     : result?.visa?`Mesuré ${result.dt||""} par ${result.visa}`:status.label;
   return <div title={`${status.label} · ${audit}`} style={{position:"relative",minWidth:118}}>
-    <input data-measure-cell={`${rowIndex}-${columnIndex}`} aria-label={`${row.mesure||"Mesure"} - ${snTitle(unit)}`}
-      value={draft} readOnly={!canWrite} onChange={event=>setDraft(event.target.value)} onBlur={commit}
-      onKeyDown={event=>{if(event.key==="Enter") moveDown(event);if(event.key==="Escape") setDraft(result?.value||"");}}
-      style={{width:"100%",height:28,padding:"3px 7px",fontFamily:"monospace",fontSize:12,fontWeight:800,textAlign:"center",
-        color:C.text,background:status.background,border:`1px solid ${status.color}`,borderRadius:2,outline:"none"}}/>
+    <input ref={inputRef} data-measure-cell={`${rowIndex}-${columnIndex}`} aria-label={`${row.mesure||"Mesure"} - ${snTitle(unit)}`}
+      value={draft} readOnly={!canWrite||locked} onChange={event=>setDraft(event.target.value)} onBlur={()=>editing&&commit()}
+      onKeyDown={event=>{if(event.key==="Enter") moveDown(event);if(event.key==="Escape"){setDraft(result?.value||"");setEditing(false);}}}
+      style={{width:"100%",height:28,padding:`3px ${locked?25:7}px 3px 7px`,fontFamily:"monospace",fontSize:12,fontWeight:800,textAlign:"center",
+        cursor:locked?"default":"text",color:C.text,background:status.background,border:`1px solid ${status.color}`,borderRadius:2,outline:"none"}}/>
+    {locked&&<button type="button" title="Modifier cette valeur mesurée" aria-label={`Modifier ${row.mesure||"mesure"} - ${snTitle(unit)}`}
+      onMouseDown={event=>event.preventDefault()} onClick={()=>{setEditing(true);requestAnimationFrame(()=>{inputRef.current?.focus();inputRef.current?.select();});}}
+      style={{position:"absolute",right:2,top:3,width:21,height:21,padding:0,border:0,borderRadius:2,background:C.blue,color:"white",fontSize:11,cursor:"pointer"}}>✎</button>}
     <span aria-hidden="true" style={{position:"absolute",right:4,bottom:2,fontSize:7,fontWeight:900,color:status.color,pointerEvents:"none"}}>
       {status.id==="conforming"?"✓":status.id==="nonconforming"||status.id==="invalid"?"×":status.id==="missing"?"○":"i"}
     </span>
@@ -133,14 +171,20 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
     validated:true,deleted:false,createdVisa:user?.trigram||"",createdDT:nowDT(),
   }]});
   const saveResult=(row,unit,value,existing)=>{
-    const stamp={dt:nowDT(),visa:user?.trigram||"?",changes:[{label:"Valeur",from:existing?.value||"",to:value}]};
+    let reason="";
+    if(existing&&value!==String(existing.value||"")){
+      reason=window.prompt(`Motif obligatoire de la modification (${existing.value||"vide"} → ${value||"vide"}) :`,"")?.trim()||"";
+      if(!reason) return false;
+    }
+    const stamp={dt:nowDT(),visa:user?.trigram||"?",reason,changes:[{label:"Valeur",from:existing?.value||"",to:value}]};
     const next=existing
       ? (row.results||[]).map(result=>result.id===existing.id?{...result,value,validated:!!value,
-          lastEditedVisa:user?.trigram||"",lastEditedDT:nowDT(),
+          lastEditedVisa:user?.trigram||"",lastEditedDT:nowDT(),lastEditedReason:reason,
           editHistory:[...(result.editHistory||[]),stamp]}:result)
       : [...(row.results||[]),{id:uid(),unitId:unit.id,value,visa:user?.trigram||"",dt:nowDT(),validated:!!value,
           deleted:false,createdVisa:user?.trigram||"",createdDT:nowDT(),comments:[]}];
     updateRow(row.id,{results:next});
+    return true;
   };
   const removeRow=row=>{
     if(perms?.godMode){

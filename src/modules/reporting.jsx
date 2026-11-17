@@ -67,9 +67,16 @@ const excelColumnName = index => {
   while(value){value--;name=String.fromCharCode(65+(value%26))+name;value=Math.floor(value/26);}
   return name;
 };
-const excelWorksheetXml = (rows,headerRows=0) => {
+const excelWorksheetXml = (rows,headerRows=0,options={}) => {
   const width=Math.max(1,...rows.map(row=>row.length));
   const styledRows=new Set(Array.isArray(headerRows)?headerRows:Array.from({length:headerRows},(_,index)=>index));
+  const columnWidths=(options.columnWidths||[]).length
+    ? `<cols>${options.columnWidths.map((columnWidth,index)=>`<col min="${index+1}" max="${index+1}" width="${Math.max(4,Number(columnWidth)||10)}" customWidth="1"/>`).join("")}</cols>`
+    : "";
+  const freezeRows=Math.max(0,Number(options.freezeRows)||0),freezeColumns=Math.max(0,Number(options.freezeColumns)||0);
+  const frozenPane=freezeRows||freezeColumns
+    ? `<sheetViews><sheetView workbookViewId="0"><pane${freezeColumns?` xSplit="${freezeColumns}"`:""}${freezeRows?` ySplit="${freezeRows}"`:""} topLeftCell="${excelColumnName(freezeColumns)}${freezeRows+1}" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>`
+    : "";
   const body=rows.map((row,rowIndex)=>`<row r="${rowIndex+1}">${Array.from({length:width},(_,columnIndex)=>{
     const value=row[columnIndex]??"";
     const ref=`${excelColumnName(columnIndex)}${rowIndex+1}`;
@@ -77,10 +84,10 @@ const excelWorksheetXml = (rows,headerRows=0) => {
     return `<c r="${ref}"${style} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(value)}</t></is></c>`;
   }).join("")}</row>`).join("");
   const lastRow=Math.max(1,rows.length);
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${excelColumnName(width-1)}${lastRow}"/><sheetData>${body}</sheetData></worksheet>`;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${excelColumnName(width-1)}${lastRow}"/>${frozenPane}${columnWidths}<sheetData>${body}</sheetData></worksheet>`;
 };
 const buildExcelWorkbook = sheets => {
-  const sheetEntries=sheets.map((sheet,index)=>({name:`xl/worksheets/sheet${index+1}.xml`,data:excelWorksheetXml(sheet.rows||[],sheet.headerRows||0)}));
+  const sheetEntries=sheets.map((sheet,index)=>({name:`xl/worksheets/sheet${index+1}.xml`,data:excelWorksheetXml(sheet.rows||[],sheet.headerRows||0,sheet)}));
   const overrides=sheets.map((_,index)=>`<Override PartName="/xl/worksheets/sheet${index+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("");
   const workbookSheets=sheets.map((sheet,index)=>`<sheet name="${xmlEsc(sheet.name)}" sheetId="${index+1}" r:id="rId${index+1}"/>`).join("");
   const workbookRels=sheets.map((_,index)=>`<Relationship Id="rId${index+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index+1}.xml"/>`).join("");
