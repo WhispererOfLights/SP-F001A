@@ -81,24 +81,40 @@ const MeasurementField = ({value,onCommit,placeholder,style={},readOnly=false}) 
 const MeasurementValue = ({row,unit,user,canWrite,onCommit}) => {
   const result=measurementResultForUnit(row,unit.id);
   const [draft,setDraft]=useState(result?.value||"");
-  useEffect(()=>setDraft(result?.value||""),[result?.value]);
+  const [editing,setEditing]=useState(false);
+  useEffect(()=>{setDraft(result?.value||"");setEditing(false);},[result?.value]);
   const status=measurementStatus(row,{...result,value:draft});
   const commit=()=>{
     if(!canWrite||draft===String(result?.value||"")) return;
     onCommit(draft.trim(),result);
+    setEditing(false);
   };
+  const cancel=()=>{setDraft(result?.value||"");setEditing(false);};
+  const readOnly=!canWrite||!!result&&!editing;
+  const changed=draft!==String(result?.value||"");
   return <div style={{minWidth:112,display:"flex",flexDirection:"column",gap:3}}>
-    <Input ariaLabel={`${row.mesure||"Mesure"} - ${snTitle(unit)}`} value={draft} onChange={setDraft} onBlur={commit}
-      onKeyDown={event=>{if(event.key==="Enter") event.currentTarget.blur();}}
-      readOnly={!canWrite} small style={{textAlign:"center",fontWeight:800,borderColor:status.color,background:status.background}}/>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:3}}>
+      <Input ariaLabel={`${row.mesure||"Mesure"} - ${snTitle(unit)}`} value={draft} onChange={setDraft}
+        onKeyDown={event=>{if(event.key==="Enter"&&changed) commit();if(event.key==="Escape") cancel();}}
+        readOnly={readOnly} small style={{textAlign:"center",fontWeight:800,borderColor:status.color,background:status.background}}/>
+      {canWrite&&result&&!editing&&<MiniIconBtn title={`Modifier la mesure ${snTitle(unit)}`} onClick={()=>setEditing(true)} color={C.blue}>✎</MiniIconBtn>}
+      {canWrite&&(!result||editing)&&<>
+        <MiniIconBtn title={`Enregistrer la mesure ${snTitle(unit)}`} onClick={commit} color={C.green} disabled={!changed}>✓</MiniIconBtn>
+        {(editing||draft)&&<MiniIconBtn title={`Annuler la modification ${snTitle(unit)}`} onClick={cancel} color={C.border}>×</MiniIconBtn>}
+      </>}
+      {result&&<HistoryBtn row={result} mini/>}
+    </div>
     <span style={{fontSize:9,fontWeight:800,color:status.color,textAlign:"center",whiteSpace:"nowrap"}}>{status.label}</span>
-    {result?.visa&&<span title={result.dt||""} style={{fontSize:8,color:C.muted,textAlign:"center"}}>{result.visa} · {result.dt||""}</span>}
+    {result?.visa&&<span title={result.lastEditedDT?`Mesuré ${result.dt||""} · modifié ${result.lastEditedDT} par ${result.lastEditedVisa||"?"}`:result.dt||""} style={{fontSize:8,color:C.muted,textAlign:"center"}}>
+      {result.visa} · {result.dt||""}{result.lastEditedDT?` · mod. ${result.lastEditedVisa||"?"}`:""}
+    </span>}
   </div>;
 };
 
 const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all",header={},forceShowDeleted=false}) => {
   const [showDeleted,setShowDeleted]=useState(false);
   const [excelScope,setExcelScope]=useState(activeUnitId==="all"?"all":"current");
+  const [selectedMeasureId,setSelectedMeasureId]=useState("");
   const canWrite=!!perms?.canWrite;
   const activeUnits=units.filter(unit=>!unit.deleted&&hasUnitIdentity(unit));
   const displayedUnits=activeUnitId!=="all"&&activeUnits.some(unit=>unit.id===activeUnitId)
@@ -106,6 +122,11 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
     : activeUnits;
   const rows=data.rows||[];
   const visibleRows=rows.filter(row=>forceShowDeleted||showDeleted||!row.deleted);
+  const selectableRows=visibleRows.filter(row=>!row.deleted);
+  const selectedMeasure=selectableRows.find(row=>row.id===selectedMeasureId)||selectableRows[0]||null;
+  useEffect(()=>{
+    if(selectedMeasure&&selectedMeasure.id!==selectedMeasureId) setSelectedMeasureId(selectedMeasure.id);
+  },[selectedMeasure?.id,selectedMeasureId]);
   const updateRow=(id,patch)=>onChange({...data,rows:rows.map(row=>row.id===id?{...row,...patch}:row)});
   const updatePlanField=(row,field,value,label)=>{
     const previous=String(row[field]||"");
@@ -121,13 +142,18 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
   const saveResult=(row,unit,value,existing)=>{
     const stamp={dt:nowDT(),visa:user?.trigram||"?",changes:[{label:"Valeur",from:existing?.value||"",to:value}]};
     const next=existing
-      ? (row.results||[]).map(result=>result.id===existing.id?{...result,value,visa:user?.trigram||"",dt:nowDT(),validated:!!value,
+      ? (row.results||[]).map(result=>result.id===existing.id?{...result,value,validated:!!value,
+          lastEditedVisa:user?.trigram||"",lastEditedDT:nowDT(),
           editHistory:[...(result.editHistory||[]),stamp]}:result)
       : [...(row.results||[]),{id:uid(),unitId:unit.id,value,visa:user?.trigram||"",dt:nowDT(),validated:!!value,
           deleted:false,createdVisa:user?.trigram||"",createdDT:nowDT(),comments:[]}];
     updateRow(row.id,{results:next});
   };
   const removeRow=row=>{
+    if(perms?.godMode){
+      updateRow(row.id,{deleted:true});
+      return;
+    }
     const reason=window.prompt("Motif obligatoire de l'annulation de cette mesure :","");
     if(!reason?.trim()) return;
     updateRow(row.id,{deleted:true,deletedReason:reason.trim(),deletedVisa:user?.trigram||"",deletedDate:nowDT()});
@@ -160,7 +186,65 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
       </div>
     </div>
     <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Le plan est commun à l'OF. Une mesure ajoutée ici apparaît automatiquement pour chaque SN / lot.</div>
-    <div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:5}}>
+    {activeUnitId==="all"?<div style={{display:"grid",gap:12}}>
+      <div style={{border:`1px solid ${C.border}`,borderRadius:5,overflowX:"auto"}}>
+        <table style={{borderCollapse:"collapse",width:"100%",minWidth:1030}}>
+          <thead><tr>
+            <TH w={125}>Fiche suiveuse</TH><TH w={82}>Étape / OP</TH><TH w={190}>Mesure</TH><TH w={70}>Unité</TH><TH w={78}>Min attendu</TH><TH w={78}>Max attendu</TH>
+            <TH w={160}>Avancement</TH><TH w={190}>Résultats OF</TH><TH w={80}></TH><TH w={45}>💬</TH><TH w={55}></TH>
+          </tr></thead>
+          <tbody>{visibleRows.map((row,index)=>{
+            const stats=measurementStats(row,activeUnits);
+            const statuses=activeUnits.map(unit=>measurementStatus(row,measurementResultForUnit(row,unit.id)));
+            const conforming=statuses.filter(status=>status.id==="conforming"||status.id==="information").length;
+            const nonconforming=statuses.filter(status=>status.id==="nonconforming"||status.id==="invalid").length;
+            const missing=statuses.filter(status=>status.id==="missing").length;
+            const editable=canWrite&&!row.deleted;
+            const selected=row.id===selectedMeasure?.id;
+            return <tr key={row.id} style={{opacity:row.deleted?.55:1,background:selected?C.blue+"10":row.deleted?C.red+"0b":index%2?C.raised+"55":"transparent",boxShadow:selected?`inset 3px 0 ${C.blue}`:undefined}}>
+              <TD><MeasurementField value={row.fiche} readOnly={!editable} onCommit={value=>updatePlanField(row,"fiche",value,"Fiche suiveuse")} placeholder="DOC-0013405_1" style={{minWidth:110}}/></TD>
+              <TD><MeasurementField value={row.etape} readOnly={!editable} onCommit={value=>updatePlanField(row,"etape",value,"Étape / OP")} placeholder="40" style={{minWidth:65}}/></TD>
+              <TD><MeasurementField value={row.mesure} readOnly={!editable} onCommit={value=>updatePlanField(row,"mesure",value,"Mesure")} placeholder="Tension TP1" style={{minWidth:165}}/></TD>
+              <TD><MeasurementField value={row.unite} readOnly={!editable} onCommit={value=>updatePlanField(row,"unite",value,"Unité")} placeholder="V" style={{minWidth:55}}/></TD>
+              <TD><MeasurementField value={row.min} readOnly={!editable} onCommit={value=>updatePlanField(row,"min",value,"Minimum attendu")} placeholder="Min" style={{minWidth:65,textAlign:"center"}}/></TD>
+              <TD><MeasurementField value={row.max} readOnly={!editable} onCommit={value=>updatePlanField(row,"max",value,"Maximum attendu")} placeholder="Max" style={{minWidth:65,textAlign:"center"}}/></TD>
+              <TD><div style={{fontSize:10,lineHeight:1.55,minWidth:145}}>
+                <div style={{height:5,borderRadius:3,overflow:"hidden",background:C.border,marginBottom:4}}><div style={{height:"100%",width:`${activeUnits.length?stats.count/activeUnits.length*100:0}%`,background:stats.count===activeUnits.length?C.green:C.blue}}/></div>
+                <strong>{stats.count} / {activeUnits.length}</strong> mesuré{stats.count>1?"s":""}
+                <div><span style={{color:C.green}}>✓ {conforming}</span> · <span style={{color:C.red}}>× {nonconforming}</span> · <span style={{color:C.yellow}}>○ {missing}</span></div>
+              </div></TD>
+              <TD><div style={{fontSize:10,lineHeight:1.5,minWidth:175}}>
+                <div>Min <strong>{measurementDisplayNumber(stats.min)}</strong> · Moy. <strong>{measurementDisplayNumber(stats.average)}</strong> · Max <strong>{measurementDisplayNumber(stats.max)}</strong></div>
+                {!!stats.minUnits.length&&<div title={stats.minUnits.join(" ; ")} style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Min : {stats.minUnits.join(" · ")}</div>}
+                {!!stats.maxUnits.length&&<div title={stats.maxUnits.join(" ; ")} style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Max : {stats.maxUnits.join(" · ")}</div>}
+              </div></TD>
+              <TD center>{!row.deleted&&<Btn small color={selected?C.green:C.blue} onClick={()=>setSelectedMeasureId(row.id)}>{selected?"Affichée":"Saisir"}</Btn>}</TD>
+              <TD center><CommentBtn comments={row.comments||[]} onChange={comments=>updateRow(row.id,{comments})} user={user} disabled={!perms?.canComment}/></TD>
+              <TD center>{row.deleted
+                ? isAdminManager(user)&&<IconBtn title="Restaurer cette mesure" color={C.green} onClick={()=>restoreRow(row)}>↶</IconBtn>
+                : canWrite&&<IconBtn title={perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure"} color={C.red} onClick={()=>removeRow(row)}>×</IconBtn>}</TD>
+            </tr>;
+          })}</tbody>
+        </table>
+        {!visibleRows.length&&<EmptyTableAction message="Aucune mesure définie pour cet OF" actionLabel="+ Ajouter la première mesure" onAction={addRow} canAdd={canWrite}/>}
+      </div>
+      {selectedMeasure&&<section aria-label={`Saisie ${selectedMeasure.mesure||"mesure"}`} style={{border:`1px solid ${C.blue}`,borderRadius:5,overflow:"hidden"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,padding:"8px 12px",background:C.blue+"12",borderBottom:`1px solid ${C.border}`,flexWrap:"wrap"}}>
+          <div><strong style={{fontSize:13,color:C.blue}}>{selectedMeasure.mesure||"Mesure sans nom"}</strong><span style={{fontSize:11,color:C.muted,marginLeft:8}}>{selectedMeasure.unite||"sans unité"}</span></div>
+          <div style={{fontSize:11,color:C.text}}>Attendu : <strong>{selectedMeasure.min||"-"} à {selectedMeasure.max||"-"} {selectedMeasure.unite||""}</strong></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:8,padding:10}}>
+          {activeUnits.map(unit=>{
+            const result=measurementResultForUnit(selectedMeasure,unit.id);
+            const status=measurementStatus(selectedMeasure,result);
+            return <div key={unit.id} style={{border:`1px solid ${status.color}`,borderRadius:5,padding:8,background:status.background,minWidth:0}}>
+              <div title={snTitle(unit)} style={{fontSize:11,fontWeight:800,color:C.text,marginBottom:6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{snTitle(unit)}</div>
+              <MeasurementValue row={selectedMeasure} unit={unit} user={user} canWrite={canWrite&&!selectedMeasure.deleted} onCommit={(value,existing)=>saveResult(selectedMeasure,unit,value,existing)}/>
+            </div>;
+          })}
+        </div>
+      </section>}
+    </div>:<div style={{overflowX:"auto",border:`1px solid ${C.border}`,borderRadius:5}}>
       <table style={{borderCollapse:"collapse",width:"100%",minWidth:Math.max(920,650+displayedUnits.length*126)}}>
         <thead><tr>
           <TH w={125}>Fiche suiveuse</TH><TH w={82}>Étape / OP</TH><TH w={190}>Mesure</TH><TH w={70}>Unité</TH><TH w={78}>Min attendu</TH><TH w={78}>Max attendu</TH>
@@ -187,13 +271,13 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
               </div></TD>
               <TD center><CommentBtn comments={row.comments||[]} onChange={comments=>updateRow(row.id,{comments})} user={user} disabled={!perms?.canComment}/></TD>
               <TD center>{row.deleted
-                ? isAdminManager(user)&&<Btn small color={C.green} onClick={()=>restoreRow(row)}>↶</Btn>
-                : canWrite&&<Btn small color={C.red} onClick={()=>removeRow(row)}>×</Btn>}</TD>
+                ? isAdminManager(user)&&<IconBtn title="Restaurer cette mesure" color={C.green} onClick={()=>restoreRow(row)}>↶</IconBtn>
+                : canWrite&&<IconBtn title={perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure"} color={C.red} onClick={()=>removeRow(row)}>×</IconBtn>}</TD>
             </tr>;
           })}
         </tbody>
       </table>
       {!visibleRows.length&&<EmptyTableAction message="Aucune mesure définie pour cet OF" actionLabel="+ Ajouter la première mesure" onAction={addRow} canAdd={canWrite}/>} 
-    </div>
+    </div>}
   </div>;
 };

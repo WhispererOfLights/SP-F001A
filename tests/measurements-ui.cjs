@@ -5,10 +5,9 @@ const path = require('node:path');
 const {chromium} = require(process.env.PLAYWRIGHT_PATH || 'playwright');
 
 const root = path.join(__dirname, '..');
-const units = [
-  {id:'unit-1',sn:'SN-M01',unitKind:'sn',status:'en_cours'},
-  {id:'unit-2',sn:'SN-M02',unitKind:'sn',status:'en_cours'},
-];
+const units = Array.from({length:8},(_,index)=>({
+  id:`unit-${index+1}`,sn:`SN-M${String(index+1).padStart(2,'0')}`,unitKind:'sn',status:'en_cours',
+}));
 const entry = {id:'measure-of',of:'OF-MESURE',status:'en_cours',codeArticle:'250000001',description:'Article mesure',otp:'OTP-M',_snRows:units};
 const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:{ops:[]},testequip:{rows:[]},faits:{rows:[]},etuvage:{rows:[]},demating:{connectors:[]},mesures:{rows:[]}};
 
@@ -53,12 +52,16 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     await page.getByPlaceholder('Max',{exact:true}).fill('5,2');
     await page.getByPlaceholder('Max',{exact:true}).blur();
     await page.getByLabel('Tension TP1 - SN-M01').fill('5,01');
-    await page.getByLabel('Tension TP1 - SN-M01').blur();
+    await page.getByTitle('Enregistrer la mesure SN-M01',{exact:true}).click();
     await page.getByLabel('Tension TP1 - SN-M02').fill('6,2');
-    await page.getByLabel('Tension TP1 - SN-M02').blur();
+    await page.getByTitle('Enregistrer la mesure SN-M02',{exact:true}).click();
     await page.getByText('Conforme',{exact:true}).waitFor();
     await page.getByText('Non conforme',{exact:true}).waitFor();
     assert.ok((await page.getByText(/Min 5,01 · Moy\. 5,605 · Max 6,2/).count())>0);
+    await page.getByTitle('Modifier la mesure SN-M01',{exact:true}).click();
+    await page.getByLabel('Tension TP1 - SN-M01').fill('5,05');
+    await page.getByTitle('Enregistrer la mesure SN-M01',{exact:true}).click();
+    await page.getByText(/Min 5,05 · Moy\. 5,625 · Max 6,2/).waitFor();
     const downloadPromise=page.waitForEvent('download');
     await page.getByRole('button',{name:'↓ Excel mesures',exact:true}).click();
     const download=await downloadPromise;
@@ -68,8 +71,18 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     assert.equal(stored.rows.length,1);
     assert.equal(stored.rows[0].results.length,2);
     assert.deepEqual(stored.rows[0].results.map(result=>result.unitId),['unit-1','unit-2']);
+    assert.equal(stored.rows[0].results[0].value,'5,05');
+    assert.equal(stored.rows[0].results[0].visa,'JGR');
+    assert.equal(stored.rows[0].results[0].editHistory.length,1);
+    const dialogs=[];
+    page.on('dialog',async dialog=>{dialogs.push({type:dialog.type(),message:dialog.message()});await dialog.accept();});
+    await page.getByLabel('God mode',{exact:true}).check();
+    await page.getByTitle('Effacer définitivement cette mesure',{exact:true}).click();
+    await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows.length===0);
+    assert.deepEqual(dialogs.map(dialog=>dialog.type),['confirm']);
+    assert.ok(dialogs[0].message.includes('Effacer définitivement'));
     assert.deepEqual(errors,[]);
-    console.log('Measurements UI, status calculation and Excel export verified.');
+    console.log('Measurements UI, editing, God mode deletion, status calculation and Excel export verified.');
   } finally {
     await browser.close();
   }

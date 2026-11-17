@@ -312,7 +312,11 @@ class AuthServerTests(unittest.TestCase):
         measurements = {"rows": [{
             "id": "measure-1", "mesure": "Tension TP1", "unite": "V",
             "min": "4.8", "max": "5.2", "validated": True,
-            "createdVisa": "OPR", "createdDT": "17/11/2026 15:00", "results": [],
+            "createdVisa": "OPR", "createdDT": "17/11/2026 15:00", "results": [{
+                "id": "result-1", "unitId": "unit-1", "value": "5.0",
+                "visa": "JGR", "dt": "17/11/2026 14:55", "validated": True,
+                "createdVisa": "JGR", "createdDT": "17/11/2026 14:55",
+            }],
         }]}
         status, payload, _ = self.request(
             "/api/work-orders/update-sections", "POST",
@@ -321,6 +325,24 @@ class AuthServerTests(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         self.assertEqual(payload["document"]["mesures"]["rows"][0]["mesure"], "Tension TP1")
+        result = payload["document"]["mesures"]["rows"][0]["results"][0]
+        result["value"] = "5.1"
+        result["lastEditedVisa"] = "OPR"
+        result["lastEditedDT"] = "17/11/2026 15:05"
+        result["editHistory"] = [{
+            "id": "HIST-1", "dt": "17/11/2026 15:05", "visa": "OPR",
+            "changes": [{"label": "Valeur", "from": "5.0", "to": "5.1"}],
+        }]
+        status, payload, _ = self.request(
+            "/api/work-orders/update-sections", "POST",
+            {"key": "of:test", "sections": {"mesures": payload["document"]["mesures"]}},
+            {"If-Match": payload["revision"]},
+        )
+        self.assertEqual(status, 200)
+        updated = payload["document"]["mesures"]["rows"][0]["results"][0]
+        self.assertEqual(updated["value"], "5.1")
+        self.assertEqual(updated["visa"], "JGR")
+        self.assertEqual(updated["editHistory"][0]["visa"], "OPR")
 
     def test_operator_cannot_bypass_of_identity_or_audit_rules(self):
         status, _, _ = self.request(
