@@ -1800,6 +1800,8 @@ const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null})
 
 // @include modules/mating.jsx
 
+// @include modules/measurements.jsx
+
 // @include modules/auth.jsx
 
 // @include modules/home.jsx
@@ -1812,6 +1814,7 @@ const TABS=[
   {id:"testequip",     label:"Test Équipement", short:"TST"},
   {id:"demating",      label:"Mating",         short:"MTG"},
   {id:"faits",         label:"Suivi technique", short:"SUIVI"},
+  {id:"mesures",       label:"Mesures",          short:"MES"},
 ];
 
 const SettingsModal = ({user,onClose,onUsers,onStatuses,onConsumables}) => {
@@ -3214,7 +3217,7 @@ export default function App(){
         </div>
         {headerPanel==="sn"&&(
           <TrackedSNs data={ofData.units||{}} onChange={d=>updateTab("units",d)}
-            splitHistory={ofData.lotSplits||[]} onSplitLot={(id,remaining,destinations)=>{const updated=splitTrackedLot(ofData,id,remaining,destinations,user);setOfData(updated);saveSections(["units","lotSplits","rework","consommables","testequip","faits","etuvage","demating","openwork"],updated);}}
+            splitHistory={ofData.lotSplits||[]} onSplitLot={(id,remaining,destinations)=>{const updated=splitTrackedLot(ofData,id,remaining,destinations,user);setOfData(updated);saveSections(["units","lotSplits","rework","consommables","testequip","faits","etuvage","demating","openwork","mesures"],updated);}}
             onLotQuantity={(id,qty)=>{const updated=changeTrackedLotQuantity(ofData,id,qty,user);setOfData(updated);saveSections(["units"],updated);}}
             onConvertUnit={(id,kind)=>{const updated=convertTrackedUnitKind(ofData,id,kind,user);setOfData(updated);saveSections(["units"],updated);}}
             header={h} user={user} activeUnitId={activeUnitId} onActiveUnitChange={setActiveUnitId}/>
@@ -3250,6 +3253,12 @@ export default function App(){
             <ReportHead tab="Mating"/>
             <SectionTitle>Mating</SectionTitle>
             <TabDeMating data={ofData.demating} onChange={d=>updateTab("demating",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"demating",row})}/>
+          </div>}
+          {(!printAll&&activeTab==="mesures"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
+            <ReportHead tab="Mesures"/>
+            <SectionTitle>Mesures</SectionTitle>
+            <TabMeasurements data={ofData.mesures||{}} onChange={d=>updateTab("mesures",d)} user={user} perms={perms}
+              units={snRows} activeUnitId={activeUnitChoice} header={workHeader} forceShowDeleted={printAll}/>
           </div>}
         </div>
       </div>

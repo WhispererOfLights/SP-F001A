@@ -401,7 +401,7 @@ def _business_rows(document: dict):
     sections = (
         ("units", "rows"), ("rework", "rows"), ("consommables", "ops"),
         ("etuvage", "rows"), ("testequip", "rows"), ("faits", "rows"),
-        ("openwork", "rows"), ("demating", "connectors"),
+        ("openwork", "rows"), ("demating", "connectors"), ("mesures", "rows"),
     )
     for section, collection in sections:
         rows = document.get(section, {}).get(collection, [])
@@ -416,6 +416,10 @@ def _business_rows(document: dict):
             for row in rows:
                 if isinstance(row, dict) and isinstance(row.get("events"), list):
                     yield f"{section}.{collection}.{row.get('id', '?')}.events", row["events"]
+        elif section == "mesures":
+            for row in rows:
+                if isinstance(row, dict) and isinstance(row.get("results"), list):
+                    yield f"{section}.{collection}.{row.get('id', '?')}.results", row["results"]
 
 
 def validate_of_document_update(user: dict, current: dict | None, updated: dict) -> None:
@@ -641,6 +645,7 @@ def update_work_order_sections(
     allowed_sections = {
         "units", "rework", "consommables", "etuvage", "testequip",
         "faits", "openwork", "demating", "lotSplits",
+        "mesures",
     }
     if not key.startswith("of:") or "/" in key or "\\" in key or len(key) > 200:
         raise ValueError("Dossier invalide")

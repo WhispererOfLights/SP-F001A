@@ -7,6 +7,7 @@ document update and its business rows always commit together.
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import Iterable
 
 
@@ -43,7 +44,7 @@ ROLE_CODES = {label.casefold(): code for code, label, *_ in DEFAULT_ROLES}
 LIFECYCLE_TABLES = (
     "work_orders", "of_units", "rework_operations", "consumable_operations",
     "consumable_items", "oven_runs", "equipment_operations", "technical_events",
-    "connector_operations", "connector_events",
+    "connector_operations", "connector_events", "measurement_definitions", "measurement_results",
 )
 
 
@@ -57,6 +58,15 @@ def _integer(value):
     try:
         return int(value) if value not in (None, "") else None
     except (TypeError, ValueError):
+        return None
+
+
+def _decimal(value):
+    if value in (None, ""):
+        return None
+    try:
+        return Decimal(str(value).strip().replace(" ", "").replace(",", "."))
+    except (InvalidOperation, TypeError, ValueError):
         return None
 
 
@@ -194,6 +204,25 @@ def create_schema(conn, Jsonb) -> None:
             PRIMARY KEY(document_key,connector_id,event_position),
             FOREIGN KEY(document_key,connector_id) REFERENCES connector_operations(document_key,connector_id)
                 ON DELETE CASCADE)""",
+        """CREATE TABLE IF NOT EXISTS measurement_definitions (
+            document_key TEXT NOT NULL REFERENCES work_orders(document_key) ON DELETE CASCADE,
+            measurement_id TEXT NOT NULL, line_number INTEGER, follower_sheet TEXT,
+            operation_number TEXT, measurement_name TEXT NOT NULL, unit TEXT,
+            expected_min_text TEXT, expected_min NUMERIC,
+            expected_max_text TEXT, expected_max NUMERIC,
+            validated BOOLEAN NOT NULL DEFAULT FALSE, deleted BOOLEAN NOT NULL DEFAULT FALSE,
+            created_by TEXT, created_at_text TEXT, source JSONB NOT NULL,
+            PRIMARY KEY(document_key,measurement_id))""",
+        """CREATE TABLE IF NOT EXISTS measurement_results (
+            document_key TEXT NOT NULL, measurement_id TEXT NOT NULL, result_id TEXT NOT NULL,
+            unit_id TEXT, value_text TEXT, value_numeric NUMERIC, operator_visa TEXT,
+            measured_at TEXT, validated BOOLEAN NOT NULL DEFAULT FALSE,
+            deleted BOOLEAN NOT NULL DEFAULT FALSE, created_by TEXT, created_at_text TEXT,
+            source JSONB NOT NULL, PRIMARY KEY(document_key,measurement_id,result_id),
+            FOREIGN KEY(document_key,measurement_id)
+                REFERENCES measurement_definitions(document_key,measurement_id) ON DELETE CASCADE,
+            FOREIGN KEY(document_key,unit_id) REFERENCES of_units(document_key,unit_id)
+                ON DELETE CASCADE)""",
         """CREATE TABLE IF NOT EXISTS operation_unit_scopes (
             document_key TEXT NOT NULL REFERENCES work_orders(document_key) ON DELETE CASCADE,
             owner_table TEXT NOT NULL, owner_id TEXT NOT NULL, unit_id TEXT NOT NULL,
@@ -239,6 +268,8 @@ def create_schema(conn, Jsonb) -> None:
         "CREATE INDEX IF NOT EXISTS rework_document_idx ON rework_operations(document_key)",
         "CREATE INDEX IF NOT EXISTS consumable_items_catalog_idx ON consumable_items(consumable_id)",
         "CREATE INDEX IF NOT EXISTS technical_events_number_idx ON technical_events(event_number)",
+        "CREATE INDEX IF NOT EXISTS measurement_definitions_document_idx ON measurement_definitions(document_key)",
+        "CREATE INDEX IF NOT EXISTS measurement_results_unit_idx ON measurement_results(document_key,unit_id)",
         "CREATE INDEX IF NOT EXISTS comments_owner_idx ON comments(document_key,owner_table,owner_id)",
     )
     for statement in indexes:
@@ -445,6 +476,7 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
         ("testequip", "rows", "equipment_operations"),
         ("faits", "rows", "technical_events"),
         ("demating", "connectors", "connector_operations"),
+        ("mesures", "rows", "measurement_definitions"),
     )
     for section, collection, table in section_specs:
         for position, row in enumerate(_rows(_object(document.get(section)).get(collection))):
@@ -536,6 +568,44 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
                      _text(row.get("closedVisa")), _text(row.get("closedDate")), common[1], common[2],
                      common[3], common[4], Jsonb(row)),
                 )
+            elif table == "measurement_definitions":
+                conn.execute(
+                    """INSERT INTO measurement_definitions(document_key,measurement_id,line_number,
+                       follower_sheet,operation_number,measurement_name,unit,expected_min_text,
+                       expected_min,expected_max_text,expected_max,validated,deleted,created_by,
+                       created_at_text,source)
+                       VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    (key, row_id, _integer(row.get("lineNo")) or position + 1,
+                     _text(row.get("fiche")), _text(row.get("etape")),
+                     _text(row.get("mesure")) or "Mesure", _text(row.get("unite")),
+                     _text(row.get("min")), _decimal(row.get("min")),
+                     _text(row.get("max")), _decimal(row.get("max")),
+                     common[1], common[2], common[3], common[4], Jsonb(row)),
+                )
+                for result_position, result in enumerate(_rows(row.get("results"))):
+                    result = _object(result)
+                    result_id = str(result.get("id") or f"position-{result_position}")
+                    unit_id = _text(result.get("unitId"))
+                    if unit_id and not conn.execute(
+                        "SELECT 1 FROM of_units WHERE document_key=%s AND unit_id=%s", (key, unit_id)
+                    ).fetchone():
+                        unit_id = None
+                    conn.execute(
+                        """INSERT INTO measurement_results(document_key,measurement_id,result_id,unit_id,
+                           value_text,value_numeric,operator_visa,measured_at,validated,deleted,
+                           created_by,created_at_text,source)
+                           VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (key, row_id, result_id, unit_id, _text(result.get("value")),
+                         _decimal(result.get("value")), _text(result.get("visa")),
+                         _text(result.get("dt")), _boolean(result.get("validated")),
+                         _boolean(result.get("deleted")), _text(result.get("createdVisa")),
+                         _text(result.get("createdDT")), Jsonb(result)),
+                    )
+                    _set_lifecycle(
+                        conn, "measurement_results", key, "result_id", result_id, result,
+                        " AND measurement_id=%s", (row_id,),
+                    )
+                    _add_comments(conn, Jsonb, key, "measurement_results", result_id, result)
             else:
                 conn.execute(
                     """INSERT INTO connector_operations(document_key,connector_id,unit_id,connector_number,
@@ -569,6 +639,7 @@ def _sync_work_order(conn, key, payload, revision, updated_at, Jsonb):
                 "equipment_operations": "operation_id",
                 "technical_events": "event_id",
                 "connector_operations": "connector_id",
+                "measurement_definitions": "measurement_id",
             }
             _set_lifecycle(conn, table, key, id_columns[table], row_id, row)
             _add_scopes(conn, key, table, row_id, row)
@@ -615,5 +686,6 @@ def table_counts(conn) -> dict[str, int]:
         "users", "work_orders", "of_units", "rework_operations", "consumable_operations",
         "consumable_items", "oven_runs", "equipment_operations", "technical_events",
         "connector_operations", "comments", "consumable_catalog", "status_types",
+        "measurement_definitions", "measurement_results",
     )
     return {table: int(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]) for table in tables}

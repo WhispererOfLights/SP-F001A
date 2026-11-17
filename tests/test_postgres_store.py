@@ -5,6 +5,7 @@ import threading
 import unittest
 import urllib.request
 import uuid
+from decimal import Decimal
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
@@ -80,6 +81,13 @@ class PostgresStoreTests(unittest.TestCase):
                                         "events":[{"action":"M","visa":"TST","deleted":True,
                                                    "deletedReason":"Mauvais connecteur","deletedVisa":"TST",
                                                    "deletedDate":"21/10/2026 08:15"}]}]},
+            "mesures":{"rows":[{"id":"measure-1","fiche":"DOC-001_1","etape":"40",
+                                   "mesure":"Tension TP1","unite":"V","min":"4,8","max":"5.2",
+                                   "createdVisa":"TST","validated":True,"results":[
+                                       {"id":"result-1","unitId":"unit-1","value":"5,01",
+                                        "visa":"TST","dt":"21/10/2026 08:20","validated":True,
+                                        "comments":[{"id":"mc1","visa":"TST","text":"Valeur stable"}]}
+                                   ]}]},
         }
         server.storage_put(DATABASE_URL,"status-types",json.dumps(statuses),0,True)
         server.storage_put(DATABASE_URL,"consommables-list",json.dumps(consumables),0,True)
@@ -92,8 +100,17 @@ class PostgresStoreTests(unittest.TestCase):
             self.assertEqual(conn.execute("SELECT count(*) FROM of_units").fetchone()[0],1)
             for table in ("rework_operations","consumable_operations","consumable_items","oven_runs",
                           "equipment_operations","technical_events","connector_operations",
-                          "connector_events","comments"):
+                          "connector_events","measurement_definitions","measurement_results"):
                 self.assertEqual(conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0],1,table)
+            self.assertEqual(conn.execute("SELECT count(*) FROM comments").fetchone()[0],2)
+            self.assertEqual(
+                conn.execute("SELECT measurement_name,expected_min,expected_max FROM measurement_definitions").fetchone(),
+                ("Tension TP1",Decimal("4.8"),Decimal("5.2")),
+            )
+            self.assertEqual(
+                conn.execute("SELECT unit_id,value_numeric,operator_visa FROM measurement_results").fetchone(),
+                ("unit-1",Decimal("5.01"),"TST"),
+            )
             self.assertEqual(
                 conn.execute("SELECT deletion_reason,deleted_by,deleted_at_text FROM rework_operations").fetchone(),
                 ("Erreur de saisie","TST","21/10/2026 08:00"),
@@ -111,7 +128,7 @@ class PostgresStoreTests(unittest.TestCase):
         server.storage_put(DATABASE_URL,"of:relational-of",json.dumps(document),1,True)
         with postgres_store.connect_database(DATABASE_URL) as conn:
             self.assertEqual(conn.execute("SELECT count(*) FROM rework_operations").fetchone()[0],0)
-            self.assertEqual(conn.execute("SELECT count(*) FROM comments").fetchone()[0],0)
+            self.assertEqual(conn.execute("SELECT count(*) FROM comments").fetchone()[0],1)
 
     def test_server_helpers_use_postgresql_backend(self):
         entry={"id":"pg-of","of":"PG100","status":"en_cours"}

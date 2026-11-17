@@ -302,6 +302,26 @@ class AuthServerTests(unittest.TestCase):
         self.assertEqual(payload["document"]["testequip"]["rows"][0]["nInv"], "FOUR-42")
         self.assertEqual(payload["document"]["header"]["of"], document["header"]["of"])
 
+    def test_operator_can_update_measurements_section(self):
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}
+        )
+        self.assertEqual(status, 200)
+        status, _, headers = self.request("/api/storage/of%3Atest")
+        self.assertEqual(status, 200)
+        measurements = {"rows": [{
+            "id": "measure-1", "mesure": "Tension TP1", "unite": "V",
+            "min": "4.8", "max": "5.2", "validated": True,
+            "createdVisa": "OPR", "createdDT": "17/11/2026 15:00", "results": [],
+        }]}
+        status, payload, _ = self.request(
+            "/api/work-orders/update-sections", "POST",
+            {"key": "of:test", "sections": {"mesures": measurements}},
+            {"If-Match": headers["ETag"]},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["document"]["mesures"]["rows"][0]["mesure"], "Tension TP1")
+
     def test_operator_cannot_bypass_of_identity_or_audit_rules(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "OPR", "password": "op-test"}

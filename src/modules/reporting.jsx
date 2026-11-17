@@ -252,6 +252,7 @@ const REPORT_SECTIONS=[
   {id:"testequip",label:"Test Équipement",title:"Test Equip."},
   {id:"demating",label:"Mating/Demating",title:"Mating / Demating"},
   {id:"faits",label:"Suivi technique",title:"Suivi technique"},
+  {id:"mesures",label:"Mesures",title:"Mesures"},
 ];
 
 const buildSimplePdf = ({width,height,pages,logoImage=null}) => {
@@ -861,6 +862,19 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       compactItems("Calibrations bientôt expirées",equipmentSoon),
     ].filter(Boolean).forEach(item=>open.push(item));
 
+    const measurementRows=(ofData?.mesures?.rows||[]).filter(row=>!row.deleted);
+    const nonconformingMeasurements=measurementRows.filter(row=>{
+      const result=measurementResultForUnit(row,unit.id);
+      return ["nonconforming","invalid"].includes(measurementStatus(row,result).id);
+    });
+    const missingMeasurements=measurementRows.filter(row=>
+      measurementStatus(row,measurementResultForUnit(row,unit.id)).id==="missing"
+    );
+    const measurementAlert=compactItems("Mesures non conformes",nonconformingMeasurements.map(row=>row.mesure||"mesure ?"));
+    const measurementOpen=compactItems("Mesures à réaliser",missingMeasurements.map(row=>row.mesure||"mesure ?"));
+    if(measurementAlert) alerts.push(measurementAlert);
+    if(measurementOpen) open.push(measurementOpen);
+
     const facts=unitRows(effectiveScopedRows(ofData,"faits"),unit).filter(row=>!row.closedDate);
     const ovens=unitRows(effectiveScopedRows(ofData,"etuvage"),unit);
     const runningOvens=ovens.filter(row=>!isVacuumExit(row)&&row.entreeDT&&!row.sortieDT);
@@ -1065,6 +1079,27 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       ],c))];
     });
     section("Mating / Demating",["Connecteur","Cycle","Mating date","Visa M","Demating date","Visa D"],demRows,[22,14,44,18,44,18],unit);
+
+    const measurementRows=(ofData?.mesures?.rows||[]).filter(row=>includeDeleted||!row?.deleted).map(row=>{
+      const result=measurementResultForUnit(row,unit.id);
+      const status=measurementStatus(row,result);
+      const stats=measurementStats(row,activeUnits);
+      const observed=`${measurementDisplayNumber(stats.min)} / ${measurementDisplayNumber(stats.average)} / ${measurementDisplayNumber(stats.max)}`;
+      const concerned=[...new Set([...(stats.minUnits||[]),...(stats.maxUnits||[])])].join(" ; ")||"-";
+      const base=rowPdfWithComments([
+        row.fiche||"N/A",row.etape||"N/A",row.mesure||"N/A",row.unite||"-",row.min||"-",
+        result?.value||"MANQUANT",row.max||"-",status.label,observed,concerned,result?.visa||"-",result?.dt||"-",
+      ],row,commentsForPdf(result));
+      const statusStyle=status.id==="nonconforming"||status.id==="invalid"
+        ? {fill:"0.99 0.91 0.91",color:color.red,bold:true}
+        : status.id==="missing"
+          ? {fill:"0.99 0.96 0.84",color:color.warn,bold:true}
+          : status.id==="conforming"
+            ? {fill:"0.88 0.96 0.90",color:color.green,bold:true}
+            : {fill:"0.90 0.93 0.97",color:color.muted,bold:true};
+      return {...base,cellStyles:{5:statusStyle,7:statusStyle}};
+    });
+    section("Mesures",["Fiche suiveuse","Etape / OP","Mesure","Unite","Min attendu","Valeur SN","Max attendu","Statut","OF min / moy. / max","SN extremes","Visa","Date"],measurementRows,[25,15,40,12,16,18,16,20,33,38,13,24],unit);
 
   });
 

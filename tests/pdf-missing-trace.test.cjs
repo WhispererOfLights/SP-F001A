@@ -71,6 +71,15 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   assert.ok(equipmentPdf.includes('(ALERTES)')&&equipmentPdf.includes('Appareils hors calibration'),'Expired equipment appears in the summary');
   assert.ok(equipmentPdf.includes('INV-HS')&&!equipmentPdf.includes('INV-OTHER'),'Summary and table respect the selected SN');
   assert.ok(/\/F2 6\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(2025-06\)/.test(equipmentPdf),'Expired calibration date is red and bold');
+  const measurementsPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
+    units:{rows:units},mesures:{rows:[{id:'measure-1',fiche:'DOC-TEST_1',etape:'50',mesure:'Tension TP1',unite:'V',min:'4.8',max:'5.2',results:[
+      {id:'mr1',unitId:'u1',value:'6.2',visa:'JGR',dt:'18/09/2026 09:00'},
+      {id:'mr2',unitId:'u2',value:'5.0',visa:'JMA',dt:'18/09/2026 09:01'},
+    ]}]}} ,lists:{},exportedAt:'18/09/2026 09:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['mesures']}).text();
+  assert.ok(measurementsPdf.includes('(Mesures)')&&measurementsPdf.includes('Tension TP1'),'Measurements have a dedicated PDF section');
+  assert.ok(measurementsPdf.includes('(Non conforme)')&&measurementsPdf.includes('(ALERTES)'),'A nonconforming measurement is red-flagged on the summary cover');
+  assert.ok(measurementsPdf.includes('5,6'),'The PDF reports the OF average across both SN values');
+  assert.ok(measurementsPdf.includes('SN1')&&measurementsPdf.includes('SN2'),'The PDF identifies the SN carrying the observed extrema');
   const matingPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},demating:{connectors:[{id:'j3',nConect:'J3',snIds:['u1'],events:[
       {id:'d1',action:'Demating',dt:'18/09/2026 08:00',visa:'JGR'},
