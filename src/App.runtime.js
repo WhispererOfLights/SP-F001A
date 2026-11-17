@@ -18392,7 +18392,7 @@ var measurementStatus = function measurementStatus(row, result) {
     background: C.border + "28"
   } : {
     id: "invalid",
-    label: "Valeur invalide",
+    label: "Résultat non numérique",
     color: C.red,
     background: C.red + "18"
   };
@@ -18417,7 +18417,7 @@ var measurementStatus = function measurementStatus(row, result) {
 };
 var measurementStats = function measurementStats(row) {
   var units = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : [];
-  var values = units.map(function (unit) {
+  var measured = units.map(function (unit) {
     var result = measurementResultForUnit(row, unit.id);
     return {
       unit: unit,
@@ -18425,10 +18425,15 @@ var measurementStats = function measurementStats(row) {
       value: measurementNumber(result === null || result === void 0 ? void 0 : result.value)
     };
   }).filter(function (item) {
+    var _item$result$value, _item$result;
+    return String((_item$result$value = (_item$result = item.result) === null || _item$result === void 0 ? void 0 : _item$result.value) !== null && _item$result$value !== void 0 ? _item$result$value : "").trim();
+  });
+  var values = measured.filter(function (item) {
     return item.value !== null;
   });
   if (!values.length) return {
-    count: 0,
+    count: measured.length,
+    numericCount: 0,
     min: null,
     max: null,
     average: null,
@@ -18441,7 +18446,8 @@ var measurementStats = function measurementStats(row) {
   var min = Math.min.apply(Math, _toConsumableArray(numbers)),
     max = Math.max.apply(Math, _toConsumableArray(numbers));
   return {
-    count: values.length,
+    count: measured.length,
+    numericCount: values.length,
     min: min,
     max: max,
     average: numbers.reduce(function (sum, value) {
@@ -18781,12 +18787,15 @@ var TabMeasurements = function TabMeasurements(_ref106) {
     }])));
   };
   var addRow = function addRow() {
-    return onChange(_objectSpread(_objectSpread({}, data), {}, {
+    var previous = _toConsumableArray(rows).reverse().find(function (row) {
+      return !row.deleted;
+    });
+    onChange(_objectSpread(_objectSpread({}, data), {}, {
       rows: [].concat(_toConsumableArray(rows), [{
         id: uid(),
         lineNo: rows.length + 1,
-        fiche: "",
-        etape: "",
+        fiche: (previous === null || previous === void 0 ? void 0 : previous.fiche) || "",
+        etape: (previous === null || previous === void 0 ? void 0 : previous.etape) || "",
         mesure: "",
         unite: "",
         min: "",

@@ -15,7 +15,7 @@ const measurementStatus = (row,result) => {
   const value=measurementNumber(raw);
   if(value===null) return min===null&&max===null
     ? {id:"information",label:"Informatif",color:C.muted,background:C.border+"28"}
-    : {id:"invalid",label:"Valeur invalide",color:C.red,background:C.red+"18"};
+    : {id:"invalid",label:"Résultat non numérique",color:C.red,background:C.red+"18"};
   if(min!==null&&value<min || max!==null&&value>max)
     return {id:"nonconforming",label:"Non conforme",color:C.red,background:C.red+"18"};
   if(min===null&&max===null)
@@ -24,15 +24,16 @@ const measurementStatus = (row,result) => {
 };
 
 const measurementStats = (row,units=[]) => {
-  const values=units.map(unit=>{
+  const measured=units.map(unit=>{
     const result=measurementResultForUnit(row,unit.id);
     return {unit,result,value:measurementNumber(result?.value)};
-  }).filter(item=>item.value!==null);
-  if(!values.length) return {count:0,min:null,max:null,average:null,minUnits:[],maxUnits:[]};
+  }).filter(item=>String(item.result?.value??"").trim());
+  const values=measured.filter(item=>item.value!==null);
+  if(!values.length) return {count:measured.length,numericCount:0,min:null,max:null,average:null,minUnits:[],maxUnits:[]};
   const numbers=values.map(item=>item.value);
   const min=Math.min(...numbers),max=Math.max(...numbers);
   return {
-    count:values.length,min,max,average:numbers.reduce((sum,value)=>sum+value,0)/numbers.length,
+    count:measured.length,numericCount:values.length,min,max,average:numbers.reduce((sum,value)=>sum+value,0)/numbers.length,
     minUnits:values.filter(item=>item.value===min).map(item=>snTitle(item.unit)),
     maxUnits:values.filter(item=>item.value===max).map(item=>snTitle(item.unit)),
   };
@@ -166,10 +167,13 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
       id:uid(),dt:nowDT(),visa:user?.trigram||"?",changes:[{label,from:previous,to:value}],
     }]});
   };
-  const addRow=()=>onChange({...data,rows:[...rows,{
-    id:uid(),lineNo:rows.length+1,fiche:"",etape:"",mesure:"",unite:"",min:"",max:"",results:[],comments:[],
-    validated:true,deleted:false,createdVisa:user?.trigram||"",createdDT:nowDT(),
-  }]});
+  const addRow=()=>{
+    const previous=[...rows].reverse().find(row=>!row.deleted);
+    onChange({...data,rows:[...rows,{
+      id:uid(),lineNo:rows.length+1,fiche:previous?.fiche||"",etape:previous?.etape||"",mesure:"",unite:"",min:"",max:"",results:[],comments:[],
+      validated:true,deleted:false,createdVisa:user?.trigram||"",createdDT:nowDT(),
+    }]});
+  };
   const saveResult=(row,unit,value,existing)=>{
     let reason="";
     if(existing&&value!==String(existing.value||"")){
