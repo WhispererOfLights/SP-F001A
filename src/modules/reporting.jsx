@@ -1084,7 +1084,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const result=measurementResultForUnit(row,unit.id);
       const status=measurementStatus(row,result);
       const stats=measurementStats(row,activeUnits);
-      const observed=`${measurementDisplayNumber(stats.min)} / ${measurementDisplayNumber(stats.average)} / ${measurementDisplayNumber(stats.max)}`;
+      const observed=`${measurementDisplayNumber(stats.min)} / ${measurementDisplayAverage(stats.average)} / ${measurementDisplayNumber(stats.max)}`;
       const concerned=[...new Set([...(stats.minUnits||[]),...(stats.maxUnits||[])])].join(" ; ")||"-";
       const base=rowPdfWithComments([
         row.fiche||"N/A",row.etape||"N/A",row.mesure||"N/A",row.unite||"-",row.min||"-",
