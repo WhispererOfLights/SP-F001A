@@ -1,0 +1,306 @@
+# SP-F001A7 Suivi de production
+
+## Documentation fonctionnelle et technique
+
+**Version documentée :** v345  
+**Date :** 18 novembre 2026  
+**Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
+
+## 1. Objet du document
+
+SP-F001A7 est une application interne de suivi de production par ordre de fabrication (OF) et par numéro de série ou lot. Elle centralise les opérations réalisées, les consommables, les étuvages, les équipements de test, les événements de mating/demating, les faits techniques et les mesures. Elle produit également les rapports, étiquettes, exports et messages standardisés nécessaires aux échanges entre la production, la qualité et la logistique.
+
+Ce document présente ce qui est déjà disponible dans le pilote, les règles de traçabilité et de protection des données, les conditions de maintenance et les sujets qui restent volontairement en réflexion. Il doit permettre à un autre responsable d'atelier d'évaluer si le principe est utile pour son activité, sans considérer les pistes futures comme des fonctions déjà validées.
+
+## 2. État actuel du pilote
+
+Le pilote est utilisé sur le réseau interne depuis un poste Windows. L'application est servie par une API Python et utilise PostgreSQL comme source de vérité. Le serveur redémarre automatiquement au démarrage de Windows, sans ouverture de session utilisateur. Les déploiements sont bloqués si les tests échouent et chaque version remplace la précédente après création d'une sauvegarde du paquet de production.
+
+La solution est fonctionnelle pour un usage atelier, mais l'hébergement reste provisoire. Une mise en ligne institutionnelle devra transférer l'application, PostgreSQL, les sauvegardes et la supervision vers une infrastructure administrée par l'IT, avec une adresse pérenne et HTTPS.
+
+## 3. Principes d'utilisation
+
+- Un dossier représente un OF.
+- Un OF contient un ou plusieurs SN ou lots.
+- Les informations communes restent attachées à l'OF; les opérations terrain sont rattachées au SN ou au lot concerné.
+- Une consultation d'un OF ne rend pas automatiquement l'utilisateur « impliqué » dans cet OF. L'implication est déduite des opérations réellement enregistrées.
+- Les lignes validées conservent le visa et la date de l'auteur.
+- Les annulations, suppressions et corrections restent traçables. Les Admin et Manager disposent d'outils supplémentaires encadrés.
+- Les actions secondaires d'une ligne sont accessibles par clic droit afin de garder les tableaux lisibles. Les actions métier immédiates restent visibles.
+
+## 4. Profils et droits
+
+### 4.1 Utilisateurs
+
+Chaque utilisateur possède un trigramme, un nom, un prénom, un rôle, une adresse email éventuelle et un état actif ou inactif. La désactivation d'un compte empêche une nouvelle connexion sans supprimer les opérations historiques de cet utilisateur.
+
+### 4.2 Rôles
+
+- **Opérateur :** saisie et validation des opérations autorisées.
+- **Contrôleur :** saisie des contrôles et validation des champs de contrôle selon le processus.
+- **Manager :** droits métier étendus, correction contrôlée des visas et dates, gestion de certains référentiels et utilisateurs.
+- **Admin :** administration complète, paramètres et mode God pour les opérations exceptionnelles.
+- **Lecture seule :** consultation sans écriture.
+
+Les autorisations sont contrôlées par le serveur. Le fait de masquer un bouton dans l'interface n'est pas considéré comme une protection suffisante.
+
+### 4.3 Authentification
+
+Les mots de passe sont hachés avec PBKDF2-HMAC-SHA256, un sel aléatoire et 240 000 itérations. Ils ne sont jamais renvoyés au navigateur. Les sessions utilisent un cookie HttpOnly et expirent après 15 minutes d'inactivité. Un mot de passe temporaire doit être remplacé lors de la première connexion ou après une réinitialisation.
+
+## 5. Écran d'accueil
+
+L'accueil donne une vue opérationnelle des OF et sert de point de départ aux actions multi-OF ou multi-SN.
+
+### 5.1 Recherche et filtres
+
+- Recherche globale sur les informations principales, y compris OF, article, description, SN, lot, OTP et personnes ayant réellement travaillé sur l'OF.
+- Filtres par colonne avec jokers : `R*` commence par R, `*R` finit par R, `*R4B*` contient R4B et `R4*-S*` combine plusieurs motifs.
+- Vues « Tous », « Mes OF » et « À surveiller ».
+- Masquage des états finaux pour limiter le bruit.
+- Mode Confort ou Compact selon la taille de l'écran.
+
+### 5.2 Suivi du jour
+
+- Polymérisations en cours avec prochaine heure de disponibilité.
+- Étuvages à faire ce soir, regroupés par OF et SN/lot.
+- Anticipation au vendredi soir lorsqu'une échéance tombe pendant le week-end.
+- Mise en évidence des étuvages en retard uniquement lorsqu'un premier étuvage existe déjà.
+- Alerte dans le dossier concerné et accès direct à l'onglet Étuvages.
+
+### 5.3 Actions depuis l'accueil
+
+- Ouverture d'un dossier au bon SN ou lot.
+- Sélection de plusieurs lignes.
+- Copie au presse-papiers sous forme de vrais tableaux adaptés aux SN, lots ou sélections mixtes.
+- Génération groupée de rapports, d'exports Excel SAP et d'étiquettes.
+- Menus au clic droit pour les actions secondaires sur un OF.
+
+## 6. Dossier OF et navigation SN ou lot
+
+L'en-tête du dossier affiche l'OF, l'article SAP, la description, le SN ou lot, l'OTP, le caractère de reprise et le statut. Les flèches précédent/suivant et les touches `Ctrl+Flèche gauche` ou `Ctrl+Flèche droite` permettent de changer rapidement de SN. Les flèches sont masquées lorsqu'il n'existe qu'un seul SN ou lot.
+
+Les commentaires peuvent être rattachés aux lignes métier et au SN ou lot concerné. Les liens profonds conservent l'OF, le SN ou lot et l'onglet à ouvrir. Le chemin du dossier photos de l'OF peut être copié pour être ouvert dans l'Explorateur Windows ou ajouté aux messages.
+
+## 7. Fonctions par onglet
+
+### 7.1 Adjust Rework
+
+- Enregistrement des opérations soudé, dessoudé, pointé, matière, rework et observation.
+- Référence topologique, article SAP, valeur ou description, lot, date code, SN composant, fiche suiveuse, étape ou OP, visas et contrôles.
+- Distinction entre ligne en préparation et ligne validée.
+- Import d'un plan de travail depuis le presse-papiers sous forme de brouillon.
+- Attribution de la ligne importée à l'opérateur qui la complète et la valide.
+- Remarques importées placées dans la bulle de commentaires plutôt que dans une ligne métier artificielle.
+- Lignes Observation toujours visibles.
+- Copie d'une ligne dans le même SN, vers plusieurs SN ou vers un autre OF.
+- Détection des composants dessoudés sans opération ultérieure et des contrôles manquants.
+- Détection des changements de valeur. Une référence ISS, DM ou NC peut justifier une valeur différente; une référence DOC exige normalement la même valeur sauf cas ADJ.
+- Proposition des faits techniques déjà présents sur le SN.
+- Sélection de composants pour produire une demande matière standardisée à la logistique.
+- Étiquette composant et historique disponibles par clic droit.
+
+### 7.2 Consommables
+
+- Catalogue administrable avec article SAP, désignation, catégorie et durée de polymérisation éventuelle.
+- Enregistrement par SN ou lot avec fiche suiveuse, OP, lot consommable, date de péremption, numéro d'échantillon, quantité et traçabilité.
+- Quantité par défaut de 1 pour les consommables.
+- Alerte visuelle « bientôt périmé » calculée au moment de l'utilisation. Cette information reste une aide dans l'interface et n'est pas transformée en non-conformité dans le PDF.
+- Calcul du temps de polymérisation ou de séchage pour les produits configurés, avec la date la plus éloignée retenue lorsque plusieurs produits s'appliquent.
+- Regroupement CO02 par article et lot dans un même OF avec addition des quantités.
+
+### 7.3 Étuvages
+
+- Enregistrement de l'entrée, de la sortie et du four utilisé.
+- Cycle de suivi basé sur 72 heures depuis le dernier étuvage pertinent.
+- Affichage du prochain étuvage prévu plutôt que d'une formulation ambiguë « en retard » dans le rapport PDF.
+- Fermeture automatique d'une sortie oubliée en N/A lorsqu'un nouvel étuvage est lancé.
+- Opération « Sortie vide » possible sans four; elle réinitialise le cycle comme un étuvage normal.
+- Gestion des échéances du week-end par anticipation au vendredi soir.
+- Possibilité d'écarter du suivi les sous-ensembles qui ne sont plus physiquement suivis dans cet OF, selon leur statut opérationnel.
+
+### 7.4 Test Équipement
+
+- Enregistrement de l'inventaire, du type, de la désignation, du four éventuel, de la date de calibration et du contrôle.
+- Une calibration `N/A` est acceptée pour les appareils de production non soumis à calibration.
+- Les dates dépassées sont mises en évidence dans l'interface et en rouge dans le rapport.
+- Les contrôles serveur empêchent les écritures non autorisées.
+
+### 7.5 Mating Demating
+
+- Définition des connecteurs et suivi des cycles de mating/demating.
+- Nom du connecteur présent dans les tableaux et les rapports.
+- Historique daté avec visa et nombre de cycles.
+- Actions opérationnelles visibles; annulation d'un événement accessible par clic droit.
+
+### 7.6 Suivi technique
+
+- Enregistrement des faits, NC, ISS, DM, OW et autres références techniques.
+- Statut ouvert ou clôturé, dates, visas et commentaires.
+- Résumé dans l'accueil et sur la page de garde des rapports.
+- Étiquettes de suivi ne reprenant que le numéro du fait dans le texte principal.
+
+### 7.7 Mesures
+
+- Plan de mesures commun à l'OF avec fiche suiveuse, étape ou OP, libellé, unité, minimum et maximum attendus.
+- Grille type Excel : SN ou lots en lignes, mesures en colonnes et navigation au clavier avec Tab.
+- Même présentation pour un SN unique ou plusieurs SN.
+- Valeurs numériques ou résultat textuel tel que « pas de signal », qui compte comme une mesure effectuée.
+- Statut conforme, non conforme, informatif ou à mesurer avec code couleur.
+- Modification volontaire d'une mesure existante, commentaires et historique.
+- Annulation et suppression définitive réservée au mode God selon les droits.
+- Statistiques par OF : minimum, moyenne arrondie à deux décimales et maximum, avec identification des SN concernés.
+- Export Excel reprenant la même logique de grille.
+- Rapport PDF complet des mesures.
+
+Cette fonction est disponible dans le pilote, mais ses règles métier ne sont pas encore considérées comme définitives. La robustesse attendue doit être précisée avec les responsables : types de valeurs autorisés, unités, tolérances, répétitions, instruments, arrondis, gestion des valeurs impossibles, validation et verrouillage après contrôle.
+
+## 8. Rapports, exports et communications
+
+### 8.1 Rapports PDF
+
+- Rapport complet ou sélection d'onglets.
+- Sélection d'un ou plusieurs SN ou lots.
+- Page de garde avec points ouverts et alertes pour le périmètre sélectionné.
+- En-tête cohérent : OTP, OF, article, description, SN ou lot et quantité si pertinente.
+- Remarques associées au repère topologique concerné.
+- Mise en évidence des N/A utiles sans les présenter automatiquement comme des erreurs.
+- Rapport Mesures dédié avec résultats et statistiques de l'OF.
+
+### 8.2 Étiquettes
+
+- Kitting.
+- Log fab, avec SN mis en avant.
+- Mise en stock.
+- Collage ou coating avec produit, début et fin de polymérisation.
+- Information de suivi technique.
+- Composants dessoudés.
+- Variantes portrait et paysage.
+- Génération d'un lot contenant plusieurs types d'étiquettes.
+- Types indisponibles grisés; aucune étiquette vide n'est produite pour un SN non éligible.
+
+### 8.3 Excel et presse-papiers
+
+- Export SAP IB52 et CO02.
+- Première colonne « Valeur - description » pour une lecture humaine.
+- Les numéros d'échantillon de consommables ne sont pas placés dans le champ SN IB52.
+- Regroupement CO02 des mêmes articles et lots avec somme des quantités.
+- Export Mesures sous forme de grille.
+- Copie au presse-papiers avec colonnes OF, article, description, SN ou lot, quantité si lot et OTP.
+
+### 8.4 Messages standardisés
+
+- Demande matière à la logistique.
+- Invitation Outlook pour IP avec lieu, participants requis et facultatifs, opérateurs impliqués et lien vers le dossier photos.
+- Mention de transmission ultérieure de l'As-Built lorsqu'il n'est pas joint.
+- Mention que l'horaire peut être décalé selon la disponibilité PA.
+- Préparation de messages de clôture d'OF selon le même principe de standardisation.
+
+## 9. Traçabilité et intégrité des données
+
+### 9.1 Historique métier
+
+- Visa et date de création conservés sur les lignes validées.
+- Corrections de visa ou de date réservées aux Admin et Manager, avec ancien contenu, nouveau contenu, auteur, motif et date de correction.
+- Une correction de date peut conserver le visa existant.
+- Suppression logique privilégiée pour conserver les traces.
+- Motif de suppression demandé selon le rôle et le contexte; le mode God couvre les interventions exceptionnelles.
+- Comptes désactivés conservés afin que leurs activités historiques restent attribuées.
+
+### 9.2 Écritures atomiques PostgreSQL
+
+Chaque dossier possède une révision. Le navigateur transmet la révision qu'il a lue et le serveur refuse une écriture devenue obsolète avec une réponse HTTP 409. L'utilisateur peut alors recharger ou réessayer au lieu d'écraser silencieusement le travail d'un collègue.
+
+PostgreSQL conserve une représentation JSONB exhaustive du dossier et des tables relationnelles pour l'exploitation et le reporting. Les deux représentations sont mises à jour dans la même transaction. Si une projection relationnelle, une contrainte ou une écriture échoue, la transaction entière est annulée : le dossier ne doit pas rester à moitié enregistré.
+
+Les clés étrangères, contrôles de rôle, validations de structure et règles d'audit sont appliqués côté serveur. Une future maintenance ne doit pas contourner l'API par des modifications manuelles directes en base, sauf procédure IT contrôlée, sauvegardée et testée.
+
+### 9.3 Mesures de protection contre la corruption
+
+- Transactions PostgreSQL pour chaque modification cohérente.
+- Contrôle de révision contre les écrasements concurrents.
+- Validation des identités OF et des sections modifiables.
+- Contrôle des visas et droits côté serveur.
+- Tests automatiques de migration, persistance, droits, rapports, exports et interface.
+- Déploiement bloqué lorsqu'un test échoue.
+- Sauvegarde du paquet précédent à chaque déploiement.
+- Sauvegarde PostgreSQL quotidienne avec conservation configurée sur 60 jours.
+- Restauration déjà vérifiée manuellement dans une base temporaire isolée.
+
+La protection absolue n'existe pas. La cible IT devra ajouter une supervision, des sauvegardes gérées hors du poste pilote, un test automatique périodique de restauration, une politique de mise à jour PostgreSQL et une procédure documentée d'incident.
+
+## 10. Maintenance et organisation du code
+
+Le code est versionné dans GitLab et répliqué sur GitHub. Le runtime navigateur est généré à partir des sources; il ne doit pas être modifié manuellement. Les principaux domaines sont séparés dans `src/modules` : accueil, authentification, Adjust/Rework, consommables, étuvages, équipements de test, mating, suivi technique, mesures et reporting.
+
+Une modification doit suivre ce cycle :
+
+1. modifier les fichiers source;
+2. ajouter ou adapter les tests correspondant au risque;
+3. reconstruire le runtime;
+4. exécuter toute la suite de tests;
+5. déployer avec le script prévu, qui crée une sauvegarde de la version précédente;
+6. contrôler l'URL de santé et la version réellement servie;
+7. committer et pousser la même version dans les dépôts.
+
+Les secrets PostgreSQL sont stockés hors Git. Aucun dump, mot de passe ou fichier de base ne doit être ajouté au dépôt. SQLite reste disponible pour les tests locaux et comme solution historique de retour arrière, mais PostgreSQL est la source de vérité en production.
+
+## 11. Sujets en réflexion
+
+### 11.1 Interface selon le type d'OF
+
+La possibilité de simplifier l'interface selon un type d'OF, par exemple Space ou Indus, est une piste et non une décision validée. La bonne approche serait une configuration de profil plutôt que deux applications séparées :
+
+- définir un type d'OF dans un référentiel administrable;
+- choisir les onglets visibles, les champs obligatoires, les alertes, les modèles de rapport et les étiquettes applicables;
+- conserver le même modèle de données, la même API et la même traçabilité;
+- permettre aux Admin et Manager d'afficher exceptionnellement les fonctions masquées;
+- éviter toute perte de données lorsqu'un OF change de type.
+
+Avant développement, il faut comparer les processus Space et Indus, identifier ce qui est réellement différent et distinguer « inutile à afficher » de « interdit à saisir ».
+
+### 11.2 Robustesse des mesures
+
+Les règles suivantes restent à confirmer :
+
+- types de mesure : numérique, texte, choix conforme/non conforme ou combinaison;
+- unités autorisées et conversions éventuelles;
+- nombre de décimales et règle d'arrondi;
+- tolérances inclusives ou exclusives;
+- mesures répétées et calcul associé;
+- association obligatoire à un équipement de test;
+- traitement des résultats tels que « pas de signal », « non applicable » ou mesure impossible;
+- validation par un contrôleur et verrouillage après validation;
+- version du plan de mesures lorsque les consignes évoluent pendant l'OF;
+- import éventuel depuis un document de fabrication ou un appareil.
+
+Il est préférable de stabiliser ces règles avant d'ajouter de nouvelles possibilités afin d'éviter des données ambiguës difficiles à exploiter plus tard.
+
+### 11.3 Transfert à l'IT
+
+- Hébergement sur serveur ou VM administrée.
+- Nom DNS stable et HTTPS.
+- Compte technique distinct des comptes personnels.
+- PostgreSQL administré, supervision et journalisation centralisée.
+- Sauvegardes hors machine avec contrôle automatique de restauration.
+- Procédure de mise à jour, retour arrière et reprise après incident.
+- Revue des droits réseau, du pare-feu et de la durée des sessions.
+
+## 12. Grille d'évaluation pour un autre atelier
+
+Un responsable peut évaluer l'intérêt de SP-F001A7 avec les questions suivantes :
+
+1. Le suivi doit-il être fait par OF, par SN, par lot ou par combinaison de ces niveaux ?
+2. Quelles opérations doivent conserver un visa, une date et un contrôle ?
+3. Quels tableaux Excel, rapports PDF, étiquettes ou emails sont aujourd'hui préparés manuellement ?
+4. Quels rappels temporels sont nécessaires : polymérisation, étuvage, calibration ou péremption ?
+5. Quels rôles peuvent saisir, contrôler, corriger, administrer ou seulement consulter ?
+6. Quelles données sont communes à Space et Indus et lesquelles exigent une règle différente ?
+7. Quelles règles rendent une mesure exploitable et incontestable plusieurs mois plus tard ?
+8. Quel système officiel doit héberger l'application et garantir la restauration des données ?
+
+## 13. Conclusion
+
+Le pilote couvre déjà le parcours principal de suivi atelier : création et consultation d'un OF, travail multi-SN ou lot, traçabilité des opérations, alertes temporelles, rapports, étiquettes, exports SAP et communications standardisées. Sa base technique protège les écritures par des contrôles serveur, des révisions et des transactions PostgreSQL.
+
+Les prochaines décisions ne doivent pas multiplier les fonctions sans cadre. Les deux priorités fonctionnelles sont de préciser les différences réelles entre OF Space et Indus et de stabiliser les règles des mesures. La priorité technique est le transfert vers un hébergement IT administré avec supervision et restauration automatisée, tout en conservant le cycle de tests et de déploiement actuel.

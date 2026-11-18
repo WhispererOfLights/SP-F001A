@@ -101,6 +101,8 @@ Le chemin de production réel est volontairement absent de ce document. Il se co
 Le paquet de production contient uniquement le serveur, le runtime navigateur, les dépendances Python et les lanceurs. Les tests, outils de migration, fichiers Docker et documents techniques restent dans Git ; lorsqu'ils existaient dans une ancienne version déployée, ils sont archivés avec celle-ci avant d'être retirés du dossier actif.
 Voir aussi [ARCHITECTURE.md](ARCHITECTURE.md).
 
+La vue d'ensemble destinée aux responsables d'atelier et à l'IT est disponible dans [DOCUMENTATION-COMPLETE.md](DOCUMENTATION-COMPLETE.md).
+
 ## PostgreSQL et Docker
 
 La production utilise PostgreSQL. SQLite reste disponible comme solution locale et comme chemin de retour arrière. Pour démarrer l'application avec PostgreSQL :
