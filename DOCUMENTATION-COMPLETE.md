@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v345  
+**Version documentée :** v348
 **Date :** 18 novembre 2026  
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -26,7 +26,8 @@ La solution est fonctionnelle pour un usage atelier, mais l'hébergement reste p
 - Une consultation d'un OF ne rend pas automatiquement l'utilisateur « impliqué » dans cet OF. L'implication est déduite des opérations réellement enregistrées.
 - Les lignes validées conservent le visa et la date de l'auteur.
 - Les annulations, suppressions et corrections restent traçables. Les Admin et Manager disposent d'outils supplémentaires encadrés.
-- Les actions secondaires d'une ligne sont accessibles par clic droit afin de garder les tableaux lisibles. Les actions métier immédiates restent visibles.
+- Les actions principales restent visibles à droite de chaque ligne : valider ou modifier, consulter l'historique et annuler ou supprimer. Le nombre de modifications est affiché comme une notification sur l'historique.
+- Les actions secondaires restent accessibles par clic droit afin de garder les tableaux lisibles sans masquer les commandes essentielles.
 
 ## 4. Profils et droits
 
@@ -39,7 +40,7 @@ Chaque utilisateur possède un trigramme, un nom, un prénom, un rôle, une adre
 - **Opérateur :** saisie et validation des opérations autorisées.
 - **Contrôleur :** saisie des contrôles et validation des champs de contrôle selon le processus.
 - **Manager :** droits métier étendus, correction contrôlée des visas et dates, gestion de certains référentiels et utilisateurs.
-- **Admin :** administration complète, paramètres et mode God pour les opérations exceptionnelles.
+- **Admin :** administration complète, paramètres et mode God pour les opérations exceptionnelles. Lorsque ce mode est actif, toute l'interface prend une teinte rouge clair, un contour rouge et un indicateur permanent « GOD MODE ACTIF » afin d'éviter toute confusion avec l'utilisation normale.
 - **Lecture seule :** consultation sans écriture.
 
 Les autorisations sont contrôlées par le serveur. Le fait de masquer un bouton dans l'interface n'est pas considéré comme une protection suffisante.
@@ -89,6 +90,9 @@ Les commentaires peuvent être rattachés aux lignes métier et au SN ou lot con
 - Enregistrement des opérations soudé, dessoudé, pointé, matière, rework et observation.
 - Référence topologique, article SAP, valeur ou description, lot, date code, SN composant, fiche suiveuse, étape ou OP, visas et contrôles.
 - Distinction entre ligne en préparation et ligne validée.
+- Bouton visible en fin de ligne pour valider une nouvelle opération puis modifier une opération existante.
+- Bouton d'annulation ou de suppression maintenu visible; lors d'une modification en cours, il abandonne les changements sans effacer la ligne existante.
+- Historique accessible depuis la ligne avec une notification indiquant le nombre de modifications enregistrées.
 - Import d'un plan de travail depuis le presse-papiers sous forme de brouillon.
 - Attribution de la ligne importée à l'opérateur qui la complète et la valide.
 - Remarques importées placées dans la bulle de commentaires plutôt que dans une ligne métier artificielle.
@@ -205,6 +209,7 @@ Cette fonction est disponible dans le pilote, mais ses règles métier ne sont p
 - Une correction de date peut conserver le visa existant.
 - Suppression logique privilégiée pour conserver les traces.
 - Motif de suppression demandé selon le rôle et le contexte; le mode God couvre les interventions exceptionnelles.
+- Le mode God est volontairement très visible sur tout l'écran et autorise les suppressions définitives prévues pour les interventions d'administration exceptionnelles.
 - Comptes désactivés conservés afin que leurs activités historiques restent attribuées.
 
 ### 9.2 Écritures atomiques PostgreSQL
@@ -228,6 +233,41 @@ Les clés étrangères, contrôles de rôle, validations de structure et règles
 - Restauration déjà vérifiée manuellement dans une base temporaire isolée.
 
 La protection absolue n'existe pas. La cible IT devra ajouter une supervision, des sauvegardes gérées hors du poste pilote, un test automatique périodique de restauration, une politique de mise à jour PostgreSQL et une procédure documentée d'incident.
+
+### 9.4 Vue simplifiée des tables PostgreSQL
+
+Le schéma suivant présente les relations utiles à la compréhension fonctionnelle. Il ne représente pas toutes les colonnes, vues de reporting, tables techniques, tables de documents JSONB ni tous les champs d'audit.
+
+```mermaid
+flowchart LR
+    REF[Référentiels<br/>roles · status_types<br/>consumable_catalog · technical_event_types]
+    USERS[users<br/>comptes · rôles · visas]
+    OF[work_orders<br/>OF · article · description · OTP · statut]
+    UNIT[of_units<br/>SN ou LOT · quantité · statut · filiation]
+
+    OF --> UNIT
+    REF --> USERS
+    REF --> OF
+
+    OF --> RW[rework_operations]
+    OF --> CONSO[consumable_operations<br/>consumable_items]
+    OF --> OVEN[oven_runs]
+    OF --> EQUIP[equipment_operations]
+    OF --> TECH[technical_events]
+    OF --> MATING[connector_operations<br/>connector_events]
+    OF --> MES[measurement_definitions<br/>measurement_results]
+
+    UNIT -. périmètre .-> RW
+    UNIT -. périmètre .-> CONSO
+    UNIT -. périmètre .-> OVEN
+    UNIT -. résultat .-> MES
+
+    AUDIT[comments · attachments<br/>operation_unit_scopes<br/>champs de suppression et restauration]
+    USERS -. auteur et visa .-> AUDIT
+    OF --> AUDIT
+```
+
+`work_orders` est le parent métier principal. `of_units` contient les SN ou lots de l'OF. Chaque domaine fonctionnel possède ensuite ses propres lignes, reliées à l'OF et, lorsque nécessaire, au SN ou lot concerné. Les commentaires, pièces jointes, périmètres multi-SN et informations de suppression ou restauration complètent la traçabilité sans être confondus avec les opérations de production.
 
 ## 10. Maintenance et organisation du code
 
@@ -276,7 +316,29 @@ Les règles suivantes restent à confirmer :
 
 Il est préférable de stabiliser ces règles avant d'ajouter de nouvelles possibilités afin d'éviter des données ambiguës difficiles à exploiter plus tard.
 
-### 11.3 Transfert à l'IT
+### 11.3 Saisie avec lecteurs QR code
+
+La saisie par douchette ou lecteur QR code est une piste d'accélération, mais aucun développement ni choix de paramétrage ne doit être engagé avant d'obtenir des exemples réels et la spécification des formats utilisés sur les OF, les étiquettes article et les sous-ensembles.
+
+Le lecteur ne remplacera pas toutes les saisies. Il servira surtout à renseigner les identifiants déjà imprimés :
+
+- numéro d'OF;
+- SN ou lot du sous-ensemble;
+- code article d'un composant dans Adjust/Rework;
+- éventuellement lot et date code lorsqu'ils sont présents dans un format exploitable.
+
+La combinaison OF et SN est la plus sûre pour ouvrir une pièce, car une recherche par article et SN peut correspondre à plusieurs OF, notamment en cas d'OF de reprise. Tant que les formats QR ne sont pas connus, la proposition de fonctionnement reste la suivante : scanner l'OF, utiliser un suffixe `Tab` pour passer au champ suivant, puis scanner le SN. `Enter` ne doit pas valider automatiquement une ligne afin d'éviter une validation accidentelle.
+
+Avant toute mise en œuvre, il faudra confirmer :
+
+- le contenu exact de chaque QR code et les caractères de séparation;
+- la présence éventuelle de préfixes, suffixes ou identifiants GS1;
+- la programmation possible des lecteurs avec `Tab` après lecture;
+- les cas d'ambiguïté entre OF normal et OF de reprise;
+- les champs qui doivent accepter un scan et leur ordre de parcours;
+- le comportement attendu pour un code inconnu, incomplet ou associé à plusieurs dossiers.
+
+### 11.4 Transfert à l'IT
 
 - Hébergement sur serveur ou VM administrée.
 - Nom DNS stable et HTTPS.
