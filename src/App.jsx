@@ -2870,7 +2870,7 @@ export default function App(){
       selectedSnIds:options.selectedSnIds||null,
       logoImage
     });
-    downloadBlob(blob,`${reportFileBaseName(options.selectedSnIds||null)}.pdf`);
+    downloadBlob(blob,`${reportFileBaseName(options.selectedSnIds||null)}${options.fileSuffix||""}.pdf`);
     if(!options.keepModal) setShowPdfOptions(false);
   };
   const exportReportPack=async (options={})=>{
@@ -3258,7 +3258,8 @@ export default function App(){
             <ReportHead tab="Mesures"/>
             <SectionTitle>Mesures</SectionTitle>
             <TabMeasurements data={ofData.mesures||{}} onChange={d=>updateTab("mesures",d)} user={user} perms={perms}
-              units={snRows} activeUnitId={activeUnitChoice} header={workHeader} forceShowDeleted={printAll}/>
+              units={snRows} activeUnitId={activeUnitChoice} header={workHeader} forceShowDeleted={printAll}
+              onDownloadPdf={()=>downloadReportPdf({selectedSections:["mesures"],selectedSnIds:null,includeHistory:true,includeDeleted:true,fileSuffix:" - Mesures"})}/>
           </div>}
         </div>
       </div>

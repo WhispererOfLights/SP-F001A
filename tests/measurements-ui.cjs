@@ -63,6 +63,11 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     await page.getByLabel('Tension TP1 - SN-M03',{exact:true}).press('Tab');
     await page.waitForFunction(()=>document.querySelector('[aria-label="Tension TP1 - SN-M03"]')?.parentElement?.title?.startsWith('Résultat non numérique'));
     await page.getByText(/3 \/ 8 mesurés/).waitFor();
+    const resultComments=page.getByLabel('Tension TP1 - SN-M03',{exact:true}).locator('..').locator('span[title="Ajouter un commentaire"]');
+    await resultComments.click();
+    await page.getByPlaceholder('Nouvelle remarque… (Ctrl+↵ pour envoyer)').fill('Absence de signal confirmée au contrôle');
+    await page.getByRole('button',{name:'💬 Envoyer',exact:true}).click();
+    await page.getByLabel('Fermer les commentaires').click();
     assert.ok((await page.getByText(/Min 5,01 · Moy\. 5,61 · Max 6,2/).count())>0);
     assert.equal(await page.getByLabel('Tension TP1 - SN-M01',{exact:true}).isEditable(),false);
     await page.getByLabel('Modifier Tension TP1 - SN-M01').click();
@@ -88,6 +93,13 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     assert.ok(excelContents.includes('5,63'));
     assert.ok(excelContents.includes('Pas de signal'));
     assert.ok(excelContents.includes('xSplit="1" ySplit="5"'));
+    const pdfDownloadPromise=page.waitForEvent('download');
+    await page.getByRole('button',{name:'↓ PDF mesures',exact:true}).click();
+    const pdfDownload=await pdfDownloadPromise;
+    assert.ok(pdfDownload.suggestedFilename().includes('Mesures'));
+    const pdfPath=path.join(os.tmpdir(),`sp-f001a-measures-${process.pid}.pdf`);
+    await pdfDownload.saveAs(pdfPath);
+    assert.equal(fs.readFileSync(pdfPath).subarray(0,4).toString(),'%PDF');
     const stored=await page.evaluate(()=>window.testRecords['of:measure-of'].mesures);
     assert.equal(stored.rows.length,1);
     assert.equal(stored.rows[0].results.length,3);
@@ -96,6 +108,7 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     assert.equal(stored.rows[0].results[0].visa,'JGR');
     assert.equal(stored.rows[0].results[0].editHistory.length,1);
     assert.equal(stored.rows[0].results[0].lastEditedReason,'Correction de lecture');
+    assert.equal(stored.rows[0].results[2].comments[0].text,'Absence de signal confirmée au contrôle');
     await page.locator('#active-work-sn').selectOption('unit-1');
     await page.getByRole('region',{name:'Grille de saisie des mesures',exact:true}).waitFor();
     assert.equal(await page.getByLabel('Tension TP1 - SN-M01',{exact:true}).count(),1);
@@ -107,14 +120,20 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     assert.equal(inherited.fiche,'DOC-TEST_1');
     assert.equal(inherited.etape,'50');
     const dialogs=[];
-    page.on('dialog',async dialog=>{dialogs.push({type:dialog.type(),message:dialog.message()});await dialog.accept();});
+    page.on('dialog',async dialog=>{
+      dialogs.push({type:dialog.type(),message:dialog.message()});
+      await dialog.accept(dialog.type()==='prompt'?'Mesure créée par erreur':undefined);
+    });
+    await page.getByTitle('Annuler cette mesure',{exact:true}).last().click();
+    await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows[1]?.deleted===true);
+    await page.getByText('Afficher les mesures annulées',{exact:true}).click();
     await page.getByLabel('God mode',{exact:true}).check();
-    await page.getByTitle('Effacer définitivement cette mesure',{exact:true}).last().click();
+    await page.getByTitle('Effacer définitivement cette mesure annulée',{exact:true}).click();
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows.length===1);
     await page.getByTitle('Effacer définitivement cette mesure',{exact:true}).click();
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows.length===0);
-    assert.deepEqual(dialogs.map(dialog=>dialog.type),['confirm','confirm']);
-    assert.ok(dialogs[0].message.includes('Effacer définitivement'));
+    assert.deepEqual(dialogs.map(dialog=>dialog.type),['prompt','confirm','confirm']);
+    assert.ok(dialogs[1].message.includes('Effacer définitivement'));
     assert.deepEqual(errors,[]);
     console.log('Measurements UI, editing, God mode deletion, status calculation and Excel export verified.');
   } finally {

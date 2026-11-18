@@ -18599,7 +18599,10 @@ var MeasurementGridCell = function MeasurementGridCell(_ref105) {
     rowIndex = _ref105.rowIndex,
     columnIndex = _ref105.columnIndex,
     canWrite = _ref105.canWrite,
-    onCommit = _ref105.onCommit;
+    canComment = _ref105.canComment,
+    user = _ref105.user,
+    onCommit = _ref105.onCommit,
+    onCommentsChange = _ref105.onCommentsChange;
   var result = measurementResultForUnit(row, unit.id);
   var _useState199 = useState((result === null || result === void 0 ? void 0 : result.value) || ""),
     _useState200 = _slicedToArray(_useState199, 2),
@@ -18649,7 +18652,8 @@ var MeasurementGridCell = function MeasurementGridCell(_ref105) {
     title: "".concat(status.label, " \xB7 ").concat(audit),
     style: {
       position: "relative",
-      minWidth: 118
+      minWidth: 118,
+      paddingBottom: 18
     }
   }, /*#__PURE__*/React.createElement("input", {
     ref: inputRef,
@@ -18714,7 +18718,20 @@ var MeasurementGridCell = function MeasurementGridCell(_ref105) {
       fontSize: 11,
       cursor: "pointer"
     }
-  }, "\u270E"), /*#__PURE__*/React.createElement("span", {
+  }, "\u270E"), /*#__PURE__*/React.createElement("div", {
+    title: "Commentaires de ce r\xE9sultat",
+    style: {
+      position: "absolute",
+      left: 4,
+      bottom: -1,
+      lineHeight: 1
+    }
+  }, /*#__PURE__*/React.createElement(CommentBtn, {
+    comments: (result === null || result === void 0 ? void 0 : result.comments) || [],
+    onChange: onCommentsChange,
+    user: user,
+    disabled: !canComment
+  })), /*#__PURE__*/React.createElement("span", {
     "aria-hidden": "true",
     style: {
       position: "absolute",
@@ -18740,7 +18757,9 @@ var TabMeasurements = function TabMeasurements(_ref106) {
     _ref106$header = _ref106.header,
     header = _ref106$header === void 0 ? {} : _ref106$header,
     _ref106$forceShowDele = _ref106.forceShowDeleted,
-    forceShowDeleted = _ref106$forceShowDele === void 0 ? false : _ref106$forceShowDele;
+    forceShowDeleted = _ref106$forceShowDele === void 0 ? false : _ref106$forceShowDele,
+    _ref106$onDownloadPdf = _ref106.onDownloadPdf,
+    onDownloadPdf = _ref106$onDownloadPdf === void 0 ? null : _ref106$onDownloadPdf;
   var _useState203 = useState(false),
     _useState204 = _slicedToArray(_useState203, 2),
     showDeleted = _useState204[0],
@@ -18852,6 +18871,27 @@ var TabMeasurements = function TabMeasurements(_ref106) {
     });
     return true;
   };
+  var saveResultComments = function saveResultComments(row, unit, comments, existing) {
+    var next = existing ? (row.results || []).map(function (result) {
+      return result.id === existing.id ? _objectSpread(_objectSpread({}, result), {}, {
+        comments: comments
+      }) : result;
+    }) : [].concat(_toConsumableArray(row.results || []), [{
+      id: uid(),
+      unitId: unit.id,
+      value: "",
+      visa: "",
+      dt: "",
+      validated: false,
+      deleted: false,
+      createdVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
+      createdDT: nowDT(),
+      comments: comments
+    }]);
+    updateRow(row.id, {
+      results: next
+    });
+  };
   var removeRow = function removeRow(row) {
     if (perms !== null && perms !== void 0 && perms.godMode) {
       updateRow(row.id, {
@@ -18877,6 +18917,15 @@ var TabMeasurements = function TabMeasurements(_ref106) {
       restoredVisa: (user === null || user === void 0 ? void 0 : user.trigram) || "",
       restoredDate: nowDT()
     });
+  };
+  var purgeRow = function purgeRow(row) {
+    if (!(perms !== null && perms !== void 0 && perms.godMode) || !isAdminManager(user)) return;
+    if (!window.confirm("Effacer définitivement cette mesure annulée, ses résultats, commentaires et historiques ? Cette action est irréversible.")) return;
+    onChange(_objectSpread(_objectSpread({}, data), {}, {
+      rows: rows.filter(function (item) {
+        return item.id !== row.id;
+      })
+    }));
   };
   var exportExcel = function exportExcel() {
     var selectedIds = excelScope === "current" && activeUnitId !== "all" ? [activeUnitId] : null;
@@ -18948,7 +18997,12 @@ var TabMeasurements = function TabMeasurements(_ref106) {
     value: "current"
   }, "Excel du SN affich\xE9"), /*#__PURE__*/React.createElement("option", {
     value: "all"
-  }, "Excel de tout l'OF")), /*#__PURE__*/React.createElement(Btn, {
+  }, "Excel de tout l'OF")), onDownloadPdf && /*#__PURE__*/React.createElement(Btn, {
+    onClick: onDownloadPdf,
+    disabled: !rows.length,
+    color: C.blue,
+    small: true
+  }, "\u2193 PDF mesures"), /*#__PURE__*/React.createElement(Btn, {
     onClick: exportExcel,
     disabled: !rows.some(function (row) {
       return !row.deleted;
@@ -19148,13 +19202,25 @@ var TabMeasurements = function TabMeasurements(_ref106) {
       disabled: !(perms !== null && perms !== void 0 && perms.canComment)
     })), /*#__PURE__*/React.createElement(TD, {
       center: true
-    }, row.deleted ? isAdminManager(user) && /*#__PURE__*/React.createElement(IconBtn, {
+    }, row.deleted ? isAdminManager(user) && /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 4,
+        justifyContent: "center"
+      }
+    }, /*#__PURE__*/React.createElement(IconBtn, {
       title: "Restaurer cette mesure",
       color: C.green,
       onClick: function onClick() {
         return restoreRow(row);
       }
-    }, "\u21B6") : canWrite && /*#__PURE__*/React.createElement(IconBtn, {
+    }, "\u21B6"), (perms === null || perms === void 0 ? void 0 : perms.godMode) && /*#__PURE__*/React.createElement(IconBtn, {
+      title: "Effacer d\xE9finitivement cette mesure annul\xE9e",
+      color: C.red,
+      onClick: function onClick() {
+        return purgeRow(row);
+      }
+    }, "\xD7")) : canWrite && /*#__PURE__*/React.createElement(IconBtn, {
       title: perms !== null && perms !== void 0 && perms.godMode ? "Effacer définitivement cette mesure" : "Annuler cette mesure",
       color: C.red,
       onClick: function onClick() {
@@ -19288,8 +19354,13 @@ var TabMeasurements = function TabMeasurements(_ref106) {
         rowIndex: rowIndex,
         columnIndex: columnIndex,
         canWrite: canWrite,
+        canComment: !!(perms !== null && perms !== void 0 && perms.canComment),
+        user: user,
         onCommit: function onCommit(value, existing) {
           return saveResult(row, unit, value, existing);
+        },
+        onCommentsChange: function onCommentsChange(comments) {
+          return saveResultComments(row, unit, comments, measurementResultForUnit(row, unit.id));
         }
       }));
     }));
@@ -28855,7 +28926,7 @@ function App() {
               selectedSnIds: options.selectedSnIds || null,
               logoImage: logoImage
             });
-            downloadBlob(blob, "".concat(reportFileBaseName(options.selectedSnIds || null), ".pdf"));
+            downloadBlob(blob, "".concat(reportFileBaseName(options.selectedSnIds || null)).concat(options.fileSuffix || "", ".pdf"));
             if (!options.keepModal) setShowPdfOptions(false);
           case 2:
             return _context70.a(2);
@@ -29985,7 +30056,16 @@ function App() {
     units: snRows,
     activeUnitId: activeUnitChoice,
     header: workHeader,
-    forceShowDeleted: printAll
+    forceShowDeleted: printAll,
+    onDownloadPdf: function onDownloadPdf() {
+      return downloadReportPdf({
+        selectedSections: ["mesures"],
+        selectedSnIds: null,
+        includeHistory: true,
+        includeDeleted: true,
+        fileSuffix: " - Mesures"
+      });
+    }
   })))), showConsoEditor && canManageLists(user) && /*#__PURE__*/React.createElement(ConsommableListManager, {
     items: consommables,
     onClose: function onClose() {

@@ -105,7 +105,7 @@ const MeasurementField = ({value,onCommit,placeholder,style={},readOnly=false}) 
     readOnly={readOnly} displayPlaceholder={placeholder} title={placeholder?`Attendu : ${placeholder}`:undefined} small style={style}/>;
 };
 
-const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,onCommit}) => {
+const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,canComment,user,onCommit,onCommentsChange}) => {
   const result=measurementResultForUnit(row,unit.id);
   const [draft,setDraft]=useState(result?.value||"");
   const [editing,setEditing]=useState(!String(result?.value||"").trim());
@@ -133,7 +133,7 @@ const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,onCommit}) 
   const audit=result?.lastEditedDT
     ? `Mesuré ${result.dt||""} par ${result.visa||"?"} · modifié ${result.lastEditedDT} par ${result.lastEditedVisa||"?"}${result.lastEditedReason?` · motif : ${result.lastEditedReason}`:""}`
     : result?.visa?`Mesuré ${result.dt||""} par ${result.visa}`:status.label;
-  return <div title={`${status.label} · ${audit}`} style={{position:"relative",minWidth:118}}>
+  return <div title={`${status.label} · ${audit}`} style={{position:"relative",minWidth:118,paddingBottom:18}}>
     <input ref={inputRef} data-measure-cell={`${rowIndex}-${columnIndex}`} aria-label={`${row.mesure||"Mesure"} - ${snTitle(unit)}`}
       value={draft} readOnly={!canWrite||locked} onChange={event=>setDraft(event.target.value)} onBlur={()=>editing&&commit()}
       onKeyDown={event=>{if(event.key==="Enter") moveDown(event);if(event.key==="Escape"){setDraft(result?.value||"");setEditing(false);}}}
@@ -142,13 +142,16 @@ const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,onCommit}) 
     {locked&&<button type="button" title="Modifier cette valeur mesurée" aria-label={`Modifier ${row.mesure||"mesure"} - ${snTitle(unit)}`}
       onMouseDown={event=>event.preventDefault()} onClick={()=>{setEditing(true);requestAnimationFrame(()=>{inputRef.current?.focus();inputRef.current?.select();});}}
       style={{position:"absolute",right:2,top:3,width:21,height:21,padding:0,border:0,borderRadius:2,background:C.blue,color:"white",fontSize:11,cursor:"pointer"}}>✎</button>}
+    <div title="Commentaires de ce résultat" style={{position:"absolute",left:4,bottom:-1,lineHeight:1}}>
+      <CommentBtn comments={result?.comments||[]} onChange={onCommentsChange} user={user} disabled={!canComment}/>
+    </div>
     <span aria-hidden="true" style={{position:"absolute",right:4,bottom:2,fontSize:7,fontWeight:900,color:status.color,pointerEvents:"none"}}>
       {status.id==="conforming"?"✓":status.id==="nonconforming"||status.id==="invalid"?"×":status.id==="missing"?"○":"i"}
     </span>
   </div>;
 };
 
-const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all",header={},forceShowDeleted=false}) => {
+const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all",header={},forceShowDeleted=false,onDownloadPdf=null}) => {
   const [showDeleted,setShowDeleted]=useState(false);
   const [excelScope,setExcelScope]=useState(activeUnitId==="all"?"all":"current");
   const canWrite=!!perms?.canWrite;
@@ -190,6 +193,13 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
     updateRow(row.id,{results:next});
     return true;
   };
+  const saveResultComments=(row,unit,comments,existing)=>{
+    const next=existing
+      ? (row.results||[]).map(result=>result.id===existing.id?{...result,comments}:result)
+      : [...(row.results||[]),{id:uid(),unitId:unit.id,value:"",visa:"",dt:"",validated:false,
+          deleted:false,createdVisa:user?.trigram||"",createdDT:nowDT(),comments}];
+    updateRow(row.id,{results:next});
+  };
   const removeRow=row=>{
     if(perms?.godMode){
       updateRow(row.id,{deleted:true});
@@ -203,6 +213,11 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
     const reason=window.prompt("Motif obligatoire de la restauration :","");
     if(!reason?.trim()) return;
     updateRow(row.id,{deleted:false,restoredReason:reason.trim(),restoredVisa:user?.trigram||"",restoredDate:nowDT()});
+  };
+  const purgeRow=row=>{
+    if(!perms?.godMode||!isAdminManager(user)) return;
+    if(!window.confirm("Effacer définitivement cette mesure annulée, ses résultats, commentaires et historiques ? Cette action est irréversible.")) return;
+    onChange({...data,rows:rows.filter(item=>item.id!==row.id)});
   };
   const exportExcel=()=>{
     const selectedIds=excelScope==="current"&&activeUnitId!=="all"?[activeUnitId]:null;
@@ -223,6 +238,7 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
         {activeUnitId!=="all"&&<select value={excelScope} onChange={event=>setExcelScope(event.target.value)} style={{fontSize:11,padding:"4px 6px",background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}>
           <option value="current">Excel du SN affiché</option><option value="all">Excel de tout l'OF</option>
         </select>}
+        {onDownloadPdf&&<Btn onClick={onDownloadPdf} disabled={!rows.length} color={C.blue} small>↓ PDF mesures</Btn>}
         <Btn onClick={exportExcel} disabled={!rows.some(row=>!row.deleted)} color={C.green} small>↓ Excel mesures</Btn>
       </div>
     </div>
@@ -260,7 +276,10 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
               </div></TD>
               <TD center><CommentBtn comments={row.comments||[]} onChange={comments=>updateRow(row.id,{comments})} user={user} disabled={!perms?.canComment}/></TD>
               <TD center>{row.deleted
-                ? isAdminManager(user)&&<IconBtn title="Restaurer cette mesure" color={C.green} onClick={()=>restoreRow(row)}>↶</IconBtn>
+                ? isAdminManager(user)&&<div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                    <IconBtn title="Restaurer cette mesure" color={C.green} onClick={()=>restoreRow(row)}>↶</IconBtn>
+                    {perms?.godMode&&<IconBtn title="Effacer définitivement cette mesure annulée" color={C.red} onClick={()=>purgeRow(row)}>×</IconBtn>}
+                  </div>
                 : canWrite&&<IconBtn title={perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure"} color={C.red} onClick={()=>removeRow(row)}>×</IconBtn>}</TD>
             </tr>;
           })}</tbody>
@@ -285,7 +304,10 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
             <tbody>{displayedUnits.map((unit,rowIndex)=><tr key={unit.id} style={{background:rowIndex%2?C.raised+"40":C.surface}}>
               <th title={snTitle(unit)} style={{position:"sticky",left:0,zIndex:2,background:rowIndex%2?C.raised:C.surface,borderRight:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,padding:"5px 8px",fontSize:11,fontFamily:"monospace",fontWeight:800,textAlign:"left",whiteSpace:"nowrap"}}>{snTitle(unit)}</th>
               {gridMeasures.map((row,columnIndex)=><td key={row.id} style={{padding:4,borderRight:`1px solid ${C.border}55`,borderBottom:`1px solid ${C.border}`,background:measurementStatus(row,measurementResultForUnit(row,unit.id)).background}}>
-                <MeasurementGridCell row={row} unit={unit} rowIndex={rowIndex} columnIndex={columnIndex} canWrite={canWrite} onCommit={(value,existing)=>saveResult(row,unit,value,existing)}/>
+                <MeasurementGridCell row={row} unit={unit} rowIndex={rowIndex} columnIndex={columnIndex}
+                  canWrite={canWrite} canComment={!!perms?.canComment} user={user}
+                  onCommit={(value,existing)=>saveResult(row,unit,value,existing)}
+                  onCommentsChange={comments=>saveResultComments(row,unit,comments,measurementResultForUnit(row,unit.id))}/>
               </td>)}
             </tr>)}</tbody>
             <tfoot><tr>
