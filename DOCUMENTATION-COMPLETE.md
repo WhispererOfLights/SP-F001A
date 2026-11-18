@@ -10,6 +10,8 @@
 
 SP-F001A7 est une application interne de suivi de production par ordre de fabrication (OF) et par numéro de série ou lot. Elle centralise les opérations réalisées, les consommables, les étuvages, les équipements de test, les événements de mating/demating, les faits techniques et les mesures. Elle produit également les rapports, étiquettes, exports et messages standardisés nécessaires aux échanges entre la production, la qualité et la logistique.
 
+SP-F001A7 est le nom provisoire de l'application. Toute autre proposition de nom est bienvenue.
+
 Ce document présente ce qui est déjà disponible dans le pilote, les règles de traçabilité et de protection des données, les conditions de maintenance et les sujets qui restent volontairement en réflexion. Il doit permettre à un autre responsable d'atelier d'évaluer si le principe est utile pour son activité, sans considérer les pistes futures comme des fonctions déjà validées.
 
 ## 2. État actuel du pilote
@@ -325,7 +327,7 @@ La possibilité de saisir certaines informations avec un lecteur QR code reste e
 Deux connexions pourraient réduire les ressaisies et améliorer la fiabilité des informations :
 
 - pour Test Équipement, saisir uniquement le numéro d'inventaire et récupérer depuis le référentiel des appareils les informations disponibles, notamment le type, la désignation et les données de calibration;
-- pour Adjust/Rework et les autres saisies article, entrer le code article SAP et récupérer automatiquement la désignation ou la valeur descriptive officielle de l'article.
+- pour Adjust/Rework, les consommables et les listes d'articles, entrer le code article SAP et récupérer automatiquement la désignation ou la valeur descriptive officielle de l'article.
 
 Ces améliorations nécessitent de confirmer avec l'IT quelles bases ou interfaces sont accessibles, quelles données font foi, leur fréquence de mise à jour et le comportement attendu lorsque le référentiel est indisponible. Aucune connexion directe ne doit être développée avant cette validation.
 
@@ -339,20 +341,7 @@ Ces améliorations nécessitent de confirmer avec l'IT quelles bases ou interfac
 - Procédure de mise à jour, retour arrière et reprise après incident.
 - Revue des droits réseau, du pare-feu et de la durée des sessions.
 
-## 12. Grille d'évaluation pour un autre atelier
-
-Un responsable peut évaluer l'intérêt de SP-F001A7 avec les questions suivantes :
-
-1. Le suivi doit-il être fait par OF, par SN, par lot ou par combinaison de ces niveaux ?
-2. Quelles opérations doivent conserver un visa, une date et un contrôle ?
-3. Quels tableaux Excel, rapports PDF, étiquettes ou emails sont aujourd'hui préparés manuellement ?
-4. Quels rappels temporels sont nécessaires : polymérisation, étuvage, calibration ou péremption ?
-5. Quels rôles peuvent saisir, contrôler, corriger, administrer ou seulement consulter ?
-6. Quelles données sont communes à Space et Indus et lesquelles exigent une règle différente ?
-7. Quelles règles rendent une mesure exploitable et incontestable plusieurs mois plus tard ?
-8. Quel système officiel doit héberger l'application et garantir la restauration des données ?
-
-## 13. Conclusion
+## 12. Conclusion
 
 Le pilote couvre déjà le parcours principal de suivi atelier : création et consultation d'un OF, travail multi-SN ou lot, traçabilité des opérations, alertes temporelles, rapports, étiquettes, exports SAP et communications standardisées. Sa base technique protège les écritures par des contrôles serveur, des révisions et des transactions PostgreSQL.
 
