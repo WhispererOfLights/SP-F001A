@@ -28790,7 +28790,7 @@ function App() {
   useEffect(function () {
     var onKey = function onKey(e) {
       var _e$target, _e$target2, _ofData$units8;
-      if (!currentId || !ofData || !e.ctrlKey || !e.shiftKey) return;
+      if (!currentId || !ofData || !e.ctrlKey) return;
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
       var tag = String(((_e$target = e.target) === null || _e$target === void 0 ? void 0 : _e$target.tagName) || "").toLowerCase();
       if (["input", "textarea", "select"].includes(tag) || (_e$target2 = e.target) !== null && _e$target2 !== void 0 && _e$target2.isContentEditable) return;
@@ -29420,11 +29420,10 @@ function App() {
       fontWeight: 700,
       color: C.muted
     }
-  }, "Vue SN"), /*#__PURE__*/React.createElement("button", {
+  }, "Vue SN"), snRows.length > 1 && /*#__PURE__*/React.createElement("button", {
     type: "button",
     "aria-label": "SN pr\xE9c\xE9dent",
     title: "SN pr\xE9c\xE9dent",
-    disabled: !snRows.length,
     onClick: function onClick() {
       return moveActiveUnit(-1);
     },
@@ -29438,7 +29437,7 @@ function App() {
       color: C.text,
       fontSize: 18,
       fontWeight: 800,
-      cursor: snRows.length ? "pointer" : "default"
+      cursor: "pointer"
     }
   }, "\u2039"), /*#__PURE__*/React.createElement("select", {
     id: "active-work-sn",
@@ -29447,7 +29446,7 @@ function App() {
       if (activeUnit) setEntryUnitId(activeUnit.id);
       setActiveUnitId(e.target.value);
     },
-    title: "SN affich\xE9 - Ctrl + Shift + \u2190 / \u2192 pour changer de SN",
+    title: "SN affich\xE9 - Ctrl + \u2190 / \u2192 pour changer de SN",
     style: {
       background: activeUnitChoice === "all" ? C.yellow + "20" : C.input,
       border: "1px solid ".concat(activeUnitChoice === "all" ? C.yellow : C.blue),
@@ -29468,11 +29467,10 @@ function App() {
       key: u.id,
       value: u.id
     }, snTitle(u));
-  })), /*#__PURE__*/React.createElement("button", {
+  })), snRows.length > 1 && /*#__PURE__*/React.createElement("button", {
     type: "button",
     "aria-label": "SN suivant",
     title: "SN suivant",
-    disabled: !snRows.length,
     onClick: function onClick() {
       return moveActiveUnit(1);
     },
@@ -29486,7 +29484,7 @@ function App() {
       color: C.text,
       fontSize: 18,
       fontWeight: 800,
-      cursor: snRows.length ? "pointer" : "default"
+      cursor: "pointer"
     }
   }, "\u203A"), activeUnitChoice === "all" && /*#__PURE__*/React.createElement("span", {
     style: {

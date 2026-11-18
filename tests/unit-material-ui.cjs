@@ -294,6 +294,10 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.locator('#active-work-sn').inputValue(),'u1');
     await page.getByRole('button',{name:'SN suivant',exact:true}).click();
     assert.equal(await page.locator('#active-work-sn').inputValue(),'u2');
+    await page.keyboard.press('Control+ArrowLeft');
+    assert.equal(await page.locator('#active-work-sn').inputValue(),'u1');
+    await page.keyboard.press('Control+ArrowRight');
+    assert.equal(await page.locator('#active-work-sn').inputValue(),'u2');
     await page.getByRole('button',{name:'Copier les informations du dossier dans le presse-papier',exact:true}).click();
     await page.waitForFunction(()=>window.copiedHomeText?.split('\n').length===2&&window.copiedHomeText.includes('\tSN2\t'));
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
