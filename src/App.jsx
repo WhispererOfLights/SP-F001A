@@ -2921,6 +2921,13 @@ export default function App(){
   const snRows = unitRows.filter(u=>!u.deleted&&hasUnitIdentity(u));
   const activeUnitChoice = snRows.some(u=>u.id===activeUnitId) ? activeUnitId : "all";
   const activeUnit = snRows.find(u=>u.id===activeUnitId) || null;
+  const moveActiveUnit=direction=>{
+    if(!snRows.length)return;
+    const currentIndex=snRows.findIndex(unit=>unit.id===activeUnitChoice);
+    const nextIndex=currentIndex<0?(direction>0?0:snRows.length-1):(currentIndex+direction+snRows.length)%snRows.length;
+    if(activeUnit)setEntryUnitId(activeUnit.id);
+    setActiveUnitId(snRows[nextIndex].id);
+  };
   const entryUnit=activeUnit||snRows.find(u=>u.id===entryUnitId)||snRows[0]||null;
   const snSummary = snRows.length ? `${snRows.length} SN` : (h.sn ? `SN ${h.sn}` : "aucun SN");
   const workHeader = {
@@ -3067,14 +3074,18 @@ export default function App(){
             <QuickOfSearch ofList={ofList} currentId={currentId} onSelect={selectOf} disabled={saving}/>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
               <label htmlFor="active-work-sn" style={{fontSize:11,fontWeight:700,color:C.muted}}>Vue SN</label>
+              <button type="button" aria-label="SN précédent" title="SN précédent" disabled={!snRows.length} onClick={()=>moveActiveUnit(-1)}
+                style={{width:28,height:28,padding:0,border:`1px solid ${C.border}`,borderRadius:4,background:C.raised,color:C.text,fontSize:18,fontWeight:800,cursor:snRows.length?"pointer":"default"}}>‹</button>
               <select id="active-work-sn" value={activeUnitChoice} onChange={e=>{if(activeUnit)setEntryUnitId(activeUnit.id);setActiveUnitId(e.target.value);}}
                 title="SN affiché - Ctrl + Shift + ← / → pour changer de SN"
                 style={{background:activeUnitChoice==="all"?C.yellow+"20":C.input,
                   border:`1px solid ${activeUnitChoice==="all"?C.yellow:C.blue}`,borderRadius:4,color:C.text,
-                  padding:"4px 8px",fontSize:12,fontWeight:700,fontFamily:"monospace",outline:"none",width:220,maxWidth:"100%"}}>
+                  padding:"4px 8px",fontSize:12,fontWeight:700,fontFamily:"monospace",outline:"none",width:190,maxWidth:"100%"}}>
                 <option value="all">Voir tous les SN ({snRows.length})</option>
                 {snRows.map(u=><option key={u.id} value={u.id}>{snTitle(u)}</option>)}
               </select>
+              <button type="button" aria-label="SN suivant" title="SN suivant" disabled={!snRows.length} onClick={()=>moveActiveUnit(1)}
+                style={{width:28,height:28,padding:0,border:`1px solid ${C.border}`,borderRadius:4,background:C.raised,color:C.text,fontSize:18,fontWeight:800,cursor:snRows.length?"pointer":"default"}}>›</button>
               {activeUnitChoice==="all"&&<span style={{color:C.yellow,fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>VUE TOUS LES SN</span>}
             </div>
           </div>

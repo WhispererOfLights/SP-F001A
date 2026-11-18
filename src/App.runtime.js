@@ -23340,6 +23340,18 @@ var HomeOperationalAlerts = function HomeOperationalAlerts(_ref133) {
     }, alert.timing.anticipated ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Vendredi soir"), " \xB7 ", alert.timing.text) : alert.timing.today ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, "Aujourd'hui"), " \xB7 ", alert.timing.text) : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("strong", null, alert.timing.daysWithoutOven, " jour", alert.timing.daysWithoutOven > 1 ? "s" : ""), " ", alert.timing.text)));
   }) : empty))));
 };
+var homeActionMenuStyle = {
+  width: "100%",
+  border: 0,
+  borderRadius: 4,
+  background: "transparent",
+  color: C.text,
+  padding: "8px 10px",
+  textAlign: "left",
+  fontSize: 12,
+  fontWeight: 700,
+  cursor: "pointer"
+};
 var OFSelector = function OFSelector(_ref134) {
   var _STATUTS10, _STATUTS11, _STATUTS12;
   var ofList = _ref134.ofList,
@@ -23478,12 +23490,16 @@ var OFSelector = function OFSelector(_ref134) {
     _useState304 = _slicedToArray(_useState303, 2),
     copiedTeamsKey = _useState304[0],
     setCopiedTeamsKey = _useState304[1];
-  var _useState305 = useState(function () {
+  var _useState305 = useState(null),
+    _useState306 = _slicedToArray(_useState305, 2),
+    homeRowMenu = _useState306[0],
+    setHomeRowMenu = _useState306[1];
+  var _useState307 = useState(function () {
       return new Date();
     }),
-    _useState306 = _slicedToArray(_useState305, 2),
-    homeNow = _useState306[0],
-    setHomeNow = _useState306[1];
+    _useState308 = _slicedToArray(_useState307, 2),
+    homeNow = _useState308[0],
+    setHomeNow = _useState308[1];
   useEffect(function () {
     var timer = setInterval(function () {
       return setHomeNow(new Date());
@@ -23492,6 +23508,19 @@ var OFSelector = function OFSelector(_ref134) {
       return clearInterval(timer);
     };
   }, []);
+  useEffect(function () {
+    if (!homeRowMenu) return;
+    var close = function close(event) {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      setHomeRowMenu(null);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return function () {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [homeRowMenu]);
   useEffect(function () {
     var cancelled = false;
     setLoadingWorked(true);
@@ -23602,34 +23631,34 @@ var OFSelector = function OFSelector(_ref134) {
       cancelled = true;
     };
   }, [ofList, user.trigram, consommables]);
-  var _useState307 = useState(true),
-    _useState308 = _slicedToArray(_useState307, 2),
-    hideCloture = _useState308[0],
-    setHideCloture = _useState308[1];
-  var _useState309 = useState(false),
+  var _useState309 = useState(true),
     _useState310 = _slicedToArray(_useState309, 2),
-    showNew = _useState310[0],
-    setShowNew = _useState310[1];
+    hideCloture = _useState310[0],
+    setHideCloture = _useState310[1];
   var _useState311 = useState(false),
     _useState312 = _slicedToArray(_useState311, 2),
-    showProfile = _useState312[0],
-    setShowProfile = _useState312[1];
-  var _useState313 = useState([]),
+    showNew = _useState312[0],
+    setShowNew = _useState312[1];
+  var _useState313 = useState(false),
     _useState314 = _slicedToArray(_useState313, 2),
-    favs = _useState314[0],
-    setFavs = _useState314[1];
-  var _useState315 = useState(blankForm),
+    showProfile = _useState314[0],
+    setShowProfile = _useState314[1];
+  var _useState315 = useState([]),
     _useState316 = _slicedToArray(_useState315, 2),
-    form = _useState316[0],
-    setForm = _useState316[1];
-  var _useState317 = useState(""),
+    favs = _useState316[0],
+    setFavs = _useState316[1];
+  var _useState317 = useState(blankForm),
     _useState318 = _slicedToArray(_useState317, 2),
-    importText = _useState318[0],
-    setImportText = _useState318[1];
+    form = _useState318[0],
+    setForm = _useState318[1];
   var _useState319 = useState(""),
     _useState320 = _slicedToArray(_useState319, 2),
-    importMsg = _useState320[0],
-    setImportMsg = _useState320[1];
+    importText = _useState320[0],
+    setImportText = _useState320[1];
+  var _useState321 = useState(""),
+    _useState322 = _slicedToArray(_useState321, 2),
+    importMsg = _useState322[0],
+    setImportMsg = _useState322[1];
 
   // Charger les favs de cet user
   useEffect(function () {
@@ -24536,7 +24565,7 @@ var OFSelector = function OFSelector(_ref134) {
       color: C.text,
       fontFamily: "monospace"
     }
-  }, "SP-F001A7")), /*#__PURE__*/React.createElement("div", {
+  }, "SP-F001A7")), /*#__PURE__*/React.createElement(HeaderClock, null), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -25149,7 +25178,7 @@ var OFSelector = function OFSelector(_ref134) {
     className: "home-workorders-table",
     style: {
       width: "100%",
-      minWidth: 1700,
+      minWidth: 1650,
       tableLayout: "fixed",
       borderCollapse: "collapse",
       fontSize: 12
@@ -25172,6 +25201,10 @@ var OFSelector = function OFSelector(_ref134) {
     }
   }), /*#__PURE__*/React.createElement("col", {
     style: {
+      width: 300
+    }
+  }), /*#__PURE__*/React.createElement("col", {
+    style: {
       width: 80
     }
   }), /*#__PURE__*/React.createElement("col", {
@@ -25180,19 +25213,11 @@ var OFSelector = function OFSelector(_ref134) {
     }
   }), /*#__PURE__*/React.createElement("col", {
     style: {
-      width: 280
-    }
-  }), /*#__PURE__*/React.createElement("col", {
-    style: {
       width: 160
     }
   }), /*#__PURE__*/React.createElement("col", {
     style: {
-      width: 120
-    }
-  }), /*#__PURE__*/React.createElement("col", {
-    style: {
-      width: 70
+      width: 105
     }
   }), /*#__PURE__*/React.createElement("col", {
     style: {
@@ -25204,7 +25229,7 @@ var OFSelector = function OFSelector(_ref134) {
     }
   }), /*#__PURE__*/React.createElement("col", null), /*#__PURE__*/React.createElement("col", {
     style: {
-      width: isAdminManager(user) ? 140 : 80
+      width: 52
     }
   })), /*#__PURE__*/React.createElement("thead", {
     style: {
@@ -25223,9 +25248,15 @@ var OFSelector = function OFSelector(_ref134) {
     }
   })), /*#__PURE__*/React.createElement(TH, {
     w: 30
-  }, "\u2B50"), sortableTh("of", "OF", 120), sortableTh("codeArticle", "N° Article", 110), sortableTh("sn", "SN", 90), sortableTh("lot", "LOT", 110), sortableTh("description", "Description"), sortableTh("otp", "OTP", 190), sortableTh("snProduitFini", "SN Prod. Fini", 140), sortableTh("reprise", "Reprise", 78), sortableTh("unitStatus", "État", 170), sortableTh("nextEtuvage", "Prochain étuvage", 150), sortableTh("followup", "Suivi technique", 330), /*#__PURE__*/React.createElement(TH, {
-    w: isAdminManager(user) ? 140 : 80
-  })), /*#__PURE__*/React.createElement("tr", {
+  }, "\u2B50"), sortableTh("of", "OF", 120), sortableTh("codeArticle", "N° Article", 110), sortableTh("description", "Description"), sortableTh("sn", "SN", 90), sortableTh("lot", "LOT", 110), sortableTh("otp", "OTP", 190), sortableTh("snProduitFini", "SN Prod. Fini", 110), sortableTh("unitStatus", "État", 170), sortableTh("nextEtuvage", "Prochain étuvage", 150), sortableTh("followup", "Suivi technique", 330), /*#__PURE__*/React.createElement(TH, {
+    w: 52,
+    style: {
+      position: "sticky",
+      right: 0,
+      zIndex: 8,
+      background: C.raised
+    }
+  }, "Actions")), /*#__PURE__*/React.createElement("tr", {
     style: {
       background: C.raised
     }
@@ -25244,7 +25275,7 @@ var OFSelector = function OFSelector(_ref134) {
       color: C.muted,
       cursor: "pointer"
     }
-  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['sn', 'SN'], ['lot', 'LOT'], ['description', 'Description'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['reprise', 'Reprise'], ['unitStatus', 'État'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref146) {
+  }, "\xD7")), [['of', 'OF'], ['codeArticle', 'N° Article'], ['description', 'Description'], ['sn', 'SN'], ['lot', 'LOT'], ['otp', 'OTP'], ['snProduitFini', 'SN Produit Fini'], ['unitStatus', 'État'], ['nextEtuvage', 'Prochain étuvage']].map(function (_ref146) {
     var _ref147 = _slicedToArray(_ref146, 2),
       key = _ref147[0],
       label = _ref147[1];
@@ -25258,7 +25289,14 @@ var OFSelector = function OFSelector(_ref134) {
     style: {
       padding: "4px 5px"
     }
-  }, columnFilter("followup", "Suivi technique")), /*#__PURE__*/React.createElement("td", null))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
+  }, columnFilter("followup", "Suivi technique")), /*#__PURE__*/React.createElement("td", {
+    style: {
+      position: "sticky",
+      right: 0,
+      zIndex: 8,
+      background: C.raised
+    }
+  }))), /*#__PURE__*/React.createElement("tbody", null, paged.map(function (o, i) {
     var _UNIT_STATUTS5, _UNIT_STATUTS6, _UNIT_STATUTS7, _STATUTS$administrati, _STATUTS$administrati2, _warningsById$o$id4, _warningsById$o$id5;
     var isFav = favs.includes(o.id);
     var ofRows = allHomeRows.filter(function (row) {
@@ -25308,10 +25346,34 @@ var OFSelector = function OFSelector(_ref134) {
     var showAdministrativeStatus = groupStart && (groupStatuses.length !== 1 || administrativeStatus !== groupStatuses[0]);
     var actionKey = collapsed ? "".concat(o.id, ":all") : homeRowKey(o);
     var contributors = contributorsById[o.id] || [];
+    var isRework = String(o.ofRework || "non").toLowerCase() === "oui" || String(o.ofRework || "").toLowerCase() === "true";
+    var openActions = function openActions(event) {
+      var fromButton = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+      event.preventDefault();
+      event.stopPropagation();
+      var rect = fromButton ? event.currentTarget.getBoundingClientRect() : null;
+      var menuWidth = 210,
+        menuHeight = isAdminManager(user) ? 132 : 96;
+      var x = Math.max(8, Math.min(rect ? rect.right - menuWidth : event.clientX, window.innerWidth - menuWidth - 8));
+      var y = Math.max(8, Math.min(rect ? rect.bottom + 4 : event.clientY, window.innerHeight - menuHeight - 8));
+      setHomeRowMenu({
+        key: actionKey,
+        x: x,
+        y: y,
+        id: o.id,
+        unitId: collapsed ? null : o._homeUnitId,
+        of: o.of,
+        unitName: collapsed ? summaryName : homeUnitName(o),
+        ofRows: ofRows
+      });
+    };
     return /*#__PURE__*/React.createElement("tr", {
       key: "".concat(o.id, ":").concat(o._homeUnitId || "global"),
       onClick: function onClick() {
         return selectionMode ? collapsed ? toggleOfSelection(o.id) : toggleSelected(o) : onSelect(o.id, collapsed ? null : o._homeUnitId);
+      },
+      onContextMenu: function onContextMenu(event) {
+        return openActions(event);
       },
       title: selectionMode ? "Ajouter ou retirer cette ligne de la sélection" : "Ouvrir ce dossier",
       style: {
@@ -25399,7 +25461,10 @@ var OFSelector = function OFSelector(_ref134) {
         fontFamily: "monospace",
         color: C.text
       }
-    }, o.of), groupStart && contributors.length > 0 && /*#__PURE__*/React.createElement("span", {
+    }, o.of), isRework && /*#__PURE__*/React.createElement(Badge, {
+      label: "R",
+      color: C.yellow
+    }), groupStart && contributors.length > 0 && /*#__PURE__*/React.createElement("span", {
       role: "img",
       "aria-label": "".concat(contributors.length, " intervenant").concat(contributors.length > 1 ? "s" : "", " sur l'OF ").concat(o.of),
       title: "Intervenants : ".concat(contributors.join(", ")),
@@ -25419,6 +25484,10 @@ var OFSelector = function OFSelector(_ref134) {
       }
     }, o.codeArticle || o.articleNo || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
+        color: C.text
+      }
+    }, o.description || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
+      style: {
         fontFamily: "monospace",
         color: collapsed || o.sn ? C.blue : C.muted,
         fontWeight: 700
@@ -25430,10 +25499,6 @@ var OFSelector = function OFSelector(_ref134) {
         fontWeight: collapsed ? 700 : 400
       }
     }, collapsed ? lotSummary : o.lot || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: C.text
-      }
-    }, o.description || "—")), /*#__PURE__*/React.createElement(TD, null, /*#__PURE__*/React.createElement("span", {
       style: {
         fontFamily: "monospace",
         fontSize: 11,
@@ -25452,11 +25517,6 @@ var OFSelector = function OFSelector(_ref134) {
       of: o,
       user: user,
       onSave: onFinishedSnChange
-    })), /*#__PURE__*/React.createElement(TD, {
-      center: true
-    }, /*#__PURE__*/React.createElement(Badge, {
-      label: String(o.ofRework || "non").toLowerCase() === "oui" || String(o.ofRework || "").toLowerCase() === "true" ? "Oui" : "Non",
-      color: String(o.ofRework || "").toLowerCase() === "oui" ? C.yellow : C.border
     })), /*#__PURE__*/React.createElement(TD, {
       onClick: function onClick(e) {
         return e.stopPropagation();
@@ -25598,59 +25658,87 @@ var OFSelector = function OFSelector(_ref134) {
         color: C.muted
       }
     }, "\u2014"))), /*#__PURE__*/React.createElement(TD, {
-      center: true
-    }, /*#__PURE__*/React.createElement("button", {
-      title: "Copier toutes les lignes SN / LOT de cet OF",
-      "aria-label": "Copier toutes les lignes de l'OF ".concat(o.of, " dans le presse-papier"),
+      center: true,
       onClick: function onClick(e) {
-        e.stopPropagation();
-        copyHomeRows(ofRows, actionKey);
+        return e.stopPropagation();
       },
       style: {
-        background: copiedTeamsKey === actionKey ? C.green : C.blue,
+        position: "sticky",
+        right: 0,
+        zIndex: 4,
+        background: "inherit",
+        boxShadow: "-3px 0 5px ".concat(C.bg, "55")
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      "aria-label": "Actions OF ".concat(o.of, " - ").concat(collapsed ? summaryName : homeUnitName(o)),
+      title: "Actions",
+      onClick: function onClick(event) {
+        return openActions(event, true);
+      },
+      style: {
+        width: 30,
+        height: 28,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: C.blue,
         border: "none",
         borderRadius: 4,
         color: "#fff",
-        padding: "4px 7px",
         cursor: "pointer",
-        marginRight: 6,
+        fontSize: 18,
         fontWeight: 800
       }
-    }, copiedTeamsKey === actionKey ? "✓" : "📋"), isAdminManager(user) && /*#__PURE__*/React.createElement("button", {
-      title: "Supprimer cet OF",
-      "aria-label": "Supprimer l'OF ".concat(o.of),
-      onClick: function onClick(e) {
-        e.stopPropagation();
-        onDelete(o.id);
-      },
-      style: {
-        background: C.red,
-        border: "none",
-        borderRadius: 4,
-        color: "#fff",
-        padding: "4px 8px",
-        cursor: "pointer",
-        marginRight: 6
-      }
-    }, "\xD7"), /*#__PURE__*/React.createElement("button", {
-      "aria-label": collapsed ? "Ouvrir OF ".concat(o.of) : "Ouvrir OF ".concat(o.of, " - ").concat(homeUnitName(o)),
-      title: "Ouvrir le dossier",
-      onClick: function onClick(e) {
-        e.stopPropagation();
-        onSelect(o.id, collapsed ? null : o._homeUnitId);
-      },
-      style: {
-        background: C.accent,
-        border: "none",
-        borderRadius: 4,
-        color: "#fff",
-        padding: "4px 10px",
-        cursor: "pointer",
-        fontSize: 13,
-        fontWeight: 700
-      }
-    }, "\u2192")));
-  })))), /*#__PURE__*/React.createElement("div", {
+    }, "\u22EE")));
+  })))), homeRowMenu && /*#__PURE__*/React.createElement("div", {
+    role: "menu",
+    "aria-label": "Actions OF ".concat(homeRowMenu.of, " - ").concat(homeRowMenu.unitName),
+    onPointerDown: function onPointerDown(event) {
+      return event.stopPropagation();
+    },
+    style: {
+      position: "fixed",
+      left: homeRowMenu.x,
+      top: homeRowMenu.y,
+      zIndex: 1000,
+      width: 210,
+      padding: 5,
+      background: C.surface,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 6,
+      boxShadow: "0 8px 24px #0004"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    "aria-label": "Ouvrir OF ".concat(homeRowMenu.of, " - ").concat(homeRowMenu.unitName),
+    onClick: function onClick() {
+      onSelect(homeRowMenu.id, homeRowMenu.unitId);
+      setHomeRowMenu(null);
+    },
+    style: homeActionMenuStyle
+  }, "\u2192 Ouvrir le dossier"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    "aria-label": "Copier toutes les lignes de l'OF ".concat(homeRowMenu.of, " dans le presse-papier"),
+    onClick: function onClick() {
+      copyHomeRows(homeRowMenu.ofRows, homeRowMenu.key);
+      setHomeRowMenu(null);
+    },
+    style: homeActionMenuStyle
+  }, "\uD83D\uDCCB Copier tout l\u2019OF"), isAdminManager(user) && /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    role: "menuitem",
+    "aria-label": "Supprimer l'OF ".concat(homeRowMenu.of),
+    onClick: function onClick() {
+      onDelete(homeRowMenu.id);
+      setHomeRowMenu(null);
+    },
+    style: _objectSpread(_objectSpread({}, homeActionMenuStyle), {}, {
+      color: C.red
+    })
+  }, "\xD7 Supprimer l\u2019OF")), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       alignItems: "center",
@@ -26112,46 +26200,46 @@ var AdminVisaModal = function AdminVisaModal(_ref153) {
     onConfirm = _ref153.onConfirm,
     onConfirmDate = _ref153.onConfirmDate;
   var entries = adminVisaEntries(data);
-  var _useState321 = useState("visa"),
-    _useState322 = _slicedToArray(_useState321, 2),
-    mode = _useState322[0],
-    setMode = _useState322[1];
-  var _useState323 = useState(""),
+  var _useState323 = useState("visa"),
     _useState324 = _slicedToArray(_useState323, 2),
-    query = _useState324[0],
-    setQuery = _useState324[1];
-  var _useState325 = useState([]),
+    mode = _useState324[0],
+    setMode = _useState324[1];
+  var _useState325 = useState(""),
     _useState326 = _slicedToArray(_useState325, 2),
-    selectedKeys = _useState326[0],
-    setSelectedKeys = _useState326[1];
-  var _useState327 = useState(""),
+    query = _useState326[0],
+    setQuery = _useState326[1];
+  var _useState327 = useState([]),
     _useState328 = _slicedToArray(_useState327, 2),
-    nextVisa = _useState328[0],
-    setNextVisa = _useState328[1];
+    selectedKeys = _useState328[0],
+    setSelectedKeys = _useState328[1];
   var _useState329 = useState(""),
     _useState330 = _slicedToArray(_useState329, 2),
-    nextDate = _useState330[0],
-    setNextDate = _useState330[1];
-  var _useState331 = useState(false),
+    nextVisa = _useState330[0],
+    setNextVisa = _useState330[1];
+  var _useState331 = useState(""),
     _useState332 = _slicedToArray(_useState331, 2),
-    updateDateWithVisa = _useState332[0],
-    setUpdateDateWithVisa = _useState332[1];
-  var _useState333 = useState(""),
+    nextDate = _useState332[0],
+    setNextDate = _useState332[1];
+  var _useState333 = useState(false),
     _useState334 = _slicedToArray(_useState333, 2),
-    reason = _useState334[0],
-    setReason = _useState334[1];
-  var _useState335 = useState(false),
+    updateDateWithVisa = _useState334[0],
+    setUpdateDateWithVisa = _useState334[1];
+  var _useState335 = useState(""),
     _useState336 = _slicedToArray(_useState335, 2),
-    busy = _useState336[0],
-    setBusy = _useState336[1];
-  var _useState337 = useState([]),
+    reason = _useState336[0],
+    setReason = _useState336[1];
+  var _useState337 = useState(false),
     _useState338 = _slicedToArray(_useState337, 2),
-    accounts = _useState338[0],
-    setAccounts = _useState338[1];
-  var _useState339 = useState(""),
+    busy = _useState338[0],
+    setBusy = _useState338[1];
+  var _useState339 = useState([]),
     _useState340 = _slicedToArray(_useState339, 2),
-    accountsError = _useState340[0],
-    setAccountsError = _useState340[1];
+    accounts = _useState340[0],
+    setAccounts = _useState340[1];
+  var _useState341 = useState(""),
+    _useState342 = _slicedToArray(_useState341, 2),
+    accountsError = _useState342[0],
+    setAccountsError = _useState342[1];
   useEffect(function () {
     var active = true;
     _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee38() {
@@ -26603,9 +26691,9 @@ var AdminVisaModal = function AdminVisaModal(_ref153) {
 };
 function App() {
   var _ofData$units0, _ofData$etuvage2, _ofData$testequip3;
-  var _useState341 = useState(0),
-    _useState342 = _slicedToArray(_useState341, 2),
-    setThemeRevision = _useState342[1];
+  var _useState343 = useState(0),
+    _useState344 = _slicedToArray(_useState343, 2),
+    setThemeRevision = _useState344[1];
   useEffect(function () {
     var refresh = function refresh() {
       return setThemeRevision(function (n) {
@@ -26617,27 +26705,27 @@ function App() {
       return window.removeEventListener("sp-f001-theme-change", refresh);
     };
   }, []);
-  var _useState343 = useState(null),
-    _useState344 = _slicedToArray(_useState343, 2),
-    user = _useState344[0],
-    setUser = _useState344[1];
-  var homeSaveQueue = React.useRef(Promise.resolve());
-  var _useState345 = useState([]),
+  var _useState345 = useState(null),
     _useState346 = _slicedToArray(_useState345, 2),
-    ofList = _useState346[0],
-    setOfList = _useState346[1];
-  var _useState347 = useState(null),
+    user = _useState346[0],
+    setUser = _useState346[1];
+  var homeSaveQueue = React.useRef(Promise.resolve());
+  var _useState347 = useState([]),
     _useState348 = _slicedToArray(_useState347, 2),
-    currentId = _useState348[0],
-    setCurrentId = _useState348[1];
-  var _useState349 = useState(DEFAULT_CONSOMMABLES),
+    ofList = _useState348[0],
+    setOfList = _useState348[1];
+  var _useState349 = useState(null),
     _useState350 = _slicedToArray(_useState349, 2),
-    consommables = _useState350[0],
-    setConsommables = _useState350[1];
-  var _useState351 = useState(false),
+    currentId = _useState350[0],
+    setCurrentId = _useState350[1];
+  var _useState351 = useState(DEFAULT_CONSOMMABLES),
     _useState352 = _slicedToArray(_useState351, 2),
-    showConsoEditor = _useState352[0],
-    setShowConsoEditor = _useState352[1];
+    consommables = _useState352[0],
+    setConsommables = _useState352[1];
+  var _useState353 = useState(false),
+    _useState354 = _slicedToArray(_useState353, 2),
+    showConsoEditor = _useState354[0],
+    setShowConsoEditor = _useState354[1];
   var catalogRead = React.useRef(null);
   var catalogEditBase = React.useRef(null);
   var readConsommables = useCallback(function () {
@@ -26686,122 +26774,122 @@ function App() {
     }
     return catalogRead.current;
   }, []);
-  var _useState353 = useState(function () {
+  var _useState355 = useState(function () {
       return ensureOpenWorkFactType(DEFAULT_FAIT_TYPES);
     }),
-    _useState354 = _slicedToArray(_useState353, 2),
-    faitTypes = _useState354[0],
-    setFaitTypes = _useState354[1];
-  var _useState355 = useState(false),
     _useState356 = _slicedToArray(_useState355, 2),
-    showFaitTypes = _useState356[0],
-    setShowFaitTypes = _useState356[1];
-  var _useState357 = useState(function () {
+    faitTypes = _useState356[0],
+    setFaitTypes = _useState356[1];
+  var _useState357 = useState(false),
+    _useState358 = _slicedToArray(_useState357, 2),
+    showFaitTypes = _useState358[0],
+    setShowFaitTypes = _useState358[1];
+  var _useState359 = useState(function () {
       return normalizeStatusTypes(DEFAULT_STATUS_TYPES);
     }),
-    _useState358 = _slicedToArray(_useState357, 2),
-    statusTypes = _useState358[0],
-    setStatusTypes = _useState358[1];
-  var _useState359 = useState(false),
     _useState360 = _slicedToArray(_useState359, 2),
-    showStatusTypes = _useState360[0],
-    setShowStatusTypes = _useState360[1];
-  var _useState361 = useState(null),
+    statusTypes = _useState360[0],
+    setStatusTypes = _useState360[1];
+  var _useState361 = useState(false),
     _useState362 = _slicedToArray(_useState361, 2),
-    ofData = _useState362[0],
-    setOfData = _useState362[1];
-  var _useState363 = useState("rework"),
+    showStatusTypes = _useState362[0],
+    setShowStatusTypes = _useState362[1];
+  var _useState363 = useState(null),
     _useState364 = _slicedToArray(_useState363, 2),
-    activeTab = _useState364[0],
-    setActiveTab = _useState364[1];
-  var _useState365 = useState(false),
+    ofData = _useState364[0],
+    setOfData = _useState364[1];
+  var _useState365 = useState("rework"),
     _useState366 = _slicedToArray(_useState365, 2),
-    saving = _useState366[0],
-    setSaving = _useState366[1];
+    activeTab = _useState366[0],
+    setActiveTab = _useState366[1];
   var _useState367 = useState(false),
     _useState368 = _slicedToArray(_useState367, 2),
-    godMode = _useState368[0],
-    setGodMode = _useState368[1];
-  var _useState369 = useState(null),
+    saving = _useState368[0],
+    setSaving = _useState368[1];
+  var _useState369 = useState(false),
     _useState370 = _slicedToArray(_useState369, 2),
-    lastSaved = _useState370[0],
-    setLastSaved = _useState370[1];
-  var _useState371 = useState(""),
+    godMode = _useState370[0],
+    setGodMode = _useState370[1];
+  var _useState371 = useState(null),
     _useState372 = _slicedToArray(_useState371, 2),
-    saveError = _useState372[0],
-    setSaveError = _useState372[1];
-  var _useState373 = useState(null),
+    lastSaved = _useState372[0],
+    setLastSaved = _useState372[1];
+  var _useState373 = useState(""),
     _useState374 = _slicedToArray(_useState373, 2),
-    pendingSave = _useState374[0],
-    setPendingSave = _useState374[1];
-  var _useState375 = useState(false),
+    saveError = _useState374[0],
+    setSaveError = _useState374[1];
+  var _useState375 = useState(null),
     _useState376 = _slicedToArray(_useState375, 2),
-    loaded = _useState376[0],
-    setLoaded = _useState376[1];
+    pendingSave = _useState376[0],
+    setPendingSave = _useState376[1];
   var _useState377 = useState(false),
     _useState378 = _slicedToArray(_useState377, 2),
-    ofListReady = _useState378[0],
-    setOfListReady = _useState378[1];
-  var _useState379 = useState([]),
+    loaded = _useState378[0],
+    setLoaded = _useState378[1];
+  var _useState379 = useState(false),
     _useState380 = _slicedToArray(_useState379, 2),
-    openHistory = _useState380[0],
-    setOpenHistory = _useState380[1]; // IDs des OF récemment ouverts
-  var _useState381 = useState(false),
+    ofListReady = _useState380[0],
+    setOfListReady = _useState380[1];
+  var _useState381 = useState([]),
     _useState382 = _slicedToArray(_useState381, 2),
-    showAdminUsers = _useState382[0],
-    setShowAdminUsers = _useState382[1];
+    openHistory = _useState382[0],
+    setOpenHistory = _useState382[1]; // IDs des OF récemment ouverts
   var _useState383 = useState(false),
     _useState384 = _slicedToArray(_useState383, 2),
-    showSettings = _useState384[0],
-    setShowSettings = _useState384[1];
+    showAdminUsers = _useState384[0],
+    setShowAdminUsers = _useState384[1];
   var _useState385 = useState(false),
     _useState386 = _slicedToArray(_useState385, 2),
-    showAdminVisaEditor = _useState386[0],
-    setShowAdminVisaEditor = _useState386[1];
-  var _useState387 = useState(null),
+    showSettings = _useState386[0],
+    setShowSettings = _useState386[1];
+  var _useState387 = useState(false),
     _useState388 = _slicedToArray(_useState387, 2),
-    copyAcrossRow = _useState388[0],
-    setCopyAcrossRow = _useState388[1];
-  var _useState389 = useState(false),
+    showAdminVisaEditor = _useState388[0],
+    setShowAdminVisaEditor = _useState388[1];
+  var _useState389 = useState(null),
     _useState390 = _slicedToArray(_useState389, 2),
-    copiedOfInfo = _useState390[0],
-    setCopiedOfInfo = _useState390[1];
+    copyAcrossRow = _useState390[0],
+    setCopyAcrossRow = _useState390[1];
   var _useState391 = useState(false),
     _useState392 = _slicedToArray(_useState391, 2),
-    copiedFolderLink = _useState392[0],
-    setCopiedFolderLink = _useState392[1];
+    copiedOfInfo = _useState392[0],
+    setCopiedOfInfo = _useState392[1];
   var _useState393 = useState(false),
     _useState394 = _slicedToArray(_useState393, 2),
-    copiedPhotoPath = _useState394[0],
-    setCopiedPhotoPath = _useState394[1];
+    copiedFolderLink = _useState394[0],
+    setCopiedFolderLink = _useState394[1];
   var _useState395 = useState(false),
     _useState396 = _slicedToArray(_useState395, 2),
-    printAll = _useState396[0],
-    setPrintAll = _useState396[1];
+    copiedPhotoPath = _useState396[0],
+    setCopiedPhotoPath = _useState396[1];
   var _useState397 = useState(false),
     _useState398 = _slicedToArray(_useState397, 2),
-    pdfIncludeHistory = _useState398[0],
-    setPdfIncludeHistory = _useState398[1];
+    printAll = _useState398[0],
+    setPrintAll = _useState398[1];
   var _useState399 = useState(false),
     _useState400 = _slicedToArray(_useState399, 2),
-    showPdfOptions = _useState400[0],
-    setShowPdfOptions = _useState400[1];
+    pdfIncludeHistory = _useState400[0],
+    setPdfIncludeHistory = _useState400[1];
   var _useState401 = useState(false),
     _useState402 = _slicedToArray(_useState401, 2),
-    showLabelOptions = _useState402[0],
-    setShowLabelOptions = _useState402[1];
-  var _useState403 = useState("all"),
+    showPdfOptions = _useState402[0],
+    setShowPdfOptions = _useState402[1];
+  var _useState403 = useState(false),
     _useState404 = _slicedToArray(_useState403, 2),
-    activeUnitId = _useState404[0],
-    setActiveUnitId = _useState404[1];
-  var _useState405 = useState(""),
+    showLabelOptions = _useState404[0],
+    setShowLabelOptions = _useState404[1];
+  var _useState405 = useState("all"),
     _useState406 = _slicedToArray(_useState405, 2),
-    entryUnitId = _useState406[0],
-    setEntryUnitId = _useState406[1];
-  var _useState407 = useState("dossier"),
+    activeUnitId = _useState406[0],
+    setActiveUnitId = _useState406[1];
+  var _useState407 = useState(""),
     _useState408 = _slicedToArray(_useState407, 2),
-    headerPanel = _useState408[0],
-    setHeaderPanel = _useState408[1];
+    entryUnitId = _useState408[0],
+    setEntryUnitId = _useState408[1];
+  var _useState409 = useState("dossier"),
+    _useState410 = _slicedToArray(_useState409, 2),
+    headerPanel = _useState410[0],
+    setHeaderPanel = _useState410[1];
   var pendingFolderLink = React.useRef(parseFolderLink());
   var folderLinkHandled = React.useRef(false);
   var perms = {
@@ -27117,10 +27205,10 @@ function App() {
     }
     return handleSaveProfile;
   }();
-  var _useState409 = useState(false),
-    _useState410 = _slicedToArray(_useState409, 2),
-    showProfile = _useState410[0],
-    setShowProfile = _useState410[1];
+  var _useState411 = useState(false),
+    _useState412 = _slicedToArray(_useState411, 2),
+    showProfile = _useState412[0],
+    setShowProfile = _useState412[1];
   var handleLogout = /*#__PURE__*/function () {
     var _handleLogout = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee44() {
       var _t68, _t69;
@@ -29221,6 +29309,15 @@ function App() {
   var activeUnit = snRows.find(function (u) {
     return u.id === activeUnitId;
   }) || null;
+  var moveActiveUnit = function moveActiveUnit(direction) {
+    if (!snRows.length) return;
+    var currentIndex = snRows.findIndex(function (unit) {
+      return unit.id === activeUnitChoice;
+    });
+    var nextIndex = currentIndex < 0 ? direction > 0 ? 0 : snRows.length - 1 : (currentIndex + direction + snRows.length) % snRows.length;
+    if (activeUnit) setEntryUnitId(activeUnit.id);
+    setActiveUnitId(snRows[nextIndex].id);
+  };
   var entryUnit = activeUnit || snRows.find(function (u) {
     return u.id === entryUnitId;
   }) || snRows[0] || null;
@@ -29464,7 +29561,27 @@ function App() {
       fontWeight: 700,
       color: C.muted
     }
-  }, "Vue SN"), /*#__PURE__*/React.createElement("select", {
+  }, "Vue SN"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "SN pr\xE9c\xE9dent",
+    title: "SN pr\xE9c\xE9dent",
+    disabled: !snRows.length,
+    onClick: function onClick() {
+      return moveActiveUnit(-1);
+    },
+    style: {
+      width: 28,
+      height: 28,
+      padding: 0,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      background: C.raised,
+      color: C.text,
+      fontSize: 18,
+      fontWeight: 800,
+      cursor: snRows.length ? "pointer" : "default"
+    }
+  }, "\u2039"), /*#__PURE__*/React.createElement("select", {
     id: "active-work-sn",
     value: activeUnitChoice,
     onChange: function onChange(e) {
@@ -29482,7 +29599,7 @@ function App() {
       fontWeight: 700,
       fontFamily: "monospace",
       outline: "none",
-      width: 220,
+      width: 190,
       maxWidth: "100%"
     }
   }, /*#__PURE__*/React.createElement("option", {
@@ -29492,7 +29609,27 @@ function App() {
       key: u.id,
       value: u.id
     }, snTitle(u));
-  })), activeUnitChoice === "all" && /*#__PURE__*/React.createElement("span", {
+  })), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    "aria-label": "SN suivant",
+    title: "SN suivant",
+    disabled: !snRows.length,
+    onClick: function onClick() {
+      return moveActiveUnit(1);
+    },
+    style: {
+      width: 28,
+      height: 28,
+      padding: 0,
+      border: "1px solid ".concat(C.border),
+      borderRadius: 4,
+      background: C.raised,
+      color: C.text,
+      fontSize: 18,
+      fontWeight: 800,
+      cursor: snRows.length ? "pointer" : "default"
+    }
+  }, "\u203A"), activeUnitChoice === "all" && /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.yellow,
       fontSize: 11,

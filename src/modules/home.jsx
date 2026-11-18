@@ -675,6 +675,7 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
     </div>}
   </section>;
 };
+const homeActionMenuStyle={width:"100%",border:0,borderRadius:4,background:"transparent",color:C.text,padding:"8px 10px",textAlign:"left",fontSize:12,fontWeight:700,cursor:"pointer"};
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageSettings}) => {
   const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
   const densityStorageKey=`sp-f001-home-density:${user?.trigram||"default"}`;
@@ -707,8 +708,16 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [showBulkPdf,setShowBulkPdf] = useState(false);
   const [bulkLabelEntries,setBulkLabelEntries] = useState(null);
   const [copiedTeamsKey,setCopiedTeamsKey] = useState("");
+  const [homeRowMenu,setHomeRowMenu] = useState(null);
   const [homeNow,setHomeNow] = useState(()=>new Date());
   useEffect(()=>{const timer=setInterval(()=>setHomeNow(new Date()),60000);return()=>clearInterval(timer);},[]);
+  useEffect(()=>{
+    if(!homeRowMenu)return;
+    const close=event=>{if(event.type==="keydown"&&event.key!=="Escape")return;setHomeRowMenu(null);};
+    window.addEventListener("pointerdown",close);
+    window.addEventListener("keydown",close);
+    return()=>{window.removeEventListener("pointerdown",close);window.removeEventListener("keydown",close);};
+  },[homeRowMenu]);
   useEffect(()=>{
     let cancelled=false;setLoadingWorked(true);
     (async()=>{
@@ -1042,6 +1051,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
           </div>
           <div style={{fontSize:20,fontWeight:900,color:C.text,fontFamily:"monospace"}}>SP-F001A7</div>
         </div>
+        <HeaderClock/>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <ThemeButton/>
           {(canManageLists(user)||canManageUsers(user))&&<Btn onClick={onManageSettings} color={C.blue} small>Paramètres</Btn>}
@@ -1201,12 +1211,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
       )}
         <div style={{overflowX:"auto"}}>
-          <table className="home-workorders-table" style={{width:"100%",minWidth:1700,tableLayout:"fixed",borderCollapse:"collapse",fontSize:12}}>
+          <table className="home-workorders-table" style={{width:"100%",minWidth:1650,tableLayout:"fixed",borderCollapse:"collapse",fontSize:12}}>
             <colgroup>
               <col style={{width:34}}/><col style={{width:30}}/><col style={{width:110}}/><col style={{width:100}}/>
-              <col style={{width:80}}/><col style={{width:90}}/><col style={{width:280}}/><col style={{width:160}}/>
-              <col style={{width:120}}/><col style={{width:70}}/><col style={{width:190}}/><col style={{width:145}}/>
-              <col/><col style={{width:isAdminManager(user)?140:80}}/>
+              <col style={{width:300}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:160}}/>
+              <col style={{width:105}}/><col style={{width:190}}/><col style={{width:145}}/><col/>
+              <col style={{width:52}}/>
             </colgroup>
             <thead style={{position:"sticky",top:0,zIndex:6}}>
               <tr>
@@ -1214,23 +1224,22 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 <TH w={30}>⭐</TH>
                 {sortableTh("of","OF",120)}
                 {sortableTh("codeArticle","N° Article",110)}
+                {sortableTh("description","Description")}
                 {sortableTh("sn","SN",90)}
                 {sortableTh("lot","LOT",110)}
-                {sortableTh("description","Description")}
                 {sortableTh("otp","OTP",190)}
-                {sortableTh("snProduitFini","SN Prod. Fini",140)}
-                {sortableTh("reprise","Reprise",78)}
+                {sortableTh("snProduitFini","SN Prod. Fini",110)}
                 {sortableTh("unitStatus","État",170)}
                 {sortableTh("nextEtuvage","Prochain étuvage",150)}
                 {sortableTh("followup","Suivi technique",330)}
-                <TH w={isAdminManager(user)?140:80}></TH>
+                <TH w={52} style={{position:"sticky",right:0,zIndex:8,background:C.raised}}>Actions</TH>
               </tr>
               <tr style={{background:C.raised}}>
                 <td/>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
-                {[['of','OF'],['codeArticle','N° Article'],['sn','SN'],['lot','LOT'],['description','Description'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['reprise','Reprise'],['unitStatus','État'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
+                {[['of','OF'],['codeArticle','N° Article'],['description','Description'],['sn','SN'],['lot','LOT'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['unitStatus','État'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
                 <td style={{padding:"4px 5px"}}>{columnFilter("followup","Suivi technique")}</td>
-                <td/>
+                <td style={{position:"sticky",right:0,zIndex:8,background:C.raised}}/>
               </tr>
             </thead>
             <tbody>
@@ -1262,9 +1271,19 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const showAdministrativeStatus=groupStart&&(groupStatuses.length!==1||administrativeStatus!==groupStatuses[0]);
                 const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
                 const contributors=contributorsById[o.id]||[];
+                const isRework=String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true";
+                const openActions=(event,fromButton=false)=>{
+                  event.preventDefault();event.stopPropagation();
+                  const rect=fromButton?event.currentTarget.getBoundingClientRect():null;
+                  const menuWidth=210,menuHeight=isAdminManager(user)?132:96;
+                  const x=Math.max(8,Math.min(rect?rect.right-menuWidth:event.clientX,window.innerWidth-menuWidth-8));
+                  const y=Math.max(8,Math.min(rect?rect.bottom+4:event.clientY,window.innerHeight-menuHeight-8));
+                  setHomeRowMenu({key:actionKey,x,y,id:o.id,unitId:collapsed?null:o._homeUnitId,of:o.of,unitName:collapsed?summaryName:homeUnitName(o),ofRows});
+                };
                 return (
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
                     onClick={()=>selectionMode?(collapsed?toggleOfSelection(o.id):toggleSelected(o)):onSelect(o.id,collapsed?null:o._homeUnitId)}
+                    onContextMenu={event=>openActions(event)}
                     title={selectionMode?"Ajouter ou retirer cette ligne de la sélection":"Ouvrir ce dossier"}
                     style={{background:rowBackground,cursor:selectionMode?"cell":"pointer",transition:"background .1s",borderTop:groupStart?`2px solid ${C.border}`:undefined,boxShadow:ovenOverdue?`inset 4px 0 ${C.red}`:undefined}}
                     onMouseEnter={e=>e.currentTarget.style.background=selectionMode?C.blue+"14":"#e05c0015"}
@@ -1282,16 +1301,16 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                         {multiSn&&groupStart&&<button type="button" aria-label={`${collapsed?"Déplier":"Replier"} les ${summaryName} de OF ${o.of}`} title={collapsed?"Afficher les SN / LOT":"Replier les SN / LOT"} onClick={e=>{e.stopPropagation();toggleOfExpanded(o.id);}}
                           style={{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,border:`1px solid ${C.blue}`,borderRadius:4,background:C.blue+"12",color:C.blue,fontSize:13,fontWeight:900,cursor:"pointer",flexShrink:0}}>{collapsed?"+":"−"}</button>}
                         <span style={{fontWeight:700,fontFamily:"monospace",color:C.text}}>{o.of}</span>
+                        {isRework&&<Badge label="R" color={C.yellow}/>}
                         {groupStart&&contributors.length>0&&<span role="img" aria-label={`${contributors.length} intervenant${contributors.length>1?"s":""} sur l'OF ${o.of}`} title={`Intervenants : ${contributors.join(", ")}`} style={{display:"inline-flex",alignItems:"center",gap:3,color:C.muted,fontSize:10,fontWeight:700,whiteSpace:"nowrap"}}>👥 {contributors.length}</span>}
                       </div>
                     </TD>
                     <TD><span style={{fontFamily:"monospace",color:C.muted}}>{o.codeArticle||o.articleNo||"—"}</span></TD>
+                    <TD><span style={{color:C.text}}>{o.description||"—"}</span></TD>
                     <TD><span style={{fontFamily:"monospace",color:collapsed||o.sn?C.blue:C.muted,fontWeight:700}}>{collapsed?snSummary:(o.sn||"—")}</span></TD>
                     <TD><span style={{fontFamily:"monospace",color:C.muted,fontWeight:collapsed?700:400}}>{collapsed?lotSummary:(o.lot||"—")}</span></TD>
-                    <TD><span style={{color:C.text}}>{o.description||"—"}</span></TD>
                     <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>{o.otp||o.projet||"—"}</span></TD>
                     <TD onClick={e=>e.stopPropagation()}>{collapsed?<span style={{color:C.muted}}>—</span>:<FinishedProductSn of={o} user={user} onSave={onFinishedSnChange}/>}</TD>
-                    <TD center><Badge label={(String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true")?"Oui":"Non"} color={String(o.ofRework||"").toLowerCase()==="oui"?C.yellow:C.border}/></TD>
                     <TD onClick={e=>e.stopPropagation()}>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"stretch",gap:3}}>
                         {collapsed?<Badge label={statusSummary.label} color={statusSummary.color}/>:o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
@@ -1328,20 +1347,9 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                         {!facts.length&&!polymerization&&!warningsById[o.id]?.length&&<span style={{color:C.muted}}>—</span>}
                       </div>
                     </TD>
-                    <TD center>
-                      <button title="Copier toutes les lignes SN / LOT de cet OF" aria-label={`Copier toutes les lignes de l'OF ${o.of} dans le presse-papier`}
-                        onClick={e=>{e.stopPropagation();copyHomeRows(ofRows,actionKey);}}
-                        style={{background:copiedTeamsKey===actionKey?C.green:C.blue,border:"none",borderRadius:4,color:"#fff",padding:"4px 7px",cursor:"pointer",marginRight:6,fontWeight:800}}>
-                        {copiedTeamsKey===actionKey?"✓":"📋"}
-                      </button>
-                      {isAdminManager(user)&&<button title="Supprimer cet OF" aria-label={`Supprimer l'OF ${o.of}`}
-                        onClick={e=>{e.stopPropagation();onDelete(o.id);}}
-                        style={{background:C.red,border:"none",borderRadius:4,color:"#fff",padding:"4px 8px",cursor:"pointer",marginRight:6}}>×</button>}
-                      <button aria-label={collapsed?`Ouvrir OF ${o.of}`:`Ouvrir OF ${o.of} - ${homeUnitName(o)}`} title="Ouvrir le dossier" onClick={e=>{e.stopPropagation();onSelect(o.id,collapsed?null:o._homeUnitId);}}
-                        style={{background:C.accent,border:"none",borderRadius:4,color:"#fff",
-                          padding:"4px 10px",cursor:"pointer",fontSize:13,fontWeight:700}}>
-                        →
-                      </button>
+                    <TD center onClick={e=>e.stopPropagation()} style={{position:"sticky",right:0,zIndex:4,background:"inherit",boxShadow:`-3px 0 5px ${C.bg}55`}}>
+                      <button type="button" aria-label={`Actions OF ${o.of} - ${collapsed?summaryName:homeUnitName(o)}`} title="Actions" onClick={event=>openActions(event,true)}
+                        style={{width:30,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center",background:C.blue,border:"none",borderRadius:4,color:"#fff",cursor:"pointer",fontSize:18,fontWeight:800}}>⋮</button>
                     </TD>
                   </tr>
                 );
@@ -1349,6 +1357,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             </tbody>
           </table>
         </div>
+      {homeRowMenu&&<div role="menu" aria-label={`Actions OF ${homeRowMenu.of} - ${homeRowMenu.unitName}`} onPointerDown={event=>event.stopPropagation()}
+        style={{position:"fixed",left:homeRowMenu.x,top:homeRowMenu.y,zIndex:1000,width:210,padding:5,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,boxShadow:"0 8px 24px #0004"}}>
+        <button type="button" role="menuitem" aria-label={`Ouvrir OF ${homeRowMenu.of} - ${homeRowMenu.unitName}`} onClick={()=>{onSelect(homeRowMenu.id,homeRowMenu.unitId);setHomeRowMenu(null);}} style={homeActionMenuStyle}>→ Ouvrir le dossier</button>
+        <button type="button" role="menuitem" aria-label={`Copier toutes les lignes de l'OF ${homeRowMenu.of} dans le presse-papier`} onClick={()=>{copyHomeRows(homeRowMenu.ofRows,homeRowMenu.key);setHomeRowMenu(null);}} style={homeActionMenuStyle}>📋 Copier tout l’OF</button>
+        {isAdminManager(user)&&<button type="button" role="menuitem" aria-label={`Supprimer l'OF ${homeRowMenu.of}`} onClick={()=>{onDelete(homeRowMenu.id);setHomeRowMenu(null);}} style={{...homeActionMenuStyle,color:C.red}}>× Supprimer l’OF</button>}
+      </div>}
 
       {/* Pagination */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginTop:14,color:C.muted,fontSize:12}}>

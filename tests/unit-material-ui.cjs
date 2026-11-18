@@ -70,11 +70,13 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     }, {entry, data, user,otherEntry});
     await page.addScriptTag({path: path.join(root, 'src/App.runtime.js')});
     await page.getByRole('button',{name:'Mes OF (1)',exact:true}).waitFor();
+    assert.equal(await page.getByLabel('Date, heure et semaine',{exact:true}).count(),1);
     assert.equal(await page.locator('.home-density-comfort').count(),1);
     assert.equal(await page.getByRole('button',{name:'Confort',exact:true}).getAttribute('aria-pressed'),'true');
     const homeColumnWidths=await page.locator('.home-workorders-table col').evaluateAll(columns=>columns.map(column=>column.style.width));
-    assert.equal(homeColumnWidths[6],'280px');
-    assert.equal(homeColumnWidths[10],'190px');
+    assert.equal(homeColumnWidths[4],'300px');
+    assert.equal(homeColumnWidths[9],'190px');
+    assert.equal(homeColumnWidths[12],'52px');
     await page.getByRole('button',{name:'Compact',exact:true}).click();
     assert.equal(await page.locator('.home-density-compact').count(),1);
     assert.equal(await page.evaluate(()=>localStorage.getItem('sp-f001-home-density:JGR')),'compact');
@@ -128,7 +130,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(sortedHomeRows[0].startsWith('Sélectionner SN2'));
     await page.getByRole('button',{name:'Trier SN, ordre Z-A',exact:true}).click();
     assert.equal(await page.getByRole('toolbar',{name:'Actions sur la sélection',exact:true}).count(),0);
-    const copyWholeOf=page.getByRole('button',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true}).first();
+    await page.getByRole('button',{name:/Actions OF 100TEST/}).first().click();
+    const copyWholeOf=page.getByRole('menuitem',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true});
     await copyWholeOf.click();
     await page.waitForFunction(()=>window.copiedHomeHtml?.includes('<table'));
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
@@ -279,12 +282,17 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(homeFont.includes('system-ui'));
     fs.mkdirSync(path.join(__dirname, 'artifacts'), {recursive: true});
     await page.screenshot({path: path.join(__dirname, 'artifacts/home-units-1920.png')});
-    const homeTeamsCopy=page.getByRole('button',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true}).first();
+    await page.getByRole('button',{name:/Actions OF 100TEST/}).first().click();
+    const homeTeamsCopy=page.getByRole('menuitem',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true});
     await homeTeamsCopy.click();
-    await page.waitForFunction(()=>Array.from(document.querySelectorAll('button')).some(button=>button.getAttribute('aria-label')==="Copier toutes les lignes de l'OF 100TEST dans le presse-papier"&&button.textContent.trim()==='✓'));
-    assert.equal((await homeTeamsCopy.textContent()).trim(),'✓');
-    await page.getByRole('button', {name: 'Ouvrir OF 100TEST - SN2', exact: true}).click();
+    await page.waitForFunction(()=>window.copiedHomeText?.includes('\tSN2\t'));
+    await page.getByRole('button',{name:'Actions OF 100TEST - SN2',exact:true}).click();
+    await page.getByRole('menuitem', {name: 'Ouvrir OF 100TEST - SN2', exact: true}).click();
     await page.waitForFunction(() => document.getElementById('active-work-sn')?.value === 'u2');
+    await page.getByRole('button',{name:'SN précédent',exact:true}).click();
+    assert.equal(await page.locator('#active-work-sn').inputValue(),'u1');
+    await page.getByRole('button',{name:'SN suivant',exact:true}).click();
+    assert.equal(await page.locator('#active-work-sn').inputValue(),'u2');
     await page.getByRole('button',{name:'Copier les informations du dossier dans le presse-papier',exact:true}).click();
     await page.waitForFunction(()=>window.copiedHomeText?.split('\n').length===2&&window.copiedHomeText.includes('\tSN2\t'));
     assert.equal(await page.evaluate(()=>window.copiedHomeText),[
