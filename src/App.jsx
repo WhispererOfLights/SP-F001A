@@ -486,6 +486,18 @@ const ActionGroup = ({children}) => (
     {children}
   </div>
 );
+const RowCommitButton = ({validated=false,editable=false,onValidate,onEdit,hidden=false}) => {
+  if(hidden||!editable) return null;
+  const edit=!!validated;
+  const label=edit?"Modifier la ligne":"Valider la ligne";
+  return <button type="button" className="no-print" title={label} aria-label={label}
+    onClick={event=>{event.stopPropagation();(edit?onEdit:onValidate)?.();}}
+    style={{width:24,height:24,display:"inline-flex",alignItems:"center",justifyContent:"center",
+      background:edit?C.yellow:C.green,color:"#fff",border:"none",borderRadius:4,cursor:"pointer",
+      fontSize:12,fontWeight:900,lineHeight:1,padding:0,pointerEvents:"all",flexShrink:0}}>
+    {edit?"✎":"✓"}
+  </button>;
+};
 const Badge = ({label,color}) => (
   <span style={{background:color+"22",border:`1px solid ${color}`,color,borderRadius:3,
     padding:"1px 6px",fontSize:10,fontWeight:700,letterSpacing:.5,fontFamily:"monospace",whiteSpace:"nowrap"}}>

@@ -993,7 +993,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         <table ref={tableRef} style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",fontSize:12}}>
           <thead>
             <tr>
-              <TH w={118}>Date / Heure</TH><TH w={48} color={C.accent}>Visa</TH>
+              <TH w={118}>Date / Heure</TH><TH w={48} color={C.accent}>Visa</TH><TH w={32}>✓</TH>
               <TH w={82}>SN / LOT</TH>
               <TH w={66}>Repère TOPO</TH>
               <TH w={58}>Adj</TH>
@@ -1012,7 +1012,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
               <TH w={28}>💬</TH>
             </tr>
             <tr style={{background:C.blue+"0c",borderBottom:`2px solid ${C.border}`}}>
-              <th colSpan={2} style={{color:C.blue,fontSize:11,textAlign:"left",padding:"6px 5px"}}>⌕ Filtres</th>
+              <th colSpan={2} style={{color:C.blue,fontSize:11,textAlign:"left",padding:"6px 5px"}}>⌕ Filtres</th><th></th>
               <th style={{padding:"3px 4px"}}><SnFilter value={filters.snTarget} onChange={v=>fset("snTarget",v)} header={header}/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.repere} onChange={v=>fset("repere",v)} small title="Filtrer repère topo"/></th>
               <th style={{padding:"3px 4px"}}>
@@ -1073,6 +1073,8 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                 <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
+                <TD center><RowCommitButton validated={!!r.validated} editable={editable} hidden={!!r.deleted}
+                  onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                 <TD><Input entryField="repere" value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
                 <TD center style={{pointerEvents:r.deleted?"none":"all"}}>

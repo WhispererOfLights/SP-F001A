@@ -164,7 +164,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
         <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
           <thead>
             <tr>
-              <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
+              <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH><TH w={32}>✓</TH>
               <TH w={78}>N° SN</TH>
               <TH w={70}>Four N°</TH><TH w={58}>Durée [H]</TH><TH w={58}>Temp [°C]</TH>
               <TH w={112}>▶ Entrée</TH><TH w={138}>Date/Heure entrée</TH>
@@ -207,6 +207,9 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                   <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
+                  <TD center><RowCommitButton validated={!!r.validated} editable={editable}
+                    hidden={!!r.deleted||vacuumExit||(!inFour&&!r.editBase)}
+                    onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}/></TD>
                   <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                   <TD>
                     {vacuumExit?(
