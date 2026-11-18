@@ -677,6 +677,14 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
 };
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageSettings}) => {
   const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
+  const densityStorageKey=`sp-f001-home-density:${user?.trigram||"default"}`;
+  const [homeDensity,setHomeDensity]=useState(()=>{
+    try{return localStorage.getItem(densityStorageKey)==="compact"?"compact":"comfort";}catch{return "comfort";}
+  });
+  const changeHomeDensity=value=>{
+    setHomeDensity(value);
+    try{localStorage.setItem(densityStorageKey,value);}catch{}
+  };
   const [search,setSearch]          = useState("");
   const [page,setPage]               = useState(0);
   const [pageSize,setPageSize]=useState(25);
@@ -1014,7 +1022,17 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   };
 
   return (
-    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"system-ui,sans-serif",padding:20}}>
+    <div className={homeDensity==="comfort"?"home-density-comfort":"home-density-compact"} style={{minHeight:"100vh",background:C.bg,fontFamily:"system-ui,sans-serif",padding:20}}>
+      <style>{`
+        .home-density-comfort .home-workorders-table tbody td { font-size: 13px !important; padding: 7px 7px !important; line-height: 1.35; }
+        .home-density-comfort .home-workorders-table thead th { font-size: 11px !important; padding: 6px 7px !important; }
+        .home-density-comfort .home-workorders-table thead input,
+        .home-density-comfort .home-workorders-table thead select { font-size: 13px !important; padding: 7px 7px !important; min-height: 32px; }
+        .home-density-comfort .home-workorders-table tbody input,
+        .home-density-comfort .home-workorders-table tbody select { font-size: 13px !important; min-height: 30px; }
+        .home-density-comfort .home-workorders-table tbody td span:not([role="img"]) { font-size: 12px !important; line-height: 1.35; }
+        .home-density-comfort .home-workorders-table tbody td button { min-height: 28px; }
+      `}</style>
       {/* Top bar */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div>
@@ -1068,6 +1086,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             borderRadius:4,color:hideCloture?"#238636":C.muted,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"monospace",whiteSpace:"nowrap"}}>
           {hideCloture?"✓ États finaux masqués":"Afficher états finaux"}
         </button>
+        <div role="group" aria-label="Densité de l'accueil" style={{display:"inline-flex",alignItems:"center",gap:2,padding:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,whiteSpace:"nowrap"}}>
+          <button type="button" aria-pressed={homeDensity==="comfort"} onClick={()=>changeHomeDensity("comfort")}
+            style={{border:0,borderRadius:4,padding:"4px 8px",background:homeDensity==="comfort"?C.blue:"transparent",color:homeDensity==="comfort"?"#fff":C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>Confort</button>
+          <button type="button" aria-pressed={homeDensity==="compact"} onClick={()=>changeHomeDensity("compact")}
+            style={{border:0,borderRadius:4,padding:"4px 8px",background:homeDensity==="compact"?C.blue:"transparent",color:homeDensity==="compact"?"#fff":C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>Compact</button>
+        </div>
         {isAdminManager(user)&&(
           <Btn onClick={()=>setShowNew(v=>!v)} color={showNew?C.border:C.accent}>
             {showNew?"✕ Annuler":"+ Nouveau dossier"}
@@ -1177,7 +1201,13 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
       )}
         <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+          <table className="home-workorders-table" style={{width:"100%",minWidth:1700,tableLayout:"fixed",borderCollapse:"collapse",fontSize:12}}>
+            <colgroup>
+              <col style={{width:34}}/><col style={{width:30}}/><col style={{width:110}}/><col style={{width:100}}/>
+              <col style={{width:80}}/><col style={{width:90}}/><col style={{width:280}}/><col style={{width:160}}/>
+              <col style={{width:120}}/><col style={{width:70}}/><col style={{width:190}}/><col style={{width:145}}/>
+              <col/><col style={{width:isAdminManager(user)?140:80}}/>
+            </colgroup>
             <thead style={{position:"sticky",top:0,zIndex:6}}>
               <tr>
                 <TH w={34}><input aria-label="Sélectionner les lignes de la page" type="checkbox" checked={allPageSelected} onChange={e=>togglePageSelection(e.target.checked)}/></TH>

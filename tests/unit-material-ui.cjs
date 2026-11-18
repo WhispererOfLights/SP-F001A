@@ -70,6 +70,17 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     }, {entry, data, user,otherEntry});
     await page.addScriptTag({path: path.join(root, 'src/App.runtime.js')});
     await page.getByRole('button',{name:'Mes OF (1)',exact:true}).waitFor();
+    assert.equal(await page.locator('.home-density-comfort').count(),1);
+    assert.equal(await page.getByRole('button',{name:'Confort',exact:true}).getAttribute('aria-pressed'),'true');
+    const homeColumnWidths=await page.locator('.home-workorders-table col').evaluateAll(columns=>columns.map(column=>column.style.width));
+    assert.equal(homeColumnWidths[6],'280px');
+    assert.equal(homeColumnWidths[10],'190px');
+    await page.getByRole('button',{name:'Compact',exact:true}).click();
+    assert.equal(await page.locator('.home-density-compact').count(),1);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-f001-home-density:JGR')),'compact');
+    await page.getByRole('button',{name:'Confort',exact:true}).click();
+    assert.equal(await page.locator('.home-density-comfort').count(),1);
+    assert.equal(await page.evaluate(()=>localStorage.getItem('sp-f001-home-density:JGR')),'comfort');
     const operationalAlerts=page.getByRole('region',{name:'Activités en cours sur tous les OF',exact:true});
     await operationalAlerts.waitFor();
     assert.equal(await page.getByRole('button',{name:'Ouvrir polymérisation OF 100TEST - SN1',exact:true}).count(),0);
