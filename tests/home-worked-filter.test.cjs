@@ -3,7 +3,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const ctx={React:{createElement:()=>({})},ReactDOM:{createRoot:()=>({render:()=>{}})},document:{documentElement:{style:{}},body:{style:{}},getElementById:()=>({})},localStorage:{getItem:()=>null},Blob,TextEncoder};
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.filterHome=homeWorkedFilter;globalThis.activityVisas=activityVisasOf;globalThis.searchHome=homeSearchMatches;globalThis.ovenAlertTiming=homeOvenAlertTiming;globalThis.groupOvens=groupHomeOvenAlerts;',ctx);
+vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.filterHome=homeWorkedFilter;globalThis.activityVisas=activityVisasOf;globalThis.searchHome=homeSearchMatches;globalThis.ovenAlertTiming=homeOvenAlertTiming;globalThis.groupOvens=groupHomeOvenAlerts;globalThis.createUnits=homeCreateUnitsFromDrafts;',ctx);
 const rows=[{id:'mine'},{id:'other'}];
 assert.equal(ctx.filterHome(rows,[],true,false).rows.length,2);
 assert.equal(ctx.filterHome(rows,[],true,false).active,false);
@@ -48,4 +48,18 @@ const overdue=ctx.ovenAlertTiming({count:1,nextAt:new Date(2026,9,29,8,0).getTim
 assert.equal(overdue.due,true);
 assert.equal(overdue.anticipated,false);
 assert.equal(overdue.daysWithoutOven,1);
+const createdUnits=[...ctx.createUnits([
+  {unitKind:'sn',value:' SN100 '},
+  {unitKind:'lot',value:' LOT-A ',qteInitiale:'12'},
+  {unitKind:'lot',value:'LOT-B',qteInitiale:'3'},
+  {unitKind:'lot',value:'LOT-A',qteInitiale:'99'},
+  {unitKind:'sn',value:'   '},
+],{trigram:'JGR'})];
+assert.equal(createdUnits.length,3);
+assert.deepEqual(createdUnits.map(unit=>[unit.unitKind,unit.sn,unit.lot,unit.qteInitiale]),[
+  ['sn','SN100','',''],
+  ['lot','','LOT-A','12'],
+  ['lot','','LOT-B','3'],
+]);
+assert.ok(createdUnits.every(unit=>unit.createdVisa==='JGR'&&unit.status==='en_cours'));
 console.log('Home worked filter: all tests passed.');

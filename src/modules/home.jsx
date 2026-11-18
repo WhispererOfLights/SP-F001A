@@ -25,7 +25,29 @@ const SORT_OPTS=[
   {id:"projet",label:"OTP"},
 ];
 
-const parseSnList = text => [...new Set(String(text||"").split(/\r?\n|;|,/).map(cleanSn).filter(Boolean))];
+const newHomeCreateUnit = (unitKind="sn") => ({id:uid(),unitKind,value:"",qteInitiale:unitKind==="lot"?"1":""});
+const blankHomeCreateForm = () => ({
+  of:"",sn:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",
+  ofRework:"non",typeOF:"production",status:"en_cours",unitDrafts:[newHomeCreateUnit()],
+});
+const homeCreateUnitsFromDrafts = (drafts=[],user={}) => {
+  const seen=new Set();
+  return drafts.map(draft=>({...draft,value:cleanSn(draft?.value)}))
+  .filter(draft=>{
+    const key=`${draft.unitKind==="lot"?"lot":"sn"}|${draft.value}`;
+    if(!draft.value||seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  })
+  .map(draft=>({
+    id:uid(),
+    sn:draft.unitKind==="lot"?"":draft.value,
+    lot:draft.unitKind==="lot"?draft.value:"",
+    unitKind:draft.unitKind==="lot"?"lot":"sn",
+    qteInitiale:draft.unitKind==="lot"?String(draft.qteInitiale||"1").trim()||"1":"",
+    status:"en_cours",remarque:"",createdVisa:user.trigram||"",createdDT:nowDT(),deleted:false,
+  }));
+};
 const cleanImportArticle = v => String(v||"").replace(/\s+/g,"").trim();
 const cleanImportQty = v => {
   const s=String(v||"").trim();
@@ -676,7 +698,6 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
 };
 const homeActionMenuStyle={width:"100%",border:0,borderRadius:4,background:"transparent",color:C.text,padding:"8px 10px",textAlign:"left",fontSize:12,fontWeight:700,cursor:"pointer"};
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageSettings}) => {
-  const blankForm = {of:"",sn:"",snLines:"",lot:"",snProduitFini:"",codeArticle:"",description:"",otp:"",ofRework:"non",typeOF:"production",status:"en_cours"};
   const densityStorageKey=`sp-f001-home-density:${user?.trigram||"default"}`;
   const [homeDensity,setHomeDensity]=useState(()=>{
     try{return localStorage.getItem(densityStorageKey)==="compact"?"compact":"comfort";}catch{return "comfort";}
@@ -741,7 +762,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [hideCloture,setHideCloture]   = useState(true);
   const [showNew,setShowNew] = useState(false);
   const [showProfile,setShowProfile] = useState(false);
-  const [form,setForm]       = useState(blankForm);
+  const [form,setForm]       = useState(()=>blankHomeCreateForm());
   const [importText,setImportText] = useState("");
   const [importMsg,setImportMsg] = useState("");
 
@@ -985,16 +1006,23 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const create=async()=>{
     if(!isAdminManager(user)) return;
     if(!form.of)return;
-    const snList=parseSnList(form.snLines||form.sn);
-    if(snList.length>1){
-      const first=snList[0], last=snList[snList.length-1];
-      if(!window.confirm(`Créer ${snList.length} SN dans l'OF ${form.of} de ${first} à ${last} ?`)) return;
+    const snRows=homeCreateUnitsFromDrafts(form.unitDrafts,user);
+    if(!snRows.length){window.alert("Ajoutez au moins un SN ou un lot.");return;}
+    if(snRows.length>1){
+      const labels=snRows.map(row=>row.unitKind==="lot"?`LOT ${row.lot} (Qté ${row.qteInitiale})`:row.sn);
+      if(!window.confirm(`Créer ${snRows.length} pièces dans l'OF ${form.of} ?\n\n${labels.join("\n")}`)) return;
     }
-    const snRows=snList.map(sn=>({id:uid(),sn,lot:form.lot||"",status:"en_cours",remarque:"",createdVisa:user.trigram,createdDT:nowDT(),deleted:false}));
-    onCreate({...form,sn:snList[0]||form.sn,projet:form.otp,ofRework:form.ofRework||"non",_snRows:snRows,createdBy:user.trigram,createdAt:now()});
-    setForm({...blankForm});
+    const {unitDrafts,...headerForm}=form;
+    onCreate({...headerForm,sn:snRows[0]?.sn||"",lot:snRows[0]?.lot||"",projet:form.otp,ofRework:form.ofRework||"non",_snRows:snRows,createdBy:user.trigram,createdAt:now()});
+    setForm(blankHomeCreateForm());
     setShowNew(false);
   };
+  const patchCreateUnit=(id,patch)=>setForm(current=>({...current,unitDrafts:(current.unitDrafts||[]).map(unit=>unit.id===id?{...unit,...patch}:unit)}));
+  const addCreateUnit=unitKind=>setForm(current=>({...current,unitDrafts:[...(current.unitDrafts||[]),newHomeCreateUnit(unitKind)]}));
+  const removeCreateUnit=id=>setForm(current=>{
+    const remaining=(current.unitDrafts||[]).filter(unit=>unit.id!==id);
+    return {...current,unitDrafts:remaining.length?remaining:[newHomeCreateUnit()]};
+  });
 
   const importPaste=async()=>{
     if(!isAdminManager(user)||!onImportOFs) return;
@@ -1022,6 +1050,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         .home-density-comfort .home-workorders-table tbody select { font-size: 13px !important; min-height: 30px; }
         .home-density-comfort .home-workorders-table tbody td span:not([role="img"]) { font-size: 12px !important; line-height: 1.35; }
         .home-density-comfort .home-workorders-table tbody td button { min-height: 28px; }
+        .home-new-of-grid { display:grid; grid-template-columns:minmax(120px,.8fr) minmax(145px,1fr) minmax(250px,2.1fr) minmax(170px,1.2fr) minmax(135px,.9fr) minmax(145px,1fr); gap:8px; align-items:end; }
+        .home-new-unit-row { display:grid; grid-template-columns:34px 112px minmax(180px,1fr) 110px 34px; gap:8px; align-items:center; }
+        @media (max-width:1250px) {
+          .home-new-of-grid { grid-template-columns:repeat(2,minmax(180px,1fr)); }
+          .home-new-unit-row { grid-template-columns:34px 112px minmax(180px,1fr) 100px 34px; }
+        }
       `}</style>
       {/* Top bar */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
@@ -1109,79 +1143,82 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
 
       {/* Formulaire nouveau */}
       {showNew&&(
-        <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,padding:16,marginBottom:14}}>
-          <div style={{color:C.muted,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginBottom:12}}>Nouveau dossier</div>
-          <div style={{marginBottom:12}}>
-            <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>SN (un par ligne)</div>
-            <textarea value={form.snLines||form.sn||""} onChange={e=>setForm(f=>({...f,snLines:e.target.value,sn:parseSnList(e.target.value)[0]||""}))}
-              placeholder={"SN181\nSN182\nSN183"}
-              rows={4}
-              style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,
-                color:C.text,fontSize:13,fontFamily:"monospace",padding:"8px 10px",outline:"none",resize:"vertical",boxSizing:"border-box"}}/>
-            <div style={{fontSize:10,color:C.muted,marginTop:4}}>
-              {parseSnList(form.snLines||form.sn).length||0} SN détecté{parseSnList(form.snLines||form.sn).length>1?"s":""}
-            </div>
+        <div style={{background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:10}}>
+            <strong style={{color:C.text,fontSize:14}}>Nouveau dossier</strong>
+            <span style={{color:C.muted,fontSize:11}}>Les informations sont communes à tous les SN et lots de l’OF.</span>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:10}}>
+          <div className="home-new-of-grid" style={{marginBottom:12}}>
             {[
-              ["OF *","of","454545","N° de l'ordre de fabrication"],
-              ["LOT","lot","SP-J12345","Lot"],
-              ["N° Article","codeArticle","R4B-S001A","Référence SAP"],
+              ["N° OF *","of","1000736","N° de l'ordre de fabrication"],
+              ["Article SAP","codeArticle","250000924","Référence SAP"],
+              ["Description","description","Carte électronique haute tension","Description article"],
               ["OTP","otp","7400-SPA-IRNS-MAI","OTP / programme"],
             ].map(([label,key,ph,title])=>(
-              <div key={key}>
-                <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
+              <label key={key} style={{minWidth:0}}>
+                <span style={{display:"block",color:C.muted,fontSize:9,marginBottom:3,textTransform:"uppercase"}}>{label}</span>
                 <Input value={form[key]||""} onChange={v=>setForm(f=>({...f,[key]:v}))} placeholder={ph} title={title}/>
-              </div>
+              </label>
             ))}
-          </div>
-          <div style={{marginBottom:12}}>
-            <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>Description</div>
-            <Input value={form.description||""} onChange={v=>setForm(f=>({...f,description:v}))} placeholder="Carte électronique haute tension"/>
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:10,marginBottom:12}}>
-            <div>
-              <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>OF reprise</div>
-              <select value={form.ofRework||"non"} onChange={e=>setForm(f=>({...f,ofRework:e.target.value}))}
-                style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,
-                  color:C.text,padding:"6px 10px",fontSize:13,fontFamily:"monospace",outline:"none"}}>
-                <option value="non">Non</option>
-                <option value="oui">Oui</option>
-              </select>
-            </div>
-            <div>
-              <div style={{color:C.muted,fontSize:10,marginBottom:4,textTransform:"uppercase"}}>Statut OF</div>
+            <label style={{height:31,display:"flex",alignItems:"center",gap:7,padding:"0 9px",background:form.ofRework==="oui"?C.yellow+"18":C.input,border:`1px solid ${form.ofRework==="oui"?C.yellow:C.border}`,borderRadius:4,color:form.ofRework==="oui"?C.yellow:C.text,fontSize:12,fontWeight:700,cursor:"pointer"}}>
+              <input type="checkbox" checked={form.ofRework==="oui"} onChange={e=>setForm(f=>({...f,ofRework:e.target.checked?"oui":"non",typeOF:e.target.checked?"reprise":"production"}))}/>
+              OF de reprise
+            </label>
+            <label style={{minWidth:0}}>
+              <span style={{display:"block",color:C.muted,fontSize:9,marginBottom:3,textTransform:"uppercase"}}>Statut OF</span>
               <select value={form.status||"en_cours"} onChange={e=>setForm(f=>({...f,status:e.target.value}))}
-                style={{width:"100%",background:STATUTS[form.status||"en_cours"]?.color+"22",
-                  border:`1px solid ${STATUTS[form.status||"en_cours"]?.color}`,borderRadius:4,
-                  color:STATUTS[form.status||"en_cours"]?.color,padding:"6px 10px",fontSize:13,
-                  fontFamily:"monospace",fontWeight:700,outline:"none"}}>
+                style={{width:"100%",height:31,background:STATUTS[form.status||"en_cours"]?.color+"18",border:`1px solid ${STATUTS[form.status||"en_cours"]?.color}`,borderRadius:4,color:STATUTS[form.status||"en_cours"]?.color,padding:"4px 8px",fontSize:12,fontWeight:700,outline:"none"}}>
                 {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
               </select>
-            </div>
+            </label>
           </div>
-          <Btn onClick={create} color={form.of?C.green:C.border} disabled={!form.of.trim()}>✓ Créer le dossier</Btn>
-          <div style={{borderTop:`1px solid ${C.border}`,marginTop:16,paddingTop:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:12,marginBottom:8}}>
-              <div>
-                <div style={{color:C.muted,fontSize:11,letterSpacing:1,textTransform:"uppercase"}}>Importer depuis copier-coller</div>
+
+          <section aria-label="Pièces du nouveau dossier" style={{borderTop:`1px solid ${C.border}`,paddingTop:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7}}>
+              <strong style={{fontSize:12,color:C.text}}>SN et lots</strong>
+              <Badge label={String((form.unitDrafts||[]).length)} color={C.blue}/>
+              <span style={{fontSize:10,color:C.muted}}>Une ligne par SN ou par lot.</span>
+            </div>
+            <div style={{display:"grid",gap:6}}>
+              {(form.unitDrafts||[]).map((unit,index)=><div className="home-new-unit-row" key={unit.id}>
+                <span style={{fontSize:11,color:C.muted,textAlign:"center",fontFamily:"monospace"}}>{index+1}</span>
+                <div role="group" aria-label={`Type de pièce ${index+1}`} style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,padding:2,background:C.input,border:`1px solid ${C.border}`,borderRadius:4}}>
+                  {["sn","lot"].map(kind=><button key={kind} type="button" aria-pressed={unit.unitKind===kind} onClick={()=>patchCreateUnit(unit.id,{unitKind:kind,qteInitiale:kind==="lot"?(unit.qteInitiale||"1"):""})}
+                    style={{height:25,border:0,borderRadius:3,background:unit.unitKind===kind?C.blue:"transparent",color:unit.unitKind===kind?"#fff":C.muted,fontSize:11,fontWeight:800,cursor:"pointer"}}>{kind.toUpperCase()}</button>)}
+                </div>
+                <input aria-label={`${unit.unitKind==="lot"?"N° lot":"N° série"} ${index+1}`} value={unit.value||""} onChange={e=>patchCreateUnit(unit.id,{value:e.target.value})} placeholder={unit.unitKind==="lot"?"SP-J12345":"SN181"}
+                  style={{width:"100%",height:31,background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,fontSize:12,fontFamily:"monospace",padding:"5px 8px",outline:"none"}}/>
+                {unit.unitKind==="lot"?<input aria-label={`Quantité du lot ${index+1}`} value={unit.qteInitiale||"1"} onChange={e=>patchCreateUnit(unit.id,{qteInitiale:e.target.value})} inputMode="decimal" placeholder="Qté"
+                  style={{width:"100%",height:31,background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,fontSize:12,fontFamily:"monospace",padding:"5px 8px",outline:"none"}}/>:<span style={{fontSize:10,color:C.muted,textAlign:"center"}}>Qté 1</span>}
+                <button type="button" aria-label={`Supprimer la pièce ${index+1}`} title="Supprimer cette ligne" onClick={()=>removeCreateUnit(unit.id)} disabled={(form.unitDrafts||[]).length===1}
+                  style={{width:31,height:31,border:0,borderRadius:4,background:(form.unitDrafts||[]).length>1?C.red:C.border,color:"#fff",fontWeight:900,cursor:(form.unitDrafts||[]).length>1?"pointer":"default",opacity:(form.unitDrafts||[]).length>1?1:.45}}>×</button>
+              </div>)}
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:7,marginTop:9,flexWrap:"wrap"}}>
+              <Btn onClick={()=>addCreateUnit("sn")} color={C.blue} small>+ SN</Btn>
+              <Btn onClick={()=>addCreateUnit("lot")} color={C.blue} small>+ LOT</Btn>
+              <span style={{flex:1}}/>
+              <Btn onClick={create} color={form.of?.trim()&&(form.unitDrafts||[]).some(unit=>cleanSn(unit.value))?C.green:C.border} disabled={!form.of?.trim()||!(form.unitDrafts||[]).some(unit=>cleanSn(unit.value))}>✓ Créer le dossier</Btn>
+            </div>
+          </section>
+
+          <details style={{borderTop:`1px solid ${C.border}`,marginTop:11,paddingTop:8}}>
+            <summary style={{color:C.blue,fontSize:11,fontWeight:800,cursor:"pointer"}}>Importer plusieurs OF depuis Excel ou le presse-papiers</summary>
+            <div style={{paddingTop:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:12,marginBottom:7}}>
                 <div style={{color:C.muted,fontSize:10}}>Ordre colonnes : Qté initiale, Projet, Article N°, Article N°SAP, Description, SN / LOT, OF, reprise</div>
+                <span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{parseOfImportPaste(importText).length||0} OF</span>
               </div>
-              <span style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>
-                {parseOfImportPaste(importText).length||0} OF
-              </span>
+              <textarea value={importText} onChange={e=>{setImportText(e.target.value);setImportMsg("");}}
+                placeholder={"Qté initiale;Projet;Article N°;Article N°SAP;Description;SN / LOT;OF;reprise\n1;7400-SPA-PHM2-MAI;A1I3-S100D;250 000 465;MO Core PCB ajust. et Q monté;#11601;1000043;X"}
+                rows={5} style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,color:C.text,fontSize:12,fontFamily:"monospace",padding:"8px 10px",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:8}}/>
+              <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                <ImportCsvFile onText={text=>{setImportText(text);setImportMsg("");}} onError={setImportMsg}/>
+                <Btn onClick={importPaste} color={importText.trim()?C.green:C.border} disabled={!importText.trim()} small>Importer le collage</Btn>
+                {importMsg&&<span style={{fontSize:11,color:importMsg.startsWith("Erreur")?C.red:importMsg.includes("Attention :")?C.yellow:C.muted}}>{importMsg}</span>}
+              </div>
             </div>
-            <textarea value={importText} onChange={e=>{setImportText(e.target.value);setImportMsg("");}}
-              placeholder={"Qté initiale;Projet;Article N°;Article N°SAP;Description;SN / LOT;OF;reprise\n1;7400-SPA-PHM2-MAI;A1I3-S100D;250 000 465;MO Core PCB ajust. et Q monté;#11601;1000043;X"}
-              rows={5}
-              style={{width:"100%",background:C.input,border:`1px solid ${C.border}`,borderRadius:4,
-                color:C.text,fontSize:12,fontFamily:"monospace",padding:"8px 10px",outline:"none",resize:"vertical",boxSizing:"border-box",marginBottom:8}}/>
-            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-              <ImportCsvFile onText={text=>{setImportText(text);setImportMsg("");}} onError={setImportMsg}/>
-              <Btn onClick={importPaste} color={importText.trim()?C.green:C.border} disabled={!importText.trim()} small>Importer le collage</Btn>
-              {importMsg&&<span style={{fontSize:11,color:importMsg.startsWith("Erreur")?C.red:importMsg.includes("Attention :")?C.yellow:C.muted}}>{importMsg}</span>}
-            </div>
-          </div>
+          </details>
         </div>
       )}
 

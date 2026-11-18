@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v348
+**Version documentée :** v349
 **Date :** 18 novembre 2026  
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -73,6 +73,7 @@ L'accueil donne une vue opérationnelle des OF et sert de point de départ aux a
 
 ### 5.3 Actions depuis l'accueil
 
+- Création compacte d'un dossier sans choix mono ou multi : une première ligne SN ou lot est proposée, puis autant de SN ou de lots que nécessaire peuvent être ajoutés. Chaque lot possède sa propre quantité.
 - Ouverture d'un dossier au bon SN ou lot.
 - Sélection de plusieurs lignes.
 - Copie au presse-papiers sous forme de vrais tableaux adaptés aux SN, lots ou sélections mixtes.

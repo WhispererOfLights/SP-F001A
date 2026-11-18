@@ -1,6 +1,7 @@
 var _excluded = ["_snRows", "_defaultSnIds"],
   _excluded2 = ["__scopeAction", "__scopeActiveId"],
-  _excluded3 = ["__scopeAction", "__scopeActiveId"];
+  _excluded3 = ["__scopeAction", "__scopeActiveId"],
+  _excluded4 = ["unitDrafts"];
 function _regeneratorValues(e) { if (null != e) { var t = e["function" == typeof Symbol && Symbol.iterator || "@@iterator"], r = 0; if (t) return t.call(e); if ("function" == typeof e.next) return e; if (!isNaN(e.length)) return { next: function next() { return e && r >= e.length && (e = void 0), { value: e && e[r++], done: !e }; } }; } throw new TypeError(_typeof(e) + " is not iterable"); }
 function _objectWithoutProperties(e, t) { if (null == e) return {}; var o, r, i = _objectWithoutPropertiesLoose(e, t); if (Object.getOwnPropertySymbols) { var n = Object.getOwnPropertySymbols(e); for (r = 0; r < n.length; r++) o = n[r], -1 === t.indexOf(o) && {}.propertyIsEnumerable.call(e, o) && (i[o] = e[o]); } return i; }
 function _objectWithoutPropertiesLoose(r, e) { if (null == r) return {}; var t = {}; for (var n in r) if ({}.hasOwnProperty.call(r, n)) { if (-1 !== e.indexOf(n)) continue; t[n] = r[n]; } return t; }
@@ -22111,8 +22112,57 @@ var SORT_OPTS = [{
   id: "projet",
   label: "OTP"
 }];
-var parseSnList = function parseSnList(text) {
-  return _toConsumableArray(new Set(String(text || "").split(/\r?\n|;|,/).map(cleanSn).filter(Boolean)));
+var newHomeCreateUnit = function newHomeCreateUnit() {
+  var unitKind = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : "sn";
+  return {
+    id: uid(),
+    unitKind: unitKind,
+    value: "",
+    qteInitiale: unitKind === "lot" ? "1" : ""
+  };
+};
+var blankHomeCreateForm = function blankHomeCreateForm() {
+  return {
+    of: "",
+    sn: "",
+    lot: "",
+    snProduitFini: "",
+    codeArticle: "",
+    description: "",
+    otp: "",
+    ofRework: "non",
+    typeOF: "production",
+    status: "en_cours",
+    unitDrafts: [newHomeCreateUnit()]
+  };
+};
+var homeCreateUnitsFromDrafts = function homeCreateUnitsFromDrafts() {
+  var drafts = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : [];
+  var user = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : {};
+  var seen = new Set();
+  return drafts.map(function (draft) {
+    return _objectSpread(_objectSpread({}, draft), {}, {
+      value: cleanSn(draft === null || draft === void 0 ? void 0 : draft.value)
+    });
+  }).filter(function (draft) {
+    var key = "".concat(draft.unitKind === "lot" ? "lot" : "sn", "|").concat(draft.value);
+    if (!draft.value || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(function (draft) {
+    return {
+      id: uid(),
+      sn: draft.unitKind === "lot" ? "" : draft.value,
+      lot: draft.unitKind === "lot" ? draft.value : "",
+      unitKind: draft.unitKind === "lot" ? "lot" : "sn",
+      qteInitiale: draft.unitKind === "lot" ? String(draft.qteInitiale || "1").trim() || "1" : "",
+      status: "en_cours",
+      remarque: "",
+      createdVisa: user.trigram || "",
+      createdDT: nowDT(),
+      deleted: false
+    };
+  });
 };
 var cleanImportArticle = function cleanImportArticle(v) {
   return String(v || "").replace(/\s+/g, "").trim();
@@ -23768,7 +23818,7 @@ var homeActionMenuStyle = {
   cursor: "pointer"
 };
 var OFSelector = function OFSelector(_ref138) {
-  var _STATUTS10, _STATUTS11, _STATUTS12;
+  var _STATUTS10, _STATUTS11, _STATUTS12, _form$of, _form$of2;
   var ofList = _ref138.ofList,
     consommables = _ref138.consommables,
     onSelect = _ref138.onSelect,
@@ -23784,19 +23834,6 @@ var OFSelector = function OFSelector(_ref138) {
     onFinishedSnChange = _ref138.onFinishedSnChange,
     onSaveProfile = _ref138.onSaveProfile,
     onManageSettings = _ref138.onManageSettings;
-  var blankForm = {
-    of: "",
-    sn: "",
-    snLines: "",
-    lot: "",
-    snProduitFini: "",
-    codeArticle: "",
-    description: "",
-    otp: "",
-    ofRework: "non",
-    typeOF: "production",
-    status: "en_cours"
-  };
   var densityStorageKey = "sp-f001-home-density:".concat((user === null || user === void 0 ? void 0 : user.trigram) || "default");
   var _useState263 = useState(function () {
       try {
@@ -24058,7 +24095,9 @@ var OFSelector = function OFSelector(_ref138) {
     _useState318 = _slicedToArray(_useState317, 2),
     showProfile = _useState318[0],
     setShowProfile = _useState318[1];
-  var _useState319 = useState(blankForm),
+  var _useState319 = useState(function () {
+      return blankHomeCreateForm();
+    }),
     _useState320 = _slicedToArray(_useState319, 2),
     form = _useState320[0],
     setForm = _useState320[1];
@@ -24761,7 +24800,8 @@ var OFSelector = function OFSelector(_ref138) {
   };
   var create = /*#__PURE__*/function () {
     var _create = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee34() {
-      var snList, first, last, snRows;
+      var _snRows$, _snRows$2;
+      var snRows, labels, unitDrafts, headerForm;
       return _regenerator().w(function (_context34) {
         while (1) switch (_context34.n) {
           case 0:
@@ -24777,41 +24817,40 @@ var OFSelector = function OFSelector(_ref138) {
             }
             return _context34.a(2);
           case 2:
-            snList = parseSnList(form.snLines || form.sn);
-            if (!(snList.length > 1)) {
+            snRows = homeCreateUnitsFromDrafts(form.unitDrafts, user);
+            if (snRows.length) {
               _context34.n = 3;
               break;
             }
-            first = snList[0], last = snList[snList.length - 1];
-            if (window.confirm("Cr\xE9er ".concat(snList.length, " SN dans l'OF ").concat(form.of, " de ").concat(first, " \xE0 ").concat(last, " ?"))) {
-              _context34.n = 3;
+            window.alert("Ajoutez au moins un SN ou un lot.");
+            return _context34.a(2);
+          case 3:
+            if (!(snRows.length > 1)) {
+              _context34.n = 4;
+              break;
+            }
+            labels = snRows.map(function (row) {
+              return row.unitKind === "lot" ? "LOT ".concat(row.lot, " (Qt\xE9 ").concat(row.qteInitiale, ")") : row.sn;
+            });
+            if (window.confirm("Cr\xE9er ".concat(snRows.length, " pi\xE8ces dans l'OF ").concat(form.of, " ?\n\n").concat(labels.join("\n")))) {
+              _context34.n = 4;
               break;
             }
             return _context34.a(2);
-          case 3:
-            snRows = snList.map(function (sn) {
-              return {
-                id: uid(),
-                sn: sn,
-                lot: form.lot || "",
-                status: "en_cours",
-                remarque: "",
-                createdVisa: user.trigram,
-                createdDT: nowDT(),
-                deleted: false
-              };
-            });
-            onCreate(_objectSpread(_objectSpread({}, form), {}, {
-              sn: snList[0] || form.sn,
+          case 4:
+            unitDrafts = form.unitDrafts, headerForm = _objectWithoutProperties(form, _excluded4);
+            onCreate(_objectSpread(_objectSpread({}, headerForm), {}, {
+              sn: ((_snRows$ = snRows[0]) === null || _snRows$ === void 0 ? void 0 : _snRows$.sn) || "",
+              lot: ((_snRows$2 = snRows[0]) === null || _snRows$2 === void 0 ? void 0 : _snRows$2.lot) || "",
               projet: form.otp,
               ofRework: form.ofRework || "non",
               _snRows: snRows,
               createdBy: user.trigram,
               createdAt: now()
             }));
-            setForm(_objectSpread({}, blankForm));
+            setForm(blankHomeCreateForm());
             setShowNew(false);
-          case 4:
+          case 5:
             return _context34.a(2);
         }
       }, _callee34);
@@ -24821,6 +24860,32 @@ var OFSelector = function OFSelector(_ref138) {
     }
     return create;
   }();
+  var patchCreateUnit = function patchCreateUnit(id, patch) {
+    return setForm(function (current) {
+      return _objectSpread(_objectSpread({}, current), {}, {
+        unitDrafts: (current.unitDrafts || []).map(function (unit) {
+          return unit.id === id ? _objectSpread(_objectSpread({}, unit), patch) : unit;
+        })
+      });
+    });
+  };
+  var addCreateUnit = function addCreateUnit(unitKind) {
+    return setForm(function (current) {
+      return _objectSpread(_objectSpread({}, current), {}, {
+        unitDrafts: [].concat(_toConsumableArray(current.unitDrafts || []), [newHomeCreateUnit(unitKind)])
+      });
+    });
+  };
+  var removeCreateUnit = function removeCreateUnit(id) {
+    return setForm(function (current) {
+      var remaining = (current.unitDrafts || []).filter(function (unit) {
+        return unit.id !== id;
+      });
+      return _objectSpread(_objectSpread({}, current), {}, {
+        unitDrafts: remaining.length ? remaining : [newHomeCreateUnit()]
+      });
+    });
+  };
   var importPaste = /*#__PURE__*/function () {
     var _importPaste = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee35() {
       var groups, itemCount, msg, _t46;
@@ -24881,7 +24946,7 @@ var OFSelector = function OFSelector(_ref138) {
       fontFamily: "system-ui,sans-serif",
       padding: 20
     }
-  }, /*#__PURE__*/React.createElement("style", null, "\n        .home-density-comfort .home-workorders-table tbody td { font-size: 13px !important; padding: 7px 7px !important; line-height: 1.35; }\n        .home-density-comfort .home-workorders-table thead th { font-size: 11px !important; padding: 6px 7px !important; }\n        .home-density-comfort .home-workorders-table thead input,\n        .home-density-comfort .home-workorders-table thead select { font-size: 13px !important; padding: 7px 7px !important; min-height: 32px; }\n        .home-density-comfort .home-workorders-table tbody input,\n        .home-density-comfort .home-workorders-table tbody select { font-size: 13px !important; min-height: 30px; }\n        .home-density-comfort .home-workorders-table tbody td span:not([role=\"img\"]) { font-size: 12px !important; line-height: 1.35; }\n        .home-density-comfort .home-workorders-table tbody td button { min-height: 28px; }\n      "), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("style", null, "\n        .home-density-comfort .home-workorders-table tbody td { font-size: 13px !important; padding: 7px 7px !important; line-height: 1.35; }\n        .home-density-comfort .home-workorders-table thead th { font-size: 11px !important; padding: 6px 7px !important; }\n        .home-density-comfort .home-workorders-table thead input,\n        .home-density-comfort .home-workorders-table thead select { font-size: 13px !important; padding: 7px 7px !important; min-height: 32px; }\n        .home-density-comfort .home-workorders-table tbody input,\n        .home-density-comfort .home-workorders-table tbody select { font-size: 13px !important; min-height: 30px; }\n        .home-density-comfort .home-workorders-table tbody td span:not([role=\"img\"]) { font-size: 12px !important; line-height: 1.35; }\n        .home-density-comfort .home-workorders-table tbody td button { min-height: 28px; }\n        .home-new-of-grid { display:grid; grid-template-columns:minmax(120px,.8fr) minmax(145px,1fr) minmax(250px,2.1fr) minmax(170px,1.2fr) minmax(135px,.9fr) minmax(145px,1fr); gap:8px; align-items:end; }\n        .home-new-unit-row { display:grid; grid-template-columns:34px 112px minmax(180px,1fr) 110px 34px; gap:8px; align-items:center; }\n        @media (max-width:1250px) {\n          .home-new-of-grid { grid-template-columns:repeat(2,minmax(180px,1fr)); }\n          .home-new-unit-row { grid-template-columns:34px 112px minmax(180px,1fr) 100px 34px; }\n        }\n      "), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       justifyContent: "space-between",
@@ -25254,79 +25319,49 @@ var OFSelector = function OFSelector(_ref138) {
       background: C.surface,
       border: "1px solid ".concat(C.accent),
       borderRadius: 8,
-      padding: 16,
+      padding: "12px 14px",
       marginBottom: 14
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      color: C.muted,
-      fontSize: 11,
-      letterSpacing: 1,
-      textTransform: "uppercase",
-      marginBottom: 12
-    }
-  }, "Nouveau dossier"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.muted,
-      fontSize: 10,
-      marginBottom: 4,
-      textTransform: "uppercase"
-    }
-  }, "SN (un par ligne)"), /*#__PURE__*/React.createElement("textarea", {
-    value: form.snLines || form.sn || "",
-    onChange: function onChange(e) {
-      return setForm(function (f) {
-        return _objectSpread(_objectSpread({}, f), {}, {
-          snLines: e.target.value,
-          sn: parseSnList(e.target.value)[0] || ""
-        });
-      });
-    },
-    placeholder: "SN181\nSN182\nSN183",
-    rows: 4,
-    style: {
-      width: "100%",
-      background: C.input,
-      border: "1px solid ".concat(C.border),
-      borderRadius: 4,
-      color: C.text,
-      fontSize: 13,
-      fontFamily: "monospace",
-      padding: "8px 10px",
-      outline: "none",
-      resize: "vertical",
-      boxSizing: "border-box"
-    }
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 10,
-      color: C.muted,
-      marginTop: 4
-    }
-  }, parseSnList(form.snLines || form.sn).length || 0, " SN d\xE9tect\xE9", parseSnList(form.snLines || form.sn).length > 1 ? "s" : "")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(3,1fr)",
-      gap: 10,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
       marginBottom: 10
     }
-  }, [["OF *", "of", "454545", "N° de l'ordre de fabrication"], ["LOT", "lot", "SP-J12345", "Lot"], ["N° Article", "codeArticle", "R4B-S001A", "Référence SAP"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref145) {
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      color: C.text,
+      fontSize: 14
+    }
+  }, "Nouveau dossier"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.muted,
+      fontSize: 11
+    }
+  }, "Les informations sont communes \xE0 tous les SN et lots de l\u2019OF.")), /*#__PURE__*/React.createElement("div", {
+    className: "home-new-of-grid",
+    style: {
+      marginBottom: 12
+    }
+  }, [["N° OF *", "of", "1000736", "N° de l'ordre de fabrication"], ["Article SAP", "codeArticle", "250000924", "Référence SAP"], ["Description", "description", "Carte électronique haute tension", "Description article"], ["OTP", "otp", "7400-SPA-IRNS-MAI", "OTP / programme"]].map(function (_ref145) {
     var _ref146 = _slicedToArray(_ref145, 4),
       label = _ref146[0],
       key = _ref146[1],
       ph = _ref146[2],
       title = _ref146[3];
-    return /*#__PURE__*/React.createElement("div", {
-      key: key
-    }, /*#__PURE__*/React.createElement("div", {
+    return /*#__PURE__*/React.createElement("label", {
+      key: key,
       style: {
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "block",
         color: C.muted,
-        fontSize: 10,
-        marginBottom: 4,
+        fontSize: 9,
+        marginBottom: 3,
         textTransform: "uppercase"
       }
     }, label), /*#__PURE__*/React.createElement(Input, {
@@ -25339,70 +25374,42 @@ var OFSelector = function OFSelector(_ref138) {
       placeholder: ph,
       title: title
     }));
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("label", {
     style: {
-      marginBottom: 12
+      height: 31,
+      display: "flex",
+      alignItems: "center",
+      gap: 7,
+      padding: "0 9px",
+      background: form.ofRework === "oui" ? C.yellow + "18" : C.input,
+      border: "1px solid ".concat(form.ofRework === "oui" ? C.yellow : C.border),
+      borderRadius: 4,
+      color: form.ofRework === "oui" ? C.yellow : C.text,
+      fontSize: 12,
+      fontWeight: 700,
+      cursor: "pointer"
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.muted,
-      fontSize: 10,
-      marginBottom: 4,
-      textTransform: "uppercase"
-    }
-  }, "Description"), /*#__PURE__*/React.createElement(Input, {
-    value: form.description || "",
-    onChange: function onChange(v) {
-      return setForm(function (f) {
-        return _objectSpread(_objectSpread({}, f), {}, {
-          description: v
-        });
-      });
-    },
-    placeholder: "Carte \xE9lectronique haute tension"
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(2,1fr)",
-      gap: 10,
-      marginBottom: 12
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.muted,
-      fontSize: 10,
-      marginBottom: 4,
-      textTransform: "uppercase"
-    }
-  }, "OF reprise"), /*#__PURE__*/React.createElement("select", {
-    value: form.ofRework || "non",
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: form.ofRework === "oui",
     onChange: function onChange(e) {
       return setForm(function (f) {
         return _objectSpread(_objectSpread({}, f), {}, {
-          ofRework: e.target.value
+          ofRework: e.target.checked ? "oui" : "non",
+          typeOF: e.target.checked ? "reprise" : "production"
         });
       });
-    },
-    style: {
-      width: "100%",
-      background: C.input,
-      border: "1px solid ".concat(C.border),
-      borderRadius: 4,
-      color: C.text,
-      padding: "6px 10px",
-      fontSize: 13,
-      fontFamily: "monospace",
-      outline: "none"
     }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: "non"
-  }, "Non"), /*#__PURE__*/React.createElement("option", {
-    value: "oui"
-  }, "Oui"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }), "OF de reprise"), /*#__PURE__*/React.createElement("label", {
     style: {
+      minWidth: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "block",
       color: C.muted,
-      fontSize: 10,
-      marginBottom: 4,
+      fontSize: 9,
+      marginBottom: 3,
       textTransform: "uppercase"
     }
   }, "Statut OF"), /*#__PURE__*/React.createElement("select", {
@@ -25416,13 +25423,13 @@ var OFSelector = function OFSelector(_ref138) {
     },
     style: {
       width: "100%",
-      background: ((_STATUTS10 = STATUTS[form.status || "en_cours"]) === null || _STATUTS10 === void 0 ? void 0 : _STATUTS10.color) + "22",
+      height: 31,
+      background: ((_STATUTS10 = STATUTS[form.status || "en_cours"]) === null || _STATUTS10 === void 0 ? void 0 : _STATUTS10.color) + "18",
       border: "1px solid ".concat((_STATUTS11 = STATUTS[form.status || "en_cours"]) === null || _STATUTS11 === void 0 ? void 0 : _STATUTS11.color),
       borderRadius: 4,
       color: (_STATUTS12 = STATUTS[form.status || "en_cours"]) === null || _STATUTS12 === void 0 ? void 0 : _STATUTS12.color,
-      padding: "6px 10px",
-      fontSize: 13,
-      fontFamily: "monospace",
+      padding: "4px 8px",
+      fontSize: 12,
       fontWeight: 700,
       outline: "none"
     }
@@ -25434,15 +25441,199 @@ var OFSelector = function OFSelector(_ref138) {
       key: k,
       value: k
     }, v.label);
-  })))), /*#__PURE__*/React.createElement(Btn, {
-    onClick: create,
-    color: form.of ? C.green : C.border,
-    disabled: !form.of.trim()
-  }, "\u2713 Cr\xE9er le dossier"), /*#__PURE__*/React.createElement("div", {
+  })))), /*#__PURE__*/React.createElement("section", {
+    "aria-label": "Pi\xE8ces du nouveau dossier",
     style: {
       borderTop: "1px solid ".concat(C.border),
-      marginTop: 16,
-      paddingTop: 14
+      paddingTop: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 7
+    }
+  }, /*#__PURE__*/React.createElement("strong", {
+    style: {
+      fontSize: 12,
+      color: C.text
+    }
+  }, "SN et lots"), /*#__PURE__*/React.createElement(Badge, {
+    label: String((form.unitDrafts || []).length),
+    color: C.blue
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: 10,
+      color: C.muted
+    }
+  }, "Une ligne par SN ou par lot.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gap: 6
+    }
+  }, (form.unitDrafts || []).map(function (unit, index) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "home-new-unit-row",
+      key: unit.id
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 11,
+        color: C.muted,
+        textAlign: "center",
+        fontFamily: "monospace"
+      }
+    }, index + 1), /*#__PURE__*/React.createElement("div", {
+      role: "group",
+      "aria-label": "Type de pi\xE8ce ".concat(index + 1),
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 2,
+        padding: 2,
+        background: C.input,
+        border: "1px solid ".concat(C.border),
+        borderRadius: 4
+      }
+    }, ["sn", "lot"].map(function (kind) {
+      return /*#__PURE__*/React.createElement("button", {
+        key: kind,
+        type: "button",
+        "aria-pressed": unit.unitKind === kind,
+        onClick: function onClick() {
+          return patchCreateUnit(unit.id, {
+            unitKind: kind,
+            qteInitiale: kind === "lot" ? unit.qteInitiale || "1" : ""
+          });
+        },
+        style: {
+          height: 25,
+          border: 0,
+          borderRadius: 3,
+          background: unit.unitKind === kind ? C.blue : "transparent",
+          color: unit.unitKind === kind ? "#fff" : C.muted,
+          fontSize: 11,
+          fontWeight: 800,
+          cursor: "pointer"
+        }
+      }, kind.toUpperCase());
+    })), /*#__PURE__*/React.createElement("input", {
+      "aria-label": "".concat(unit.unitKind === "lot" ? "N° lot" : "N° série", " ").concat(index + 1),
+      value: unit.value || "",
+      onChange: function onChange(e) {
+        return patchCreateUnit(unit.id, {
+          value: e.target.value
+        });
+      },
+      placeholder: unit.unitKind === "lot" ? "SP-J12345" : "SN181",
+      style: {
+        width: "100%",
+        height: 31,
+        background: C.input,
+        border: "1px solid ".concat(C.border),
+        borderRadius: 4,
+        color: C.text,
+        fontSize: 12,
+        fontFamily: "monospace",
+        padding: "5px 8px",
+        outline: "none"
+      }
+    }), unit.unitKind === "lot" ? /*#__PURE__*/React.createElement("input", {
+      "aria-label": "Quantit\xE9 du lot ".concat(index + 1),
+      value: unit.qteInitiale || "1",
+      onChange: function onChange(e) {
+        return patchCreateUnit(unit.id, {
+          qteInitiale: e.target.value
+        });
+      },
+      inputMode: "decimal",
+      placeholder: "Qt\xE9",
+      style: {
+        width: "100%",
+        height: 31,
+        background: C.input,
+        border: "1px solid ".concat(C.border),
+        borderRadius: 4,
+        color: C.text,
+        fontSize: 12,
+        fontFamily: "monospace",
+        padding: "5px 8px",
+        outline: "none"
+      }
+    }) : /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10,
+        color: C.muted,
+        textAlign: "center"
+      }
+    }, "Qt\xE9 1"), /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      "aria-label": "Supprimer la pi\xE8ce ".concat(index + 1),
+      title: "Supprimer cette ligne",
+      onClick: function onClick() {
+        return removeCreateUnit(unit.id);
+      },
+      disabled: (form.unitDrafts || []).length === 1,
+      style: {
+        width: 31,
+        height: 31,
+        border: 0,
+        borderRadius: 4,
+        background: (form.unitDrafts || []).length > 1 ? C.red : C.border,
+        color: "#fff",
+        fontWeight: 900,
+        cursor: (form.unitDrafts || []).length > 1 ? "pointer" : "default",
+        opacity: (form.unitDrafts || []).length > 1 ? 1 : .45
+      }
+    }, "\xD7"));
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 7,
+      marginTop: 9,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    onClick: function onClick() {
+      return addCreateUnit("sn");
+    },
+    color: C.blue,
+    small: true
+  }, "+ SN"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: function onClick() {
+      return addCreateUnit("lot");
+    },
+    color: C.blue,
+    small: true
+  }, "+ LOT"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      flex: 1
+    }
+  }), /*#__PURE__*/React.createElement(Btn, {
+    onClick: create,
+    color: (_form$of = form.of) !== null && _form$of !== void 0 && _form$of.trim() && (form.unitDrafts || []).some(function (unit) {
+      return cleanSn(unit.value);
+    }) ? C.green : C.border,
+    disabled: !((_form$of2 = form.of) !== null && _form$of2 !== void 0 && _form$of2.trim()) || !(form.unitDrafts || []).some(function (unit) {
+      return cleanSn(unit.value);
+    })
+  }, "\u2713 Cr\xE9er le dossier"))), /*#__PURE__*/React.createElement("details", {
+    style: {
+      borderTop: "1px solid ".concat(C.border),
+      marginTop: 11,
+      paddingTop: 8
+    }
+  }, /*#__PURE__*/React.createElement("summary", {
+    style: {
+      color: C.blue,
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: "pointer"
+    }
+  }, "Importer plusieurs OF depuis Excel ou le presse-papiers"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      paddingTop: 10
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -25450,21 +25641,14 @@ var OFSelector = function OFSelector(_ref138) {
       justifyContent: "space-between",
       alignItems: "baseline",
       gap: 12,
-      marginBottom: 8
+      marginBottom: 7
     }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: C.muted,
-      fontSize: 11,
-      letterSpacing: 1,
-      textTransform: "uppercase"
-    }
-  }, "Importer depuis copier-coller"), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       color: C.muted,
       fontSize: 10
     }
-  }, "Ordre colonnes : Qt\xE9 initiale, Projet, Article N\xB0, Article N\xB0SAP, Description, SN / LOT, OF, reprise")), /*#__PURE__*/React.createElement("span", {
+  }, "Ordre colonnes : Qt\xE9 initiale, Projet, Article N\xB0, Article N\xB0SAP, Description, SN / LOT, OF, reprise"), /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 10,
       color: C.muted,
@@ -25515,7 +25699,7 @@ var OFSelector = function OFSelector(_ref138) {
       fontSize: 11,
       color: importMsg.startsWith("Erreur") ? C.red : importMsg.includes("Attention :") ? C.yellow : C.muted
     }
-  }, importMsg)))), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
+  }, importMsg))))), filtered.length === 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       color: C.muted,
