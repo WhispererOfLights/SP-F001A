@@ -1,4 +1,4 @@
-// ─── ACCUEIL : vue tableur + favs par user ──────────────────────────────────
+// ─── ACCUEIL : vue tableur ──────────────────────────────────────────────────
 const homeRowsForOf = (entry,data) => {
   const units=withUnitMetadata(data||{header:entry}).units.rows.filter(u=>!u.deleted&&(cleanSn(u.sn)||cleanSn(u.lot)));
   return units.length?units.map(u=>({...entry,sn:u.sn||"",lot:u.lot||entry.lot||"",snProduitFini:u.snProduitFini||"",unitStatus:u.status||"en_cours",_homeUnitId:u.id,_homeUnitKind:u.unitKind||((u.lot||entry.lot)?"lot":"sn"),_homeSnCount:units.length,_homeQty:trackedLotQty(u)})):[{...entry,sn:"",lot:"",snProduitFini:"",_homeUnitKind:"sn",_homeQty:""}];
@@ -20,7 +20,6 @@ const homeUnitStatusSummary = rows => {
   };
 };
 const SORT_OPTS=[
-  {id:"fav",  label:"⭐ Favoris d'abord"},
   {id:"opens",label:"Derniers ouverts"},
   {id:"of",   label:"N° OF"},
   {id:"projet",label:"OTP"},
@@ -742,30 +741,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [hideCloture,setHideCloture]   = useState(true);
   const [showNew,setShowNew] = useState(false);
   const [showProfile,setShowProfile] = useState(false);
-  const [favs,setFavs]       = useState([]);
   const [form,setForm]       = useState(blankForm);
   const [importText,setImportText] = useState("");
   const [importMsg,setImportMsg] = useState("");
 
-  // Charger les favs de cet user
-  useEffect(()=>{
-    (async()=>{
-      try{const r=await window.storage.get(`favs:${user.trigram}`,false);if(r)setFavs(JSON.parse(r.value));}catch{}
-    })();
-  },[user.trigram]);
-
-  const toggleFav=async id=>{
-    const nf=favs.includes(id)?favs.filter(f=>f!==id):[...favs,id];
-    setFavs(nf);
-    try{await window.storage.set(`favs:${user.trigram}`,JSON.stringify(nf),false);}catch{}
-  };
-
   // Tri
   const sorted=[...ofList].sort((a,b)=>{
-    if(sort==="fav"){
-      const fa=favs.includes(a.id)?1:0, fb=favs.includes(b.id)?1:0;
-      if(fa!==fb)return fb-fa;
-    }
     if(sort==="opens"){
       const ia=openHistory.indexOf(a.id), ib=openHistory.indexOf(b.id);
       const ra=ia===-1?9999:ia, rb=ib===-1?9999:ib;
@@ -1211,17 +1192,15 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         </div>
       )}
         <div style={{overflowX:"auto"}}>
-          <table className="home-workorders-table" style={{width:"100%",minWidth:1650,tableLayout:"fixed",borderCollapse:"collapse",fontSize:12}}>
+          <table className="home-workorders-table" style={{width:"100%",minWidth:1550,tableLayout:"fixed",borderCollapse:"collapse",fontSize:12}}>
             <colgroup>
-              <col style={{width:34}}/><col style={{width:30}}/><col style={{width:110}}/><col style={{width:100}}/>
-              <col style={{width:300}}/><col style={{width:80}}/><col style={{width:90}}/><col style={{width:160}}/>
-              <col style={{width:105}}/><col style={{width:190}}/><col style={{width:145}}/><col/>
-              <col style={{width:52}}/>
+              <col style={{width:34}}/><col style={{width:110}}/><col style={{width:100}}/><col style={{width:300}}/>
+              <col style={{width:80}}/><col style={{width:90}}/><col style={{width:160}}/><col style={{width:105}}/>
+              <col style={{width:190}}/><col style={{width:145}}/><col/>
             </colgroup>
             <thead style={{position:"sticky",top:0,zIndex:6}}>
               <tr>
                 <TH w={34}><input aria-label="Sélectionner les lignes de la page" type="checkbox" checked={allPageSelected} onChange={e=>togglePageSelection(e.target.checked)}/></TH>
-                <TH w={30}>⭐</TH>
                 {sortableTh("of","OF",120)}
                 {sortableTh("codeArticle","N° Article",110)}
                 {sortableTh("description","Description")}
@@ -1232,19 +1211,15 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 {sortableTh("unitStatus","État",170)}
                 {sortableTh("nextEtuvage","Prochain étuvage",150)}
                 {sortableTh("followup","Suivi technique",330)}
-                <TH w={52} style={{position:"sticky",right:0,zIndex:8,background:C.raised}}>Actions</TH>
               </tr>
               <tr style={{background:C.raised}}>
-                <td/>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
                 {[['of','OF'],['codeArticle','N° Article'],['description','Description'],['sn','SN'],['lot','LOT'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['unitStatus','État'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
                 <td style={{padding:"4px 5px"}}>{columnFilter("followup","Suivi technique")}</td>
-                <td style={{position:"sticky",right:0,zIndex:8,background:C.raised}}/>
               </tr>
             </thead>
             <tbody>
               {paged.map((o,i)=>{
-                const isFav=favs.includes(o.id);
                 const ofRows=allHomeRows.filter(row=>row.id===o.id);
                 const multiSn=ofRows.length>1;
                 const collapsed=multiSn&&!revealMatchingUnits&&!expandedOfIds.includes(o.id);
@@ -1256,7 +1231,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const rowOvenInfo=rowOvenAlert?{count:1,label:rowOvenAlert.label,nextAt:rowOvenAlert.nextAt}:nextEtuvageForRow(o);
                 const rowOvenTiming=rowOvenAlert?.timing||homeOvenAlertTiming(rowOvenInfo,homeNow);
                 const ovenOverdue=!!rowOvenTiming.due&&!rowOvenTiming.today&&!rowOvenTiming.anticipated;
-                const normalBackground=isFav?"#e05c0008":i%2===0?"transparent":C.stripe;
+                const normalBackground=i%2===0?"transparent":C.stripe;
                 const rowBackground=selected?C.yellow+"20":ovenOverdue?C.red+"12":normalBackground;
                 const facts=[...(collapsed?ofRows.flatMap(row=>row._homeFacts||[]):o._homeFacts||[])]
                   .filter((fact,index,list)=>list.findIndex(item=>(item.id&&item.id===fact.id)||(!item.id&&item.type===fact.type&&item.numero===fact.numero))===index);
@@ -1272,30 +1247,22 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
                 const contributors=contributorsById[o.id]||[];
                 const isRework=String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true";
-                const openActions=(event,fromButton=false)=>{
+                const openActions=event=>{
                   event.preventDefault();event.stopPropagation();
-                  const rect=fromButton?event.currentTarget.getBoundingClientRect():null;
                   const menuWidth=210,menuHeight=isAdminManager(user)?132:96;
-                  const x=Math.max(8,Math.min(rect?rect.right-menuWidth:event.clientX,window.innerWidth-menuWidth-8));
-                  const y=Math.max(8,Math.min(rect?rect.bottom+4:event.clientY,window.innerHeight-menuHeight-8));
+                  const x=Math.max(8,Math.min(event.clientX,window.innerWidth-menuWidth-8));
+                  const y=Math.max(8,Math.min(event.clientY,window.innerHeight-menuHeight-8));
                   setHomeRowMenu({key:actionKey,x,y,id:o.id,unitId:collapsed?null:o._homeUnitId,of:o.of,unitName:collapsed?summaryName:homeUnitName(o),ofRows});
                 };
                 return (
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
                     onClick={()=>selectionMode?(collapsed?toggleOfSelection(o.id):toggleSelected(o)):onSelect(o.id,collapsed?null:o._homeUnitId)}
                     onContextMenu={event=>openActions(event)}
-                    title={selectionMode?"Ajouter ou retirer cette ligne de la sélection":"Ouvrir ce dossier"}
+                    title={selectionMode?"Ajouter ou retirer cette ligne de la sélection":"Ouvrir ce dossier · clic droit pour les actions"}
                     style={{background:rowBackground,cursor:selectionMode?"cell":"pointer",transition:"background .1s",borderTop:groupStart?`2px solid ${C.border}`:undefined,boxShadow:ovenOverdue?`inset 4px 0 ${C.red}`:undefined}}
                     onMouseEnter={e=>e.currentTarget.style.background=selectionMode?C.blue+"14":"#e05c0015"}
                     onMouseLeave={e=>e.currentTarget.style.background=rowBackground}>
                     <TD center onClick={e=>{e.stopPropagation();collapsed?toggleOfSelection(o.id):toggleSelected(o);}}><input type="checkbox" aria-label={collapsed?`Sélectionner les ${summaryName} - OF ${o.of}`:`Sélectionner ${homeUnitName(o)} - OF ${o.of}`} checked={selected} onClick={e=>e.stopPropagation()} onChange={()=>collapsed?toggleOfSelection(o.id):toggleSelected(o)} style={{width:17,height:17,cursor:"pointer"}}/></TD>
-                    <TD center>
-                      <span onClick={e=>{e.stopPropagation();toggleFav(o.id);}}
-                        style={{cursor:"pointer",fontSize:14,opacity:isFav?1:.3,transition:"opacity .15s"}}
-                        title={isFav?"Retirer des favoris":"Ajouter aux favoris"}>
-                        ⭐
-                      </span>
-                    </TD>
                     <TD>
                       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"nowrap"}}>
                         {multiSn&&groupStart&&<button type="button" aria-label={`${collapsed?"Déplier":"Replier"} les ${summaryName} de OF ${o.of}`} title={collapsed?"Afficher les SN / LOT":"Replier les SN / LOT"} onClick={e=>{e.stopPropagation();toggleOfExpanded(o.id);}}
@@ -1346,10 +1313,6 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                         {!!warningsById[o.id]?.length&&<span role="img" aria-label="OF à surveiller" title={warningsById[o.id].join("\n")} style={{color:C.yellow,fontSize:18,fontWeight:900,flexShrink:0}}>⚠</span>}
                         {!facts.length&&!polymerization&&!warningsById[o.id]?.length&&<span style={{color:C.muted}}>—</span>}
                       </div>
-                    </TD>
-                    <TD center onClick={e=>e.stopPropagation()} style={{position:"sticky",right:0,zIndex:4,background:"inherit",boxShadow:`-3px 0 5px ${C.bg}55`}}>
-                      <button type="button" aria-label={`Actions OF ${o.of} - ${collapsed?summaryName:homeUnitName(o)}`} title="Actions" onClick={event=>openActions(event,true)}
-                        style={{width:30,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center",background:C.blue,border:"none",borderRadius:4,color:"#fff",cursor:"pointer",fontSize:18,fontWeight:800}}>⋮</button>
                     </TD>
                   </tr>
                 );

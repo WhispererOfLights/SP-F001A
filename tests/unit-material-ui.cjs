@@ -74,9 +74,10 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.equal(await page.locator('.home-density-comfort').count(),1);
     assert.equal(await page.getByRole('button',{name:'Confort',exact:true}).getAttribute('aria-pressed'),'true');
     const homeColumnWidths=await page.locator('.home-workorders-table col').evaluateAll(columns=>columns.map(column=>column.style.width));
-    assert.equal(homeColumnWidths[4],'300px');
-    assert.equal(homeColumnWidths[9],'190px');
-    assert.equal(homeColumnWidths[12],'52px');
+    assert.equal(homeColumnWidths[3],'300px');
+    assert.equal(homeColumnWidths[8],'190px');
+    assert.equal(homeColumnWidths.length,11);
+    assert.equal(await page.getByRole('option',{name:"⭐ Favoris d'abord",exact:true}).count(),0);
     await page.getByRole('button',{name:'Compact',exact:true}).click();
     assert.equal(await page.locator('.home-density-compact').count(),1);
     assert.equal(await page.evaluate(()=>localStorage.getItem('sp-f001-home-density:JGR')),'compact');
@@ -130,7 +131,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(sortedHomeRows[0].startsWith('Sélectionner SN2'));
     await page.getByRole('button',{name:'Trier SN, ordre Z-A',exact:true}).click();
     assert.equal(await page.getByRole('toolbar',{name:'Actions sur la sélection',exact:true}).count(),0);
-    await page.getByRole('button',{name:/Actions OF 100TEST/}).first().click();
+    await page.getByRole('checkbox',{name:'Sélectionner SN1 - OF 100TEST',exact:true}).locator('xpath=ancestor::tr').click({button:'right'});
     const copyWholeOf=page.getByRole('menuitem',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true});
     await copyWholeOf.click();
     await page.waitForFunction(()=>window.copiedHomeHtml?.includes('<table'));
@@ -282,11 +283,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(homeFont.includes('system-ui'));
     fs.mkdirSync(path.join(__dirname, 'artifacts'), {recursive: true});
     await page.screenshot({path: path.join(__dirname, 'artifacts/home-units-1920.png')});
-    await page.getByRole('button',{name:/Actions OF 100TEST/}).first().click();
+    await page.getByRole('checkbox',{name:'Sélectionner SN1 - OF 100TEST',exact:true}).locator('xpath=ancestor::tr').click({button:'right'});
     const homeTeamsCopy=page.getByRole('menuitem',{name:"Copier toutes les lignes de l'OF 100TEST dans le presse-papier",exact:true});
     await homeTeamsCopy.click();
     await page.waitForFunction(()=>window.copiedHomeText?.includes('\tSN2\t'));
-    await page.getByRole('button',{name:'Actions OF 100TEST - SN2',exact:true}).click();
+    await page.getByRole('checkbox',{name:'Sélectionner SN2 - OF 100TEST',exact:true}).locator('xpath=ancestor::tr').click({button:'right'});
     await page.getByRole('menuitem', {name: 'Ouvrir OF 100TEST - SN2', exact: true}).click();
     await page.waitForFunction(() => document.getElementById('active-work-sn')?.value === 'u2');
     await page.getByRole('button',{name:'SN précédent',exact:true}).click();
