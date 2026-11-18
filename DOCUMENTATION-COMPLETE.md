@@ -271,7 +271,7 @@ flowchart LR
 
 ## 10. Maintenance et organisation du code
 
-Le code est versionné dans GitLab et répliqué sur GitHub. Le runtime navigateur est généré à partir des sources; il ne doit pas être modifié manuellement. Les principaux domaines sont séparés dans `src/modules` : accueil, authentification, Adjust/Rework, consommables, étuvages, équipements de test, mating, suivi technique, mesures et reporting.
+Le code est versionné avec Git. Le runtime navigateur est généré à partir des sources; il ne doit pas être modifié manuellement. Les principaux domaines sont séparés dans `src/modules` : accueil, authentification, Adjust/Rework, consommables, étuvages, équipements de test, mating, suivi technique, mesures et reporting.
 
 Une modification doit suivre ce cycle :
 
@@ -316,29 +316,20 @@ Les règles suivantes restent à confirmer :
 
 Il est préférable de stabiliser ces règles avant d'ajouter de nouvelles possibilités afin d'éviter des données ambiguës difficiles à exploiter plus tard.
 
-### 11.3 Saisie avec lecteurs QR code
+### 11.3 Lecteurs QR code
 
-La saisie par douchette ou lecteur QR code est une piste d'accélération, mais aucun développement ni choix de paramétrage ne doit être engagé avant d'obtenir des exemples réels et la spécification des formats utilisés sur les OF, les étiquettes article et les sous-ensembles.
+La possibilité de saisir certaines informations avec un lecteur QR code reste en attente. Il faut d'abord obtenir des exemples réels et connaître le format exact des codes présents sur les OF, les étiquettes article et les sous-ensembles. La fonction ne sera étudiée qu'après réception de ces informations.
 
-Le lecteur ne remplacera pas toutes les saisies. Il servira surtout à renseigner les identifiants déjà imprimés :
+### 11.4 Connexions aux référentiels d'entreprise
 
-- numéro d'OF;
-- SN ou lot du sous-ensemble;
-- code article d'un composant dans Adjust/Rework;
-- éventuellement lot et date code lorsqu'ils sont présents dans un format exploitable.
+Deux connexions pourraient réduire les ressaisies et améliorer la fiabilité des informations :
 
-La combinaison OF et SN est la plus sûre pour ouvrir une pièce, car une recherche par article et SN peut correspondre à plusieurs OF, notamment en cas d'OF de reprise. Tant que les formats QR ne sont pas connus, la proposition de fonctionnement reste la suivante : scanner l'OF, utiliser un suffixe `Tab` pour passer au champ suivant, puis scanner le SN. `Enter` ne doit pas valider automatiquement une ligne afin d'éviter une validation accidentelle.
+- pour Test Équipement, saisir uniquement le numéro d'inventaire et récupérer depuis le référentiel des appareils les informations disponibles, notamment le type, la désignation et les données de calibration;
+- pour Adjust/Rework et les autres saisies article, entrer le code article SAP et récupérer automatiquement la désignation ou la valeur descriptive officielle de l'article.
 
-Avant toute mise en œuvre, il faudra confirmer :
+Ces améliorations nécessitent de confirmer avec l'IT quelles bases ou interfaces sont accessibles, quelles données font foi, leur fréquence de mise à jour et le comportement attendu lorsque le référentiel est indisponible. Aucune connexion directe ne doit être développée avant cette validation.
 
-- le contenu exact de chaque QR code et les caractères de séparation;
-- la présence éventuelle de préfixes, suffixes ou identifiants GS1;
-- la programmation possible des lecteurs avec `Tab` après lecture;
-- les cas d'ambiguïté entre OF normal et OF de reprise;
-- les champs qui doivent accepter un scan et leur ordre de parcours;
-- le comportement attendu pour un code inconnu, incomplet ou associé à plusieurs dossiers.
-
-### 11.4 Transfert à l'IT
+### 11.5 Transfert à l'IT
 
 - Hébergement sur serveur ou VM administrée.
 - Nom DNS stable et HTTPS.
