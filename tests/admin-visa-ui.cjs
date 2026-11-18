@@ -2,6 +2,11 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const {chromium} = require(process.env.PLAYWRIGHT_PATH || 'playwright');
 
+const chooseRowAction = async (page, row, name) => {
+  await row.click({button:'right'});
+  await page.getByRole('menuitem',{name,exact:false}).click();
+};
+
 const root = path.join(__dirname, '..');
 const entry = {id:'visa-test',of:'100VISA',status:'en_cours',codeArticle:'250001163',description:'Article test'};
 const user = {trigram:'MGR',prenom:'Marie',nom:'Manager',role:'Manager'};
@@ -72,7 +77,7 @@ const accounts = [
     assert.equal(new Set(saved.visaCorrections.map(item=>item.batchId)).size,1);
     let firstHistoryMessage='';
     page.once('dialog',async dialog=>{firstHistoryMessage=dialog.message();await dialog.dismiss();});
-    await page.getByTitle('Historique des modifications').first().click();
+    await chooseRowAction(page,page.locator('[data-rework-row]').first(),'Historique des modifications');
     assert.ok(firstHistoryMessage.includes('Visa création "JGR" → "MGR"'));
     assert.ok(firstHistoryMessage.includes('Visa contrôle "CTL" → "MGR"'));
     assert.ok(firstHistoryMessage.includes('Motif : Correction après vérification'));
@@ -93,7 +98,7 @@ const accounts = [
     assert.equal(dateHistory.toDate,'02/11/2026 07:30');
     let dateHistoryMessage='';
     page.once('dialog',async dialog=>{dateHistoryMessage=dialog.message();await dialog.dismiss();});
-    await page.getByTitle('Historique des modifications').first().click();
+    await chooseRowAction(page,page.locator('[data-rework-row]').first(),'Historique des modifications');
     assert.ok(dateHistoryMessage.includes('Date création "03/11/2026 10:00" → "02/11/2026 07:30" (visa MGR conservé)'));
     assert.deepEqual(errors,[]);
     console.log('Admin/Manager visa correction: visual action context and existing active users passed.');

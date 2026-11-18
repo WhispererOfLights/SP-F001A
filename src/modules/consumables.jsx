@@ -340,6 +340,7 @@ const CONSO_ITEM_EDIT_FIELDS = [
 ];
 
 const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,header,forceShowDeleted=false,contextData,onCopyAcross}) => {
+  const rowActions=useRowActionMenu();
   // Stockage conserve opérations → consommables, mais l'interface affiche une ligne plate par consommable.
   const ops = data.ops||[];
   const canEditOp = op => canEditLine(user,op);
@@ -675,9 +676,6 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               <TH w={145}>Sous vide dès</TH>
               <TH w={52} color={C.green}>Traça</TH>
               <TH w={28}>💬</TH>
-              <th style={{position:"sticky",right:0,zIndex:3,background:C.raised,color:C.muted,fontSize:10,fontWeight:700,
-                letterSpacing:.8,textTransform:"uppercase",padding:"6px 8px",textAlign:"center",
-                borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap",width:110}}></th>
             </tr>
             <tr style={{background:C.blue+"0c",borderBottom:`2px solid ${C.border}`}}>
               <th style={{padding:"3px 4px"}}><Input value={filters.date} onChange={v=>setFilters(f=>({...f,date:v}))} small title="Filtrer date"/></th>
@@ -700,8 +698,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                   <option value="no">Non</option>
                 </select>
               </th>
-              <th style={{padding:"3px 4px"}}><Input value={filters.remarque} onChange={v=>setFilters(f=>({...f,remarque:v}))} small title="Filtrer remarque"/></th>
-              <th style={{position:"sticky",right:0,zIndex:3,background:C.raised,padding:"3px 4px",textAlign:"center"}}>
+              <th style={{padding:"3px 4px"}}><Input value={filters.remarque} onChange={v=>setFilters(f=>({...f,remarque:v}))} small title="Filtrer remarque"/>
                 {hasFilters&&<IconBtn onClick={clearFilters} color={C.border} title="Effacer les filtres">×</IconBtn>}
               </th>
             </tr>
@@ -721,8 +718,20 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               const editable = canEditItem(o,it);
               const locked = valid || !editable;
               const rowKey=`${oid}_${iid}`;
+              const contextActions=[];
+              if(!rowDeleted&&!valid&&editable) contextActions.push(
+                {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateLine(oid,iid)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dupLine(oid,iid)},rowHistoryAction({...o,items:[it]}),
+                {label:(o.editBase||it.editBase)?"Annuler les modifications":"Supprimer",icon:"×",color:C.red,onSelect:()=>(o.editBase||it.editBase)?cancelLineEdit(oid,iid):delItem(oid,iid)});
+              if(!rowDeleted&&valid&&editable) contextActions.push(
+                {label:"Modifier",icon:"✎",color:C.yellow,onSelect:()=>unlockLine(oid,iid)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dupLine(oid,iid)},rowHistoryAction({...o,items:[it]}),
+                {label:"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>delItem(oid,iid)});
+              if(!rowDeleted&&!editable&&perms.canWrite) contextActions.push(
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dupLine(oid,iid)},rowHistoryAction({...o,items:[it]}));
+              if(rowDeleted) contextActions.push({label:"Réactiver",icon:"↩",color:C.yellow,onSelect:()=>opDeleted?setRestoreOpTarget(oid):setRestoreItemTarget({oid,iid})});
               return [
-                <tr key={rowKey} style={{background:rowDeleted?"#da363318":it.tracaOk?"#23863610":idx%2===0?"transparent":C.stripe,
+                <tr key={rowKey} onContextMenu={event=>rowActions.open(event,`${conso?.label||"consommable"} · ${snScopeLabel(o,snRowsFromHeader(header))}`,contextActions)} style={{background:rowDeleted?"#da363318":it.tracaOk?"#23863610":idx%2===0?"transparent":C.stripe,
                   borderLeft:`3px solid ${rowDeleted?C.red:it.tracaOk?C.green:valid?C.green:conso?catColor:C.border}`,
                   textDecoration:rowDeleted?"line-through":undefined,opacity:rowDeleted?.6:1,pointerEvents:rowDeleted?"none":undefined}}>
                   <TD><OperationDateCell value={it.createdDT||o.createdDT} editing={!!it.editBase&&editable&&!rowDeleted} onChange={value=>updItem(oid,iid,"createdDT",value)}/></TD>
@@ -786,33 +795,6 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                       {it.remarque&&<span title={it.remarque} style={{fontSize:10,color:C.muted,fontFamily:"monospace",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.remarque}</span>}
                     </div>
                   </TD>
-                  <td style={{position:"sticky",right:0,zIndex:2,background:rowDeleted?"#2b1719":it.tracaOk?"#14231b":idx%2===0?C.surface:C.raised,
-                    padding:"5px 8px",borderBottom:`1px solid ${C.border}20`,fontSize:12,textAlign:"center",verticalAlign:"middle",
-                    pointerEvents:"all",width:110}}>
-                    {!rowDeleted&&!valid&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>validateLine(oid,iid)} color={C.green} title="Valider">✓</IconBtn>
-                        <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={{...o,items:[it]}}/>
-                        <IconBtn onClick={()=>(o.editBase||it.editBase)?cancelLineEdit(oid,iid):delItem(oid,iid)} color={(o.editBase||it.editBase)?C.red:C.border} title={(o.editBase||it.editBase)?"Annuler les modifications":"Supprimer"}>×</IconBtn>
-                      </ActionGroup>
-                    )}
-                    {!rowDeleted&&valid&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>unlockLine(oid,iid)} color={C.yellow} title="Modifier">✎</IconBtn>
-                        <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={{...o,items:[it]}}/>
-                        <IconBtn onClick={()=>delItem(oid,iid)} color={C.red} title="Annuler">×</IconBtn>
-                      </ActionGroup>
-                    )}
-                    {!rowDeleted&&!editable&&perms.canWrite&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>dupLine(oid,iid)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={{...o,items:[it]}}/>
-                      </ActionGroup>
-                    )}
-                    {rowDeleted&&<IconBtn onClick={()=>opDeleted?setRestoreOpTarget(oid):setRestoreItemTarget({oid,iid})} color={C.yellow} title="Réactiver">↩</IconBtn>}
-                  </td>
                 </tr>,
                 rowDeleted&&(
                   <tr key={rowKey+"_ann"}>
@@ -834,6 +816,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
             })}
           </tbody>
         </table>
+        <RowActionMenu controller={rowActions}/>
         {ops.length===0&&<EmptyTableAction message="Aucun consommable enregistré" actionLabel="+ Ajouter le premier consommable" onAction={addOp} canAdd={!!perms.canWrite}/>}
       </div>
       {deleteOpTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDelOp} onCancel={()=>setDeleteOpTarget(null)}/>}

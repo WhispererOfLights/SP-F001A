@@ -642,6 +642,8 @@ const ReworkSubstitutionModal = ({row,substitution,facts=[],onChooseFact,onChoos
 
 const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross,contextData}) => {
   const rows = data.rows||[];
+  const rowActions=useRowActionMenu();
+  const [openWarnings,setOpenWarnings]=useState({desoldered:false,checks:false});
   const [requestIds,setRequestIds]=useState([]);
   const tableRef=React.useRef(null);
   const [focusNewId,setFocusNewId]=useState(null);
@@ -652,11 +654,11 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
     if(field){field.focus();setFocusNewId(null);}
   },[focusNewId,rows]);
   const navigateEntry=e=>{
+    if(e.key==="Enter"&&e.target===e.currentTarget){e.preventDefault();validateRow(e.currentTarget.dataset.reworkRow);return;}
     if(e.key!=="Tab") return;
     const fields=Array.from(e.currentTarget.querySelectorAll('[data-entry-field]:not([readonly]):not(:disabled)'));
     const index=fields.indexOf(e.target);
-    const validate=e.currentTarget.querySelector('button[title="Valider"]');
-    const next=index>=0?(e.shiftKey?fields[index-1]:fields[index+1]||validate):e.shiftKey&&e.target===validate?fields[fields.length-1]:null;
+    const next=index>=0?(e.shiftKey?fields[index-1]:fields[index+1]||e.currentTarget):e.shiftKey&&e.target===e.currentTarget?fields[fields.length-1]:null;
     if(next){e.preventDefault();next.focus();}
   };
   const [showMaterialDraft,setShowMaterialDraft]=useState(false);
@@ -681,10 +683,6 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
       downloadBrowserBlob(blob,fileSafeName(`Étiquette composant dessoudé - OF ${header?.of||"OF"} - ${row.repere||"Repère"}`)+".pdf");
     }catch(error){window.alert(`Étiquette impossible : ${error?.message||error}`);}
   };
-  const labelPrintButton=row=>row.action1==="D"&&row.validated&&!row.deleted&&(
-    <button type="button" className="no-print" onClick={()=>printComponentLabel(row)} title="Imprimer l’étiquette composant 50 × 75 mm"
-      style={{height:22,minWidth:31,padding:"0 4px",border:0,borderRadius:4,background:C.accent,color:"#fff",fontSize:9,fontWeight:900,cursor:"pointer",lineHeight:1}}>ETQ</button>
-  );
   const rowsInWorkScope = rows.filter(r=>rowMatchesSnFilter(r,workSnFilter(header),header));
   const requestRows=rowsInWorkScope.filter(r=>!r.deleted&&["S","M"].includes(r.action1)&&requestIds.includes(r.id));
   useEffect(()=>{setRequestIds(ids=>{const next=ids.filter(id=>rows.some(r=>r.id===id&&!r.deleted&&["S","M"].includes(r.action1)));return next.length===ids.length?ids:next;});},[rows]);
@@ -934,28 +932,28 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
     <div style={{maxWidth:1520}}>
       {desoudes.length>0&&(
         <div style={{background:C.yellow+"18",border:`1px solid ${C.yellow}`,borderRadius:6,
-          padding:"9px 14px",marginBottom:12,display:"flex",alignItems:"flex-start",gap:10}}>
-          <span style={{color:C.yellow,fontSize:16,lineHeight:1}}>⚠</span>
-          <div>
-            <div style={{color:C.yellow,fontWeight:800,fontSize:12,marginBottom:4}}>
-              {desoudes.length} composant{desoudes.length>1?"s":""} désoudé{desoudes.length>1?"s":""} à surveiller
-            </div>
+          padding:"7px 12px",marginBottom:12}}>
+          <button type="button" aria-expanded={openWarnings.desoldered} onClick={()=>setOpenWarnings(value=>({...value,desoldered:!value.desoldered}))}
+            style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,border:0,background:"transparent",color:C.yellow,fontWeight:800,fontSize:12,cursor:"pointer",padding:0,textAlign:"left"}}>
+            <span>⚠ {desoudes.length} composant{desoudes.length>1?"s":""} désoudé{desoudes.length>1?"s":""} à surveiller</span><span>{openWarnings.desoldered?"▲":"▼"}</span>
+          </button>
+          {openWarnings.desoldered&&<div style={{marginTop:6}}>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {desoudes.map(r=>(
                 <Badge key={r.id} label={`${warnSn(r)} - ${r.repere||"repère ?"} - valeur D ${r.valeur||"?"} - Fiche suiveuse ${r.fiche||"?"} - OP ${r.etape||"?"}`} color={C.yellow}/>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
       )}
       {(desoudageChecks.sequence.length>0||desoudageChecks.mismatch.length>0||desoudageChecks.first.length>0||desoudageChecks.pointed.length>0||missingControls.length>0)&&(
         <div style={{background:C.red+"18",border:`1px solid ${C.red}`,borderRadius:6,
-          padding:"9px 14px",marginBottom:12,display:"flex",alignItems:"flex-start",gap:10}}>
-          <span style={{color:C.red,fontSize:16,lineHeight:1}}>⚠</span>
-          <div>
-            <div style={{color:C.red,fontWeight:800,fontSize:12,marginBottom:4}}>
-              Contrôle soudage / dessoudage / pointage
-            </div>
+          padding:"7px 12px",marginBottom:12}}>
+          <button type="button" aria-expanded={openWarnings.checks} onClick={()=>setOpenWarnings(value=>({...value,checks:!value.checks}))}
+            style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,border:0,background:"transparent",color:C.red,fontWeight:800,fontSize:12,cursor:"pointer",padding:0,textAlign:"left"}}>
+            <span>⚠ Contrôle soudage / dessoudage / pointage</span><span>{openWarnings.checks?"▲":"▼"}</span>
+          </button>
+          {openWarnings.checks&&<div style={{marginTop:6}}>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {desoudageChecks.sequence.map(w=><Badge key={`seq-${w.unitId}-${w.row.id}`} label={`${w.snLabel} - ${w.repere} - ${w.previous.action1} → ${w.row.action1} interdit`} color={C.red}/>)}
               {desoudageChecks.mismatch.map(w=>(
@@ -971,7 +969,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 <Badge key={`ctrl-${r.id}`} label={`${warnSn(r)} - ${r.repere||"repère ?"} - ${ACTION_LABELS[r.action1]||r.action1} sans CTRL`} color={C.red}/>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
       )}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -1012,7 +1010,6 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
               <TH w={46} color={C.green}>TRA</TH>
               {perms.canWrite&&!forceShowDeleted&&<TH w={38}>DEM</TH>}
               <TH w={28}>💬</TH>
-              <TH w={145}></TH>
             </tr>
             <tr style={{background:C.blue+"0c",borderBottom:`2px solid ${C.border}`}}>
               <th colSpan={2} style={{color:C.blue,fontSize:11,textAlign:"left",padding:"6px 5px"}}>⌕ Filtres</th>
@@ -1038,8 +1035,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
               <th style={{padding:"3px 4px"}}><Input value={filters.sn} onChange={v=>fset("sn",v)} small title="Filtrer SN"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.fiche} onChange={v=>fset("fiche",v)} small title="Filtrer fiche suiveuse"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.etape} onChange={v=>fset("etape",v)} small title="Filtrer OP"/></th>
-              <th></th><th></th>{perms.canWrite&&!forceShowDeleted&&<th/>}<th></th>
-              <th style={{padding:"3px 4px",textAlign:"center"}}>
+              <th></th><th></th>{perms.canWrite&&!forceShowDeleted&&<th/>}<th style={{padding:"3px 4px",textAlign:"center"}}>
                 {hasFilters&&<button onClick={()=>setFilters({snTarget:workSnFilter(header), repere:"", action1:"", codeERP:"", valeur:"", lot:"", dc:"", sn:"", fiche:"", etape:"", adjust:"all"})}
                   title="Effacer les filtres"
                   style={{background:C.border,border:"none",borderRadius:4,color:C.text,width:26,height:22,cursor:"pointer",fontWeight:800}}>×</button>}
@@ -1056,8 +1052,21 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
               const coherenceStyle=coherenceIssues.length?{background:C.red+"18",borderColor:C.red,color:C.red,fontWeight:800}:{};
               const editable = canEdit(r);
               const locked = !!r.validated || !editable;
+              const contextActions=[];
+              if(!r.deleted&&!r.validated&&editable) contextActions.push(
+                {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:r.editBase?"Annuler les modifications":"Supprimer",icon:"×",color:C.red,onSelect:()=>r.editBase?cancelEdit(r.id):del(r.id)});
+              if(!r.deleted&&r.validated&&editable) contextActions.push(
+                r.action1==="D"?{label:"Imprimer l’étiquette composant",icon:"ETQ",color:C.accent,onSelect:()=>printComponentLabel(r)}:null,
+                {label:"Modifier",icon:"✎",color:C.yellow,onSelect:()=>unlockRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>del(r.id)});
+              if(!r.deleted&&!editable&&perms.canWrite) contextActions.push(
+                r.action1==="D"&&r.validated?{label:"Imprimer l’étiquette composant",icon:"ETQ",color:C.accent,onSelect:()=>printComponentLabel(r)}:null,
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
               return [
-              <tr key={r.id} data-rework-row={r.id} onKeyDown={navigateEntry} style={{background:r.deleted?"#da363318":r.tracaOk?"#23863610":i%2===0?"transparent":C.stripe,
+              <tr key={r.id} data-rework-row={r.id} tabIndex={-1} onKeyDown={navigateEntry} onContextMenu={event=>rowActions.open(event,`${r.repere||"ligne"} · ${warnSn(r)}`,contextActions)} style={{background:r.deleted?"#da363318":r.tracaOk?"#23863610":i%2===0?"transparent":C.stripe,
                 textDecoration:r.deleted?"line-through":undefined,
                 opacity:r.deleted?.6:1,
                 pointerEvents:r.deleted?"none":undefined,
@@ -1133,32 +1142,6 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 </TD>
                 {perms.canWrite&&!forceShowDeleted&&<TD center><input type="checkbox" aria-label={`Demander la matière ${r.repere||"ligne"} ${r.codeERP||""}`} title={["S","M"].includes(r.action1)?"Sélectionner pour la demande matière":"Demande matière réservée aux actions S et M"} disabled={!!r.deleted||!["S","M"].includes(r.action1)} checked={!r.deleted&&["S","M"].includes(r.action1)&&requestIds.includes(r.id)} onChange={()=>{if(!r.deleted&&["S","M"].includes(r.action1)) setRequestIds(ids=>ids.includes(r.id)?ids.filter(id=>id!==r.id):[...ids,r.id]);}}/></TD>}
                 <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!canCommentRow()} systemInfo={importOriginCommentInfo(r)}/></TD>
-                <TD center style={{pointerEvents:"all"}}>
-                  {!r.deleted&&!r.validated&&editable&&(
-                    <ActionGroup>
-                      <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider">✓</IconBtn>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                      <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={r.editBase?C.red:C.border} title={r.editBase?"Annuler les modifications":"Supprimer"}>×</IconBtn>
-                    </ActionGroup>
-                  )}
-                  {!r.deleted&&r.validated&&editable&&(
-                    <ActionGroup>
-                      {labelPrintButton(r)}
-                      <IconBtn onClick={()=>unlockRow(r.id)} color={C.yellow} title="Modifier">✎</IconBtn>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                      <IconBtn onClick={()=>del(r.id)} color={C.red} title="Annuler">×</IconBtn>
-                    </ActionGroup>
-                  )}
-                  {!r.deleted&&!editable&&perms.canWrite&&(
-                    <ActionGroup>
-                      {labelPrintButton(r)}
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                    </ActionGroup>
-                  )}
-                </TD>
               </tr>,
               (isObservation||String(r.remarques||"").trim())&&(
                 <tr key={r.id+"_observation"} style={{background:r.deleted?"#da363318":i%2===0?C.blue+"08":C.stripe,borderLeft:r.validated?`3px solid ${C.green}`:`3px solid ${C.border}`}}>
@@ -1197,7 +1180,8 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         </table>
         {rows.length===0&&<EmptyTableAction message="Aucune opération Adjust/Rework enregistrée" actionLabel="+ Ajouter la première opération" onAction={add} canAdd={!!perms.canWrite}/>}
       </div>
-      <div style={{marginTop:8,fontSize:11,color:C.muted}}>✦ Visa Opér. pré-rempli hors import · ✓ Valider pour verrouiller · × Annuler sur ligne validée = barre et conserve la traçabilité</div>
+      <div style={{marginTop:8,fontSize:11,color:C.muted}}>✦ Clic droit sur une ligne : actions · Visa Opér. pré-rempli hors import · ✓ Valider pour verrouiller · × Annuler sur ligne validée = barre et conserve la traçabilité</div>
+      <RowActionMenu controller={rowActions}/>
       {showImport&&perms.canWrite&&<ReworkImportModal header={header} existingRows={rows} onImport={importDrafts} onClose={()=>setShowImport(false)}/>}
       {substitutionTarget&&<ReworkSubstitutionModal
         row={rows.find(row=>row.id===substitutionTarget.rowId)}

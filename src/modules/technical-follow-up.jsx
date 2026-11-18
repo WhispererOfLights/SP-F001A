@@ -163,6 +163,7 @@ const FAITS_EDIT_FIELDS = [
 
 const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forceShowDeleted=false,onCopyAcross,onCloseRow}) => {
   const rows     = data.rows||[];
+  const rowActions=useRowActionMenu();
   const types    = faitTypes;
   const isClosed = r => !!r.closedDate;
   const canEdit = row => canEditLine(user,row);
@@ -254,7 +255,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
       </div>
 
       <div style={{width:"100%",maxWidth:"100%",overflowX:"auto",overflowY:"hidden"}}>
-      <table style={{width:"100%",minWidth:1190,borderCollapse:"collapse",tableLayout:"fixed"}}>
+      <table style={{width:"100%",minWidth:1080,borderCollapse:"collapse",tableLayout:"fixed"}}>
         <thead>
           <tr>
             <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
@@ -268,7 +269,6 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
             <TH w={70}>Visa clôt.</TH>
             <TH w={42}>💬</TH>
             <TH w={108}>Action</TH>
-            <TH w={104}></TH>
           </tr>
         </thead>
         <tbody>
@@ -277,8 +277,18 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
             const closed_r  = isClosed(r);
             const editable = canEdit(r);
             const locked = !!r.validated || !editable;
+            const contextActions=[];
+            if(!r.deleted&&!r.validated&&editable) contextActions.push(
+              {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
+              {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+              {label:r.editBase?"Annuler les modifications":"Supprimer",icon:"×",color:C.red,onSelect:()=>r.editBase?cancelEdit(r.id):del(r.id)});
+            if(!r.deleted&&r.validated&&editable) contextActions.push(
+              {label:"Modifier",icon:"✎",color:C.yellow,onSelect:()=>unlockRow(r.id)},
+              {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+              {label:"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>del(r.id)});
+            if(!r.deleted&&!editable&&perms.canWrite) contextActions.push({label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
             return [
-              <tr key={r.id} style={{background:r.deleted?"#da363318":closed_r?"#23863612":i%2===0?"transparent":C.stripe,
+              <tr key={r.id} onContextMenu={event=>rowActions.open(event,`${r.type||"fait"} ${r.numero||""} · ${snScopeLabel(r,snRowsFromHeader(header))}`,contextActions)} style={{background:r.deleted?"#da363318":closed_r?"#23863612":i%2===0?"transparent":C.stripe,
                 textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:closed_r?.85:1,
                 pointerEvents:r.deleted?"none":undefined,
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
@@ -353,30 +363,6 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
                   </ActionGroup>}
                 </TD>
 
-                <TD center style={{pointerEvents:"all"}}>
-                  {!r.deleted&&!r.validated&&editable&&(
-                    <ActionGroup>
-                      <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider">✓</IconBtn>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                      <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={r.editBase?C.red:C.border} title={r.editBase?"Annuler les modifications":"Supprimer"}>×</IconBtn>
-                    </ActionGroup>
-                  )}
-                  {!r.deleted&&r.validated&&editable&&(
-                    <ActionGroup>
-                      <IconBtn onClick={()=>unlockRow(r.id)} color={C.yellow} title="Modifier">✎</IconBtn>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                      <IconBtn onClick={()=>del(r.id)} color={C.red} title="Annuler">×</IconBtn>
-                    </ActionGroup>
-                  )}
-                  {!r.deleted&&!editable&&perms.canWrite&&(
-                    <ActionGroup>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                    </ActionGroup>
-                  )}
-                </TD>
               </tr>,
               r.validError&&!r.validated&&(
                 <tr key={r.id+"_err"}>
@@ -407,6 +393,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
           })}
         </tbody>
       </table>
+      <RowActionMenu controller={rowActions}/>
       </div>
       {rows.length===0&&<EmptyTableAction message="Aucun suivi technique enregistré" actionLabel="+ Ajouter le premier suivi" onAction={add} canAdd={!!perms.canWrite}/>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>

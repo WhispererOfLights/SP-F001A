@@ -25,6 +25,7 @@ const ConnectorActionButton = ({action,connector,disabled,title,onClick}) => {
 
 const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross}) => {
   const connectors = data.connectors||[];
+  const rowActions=useRowActionMenu();
   const canEdit = row => canEditLine(user,row);
   const [deleteEvTarget,   setDeleteEvTarget]   = useState(null); // {cid,eid}
   const [deleteConnTarget, setDeleteConnTarget] = useState(null); // cid
@@ -433,7 +434,7 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                   <TH w={88}>Connecteur</TH><TH w={94}>État actuel</TH><TH w={48}>Cycle</TH>
                   <TH w={122}>Mating date</TH><TH w={52} color={C.accent}>Visa M</TH>
                   <TH w={122}>Demating date</TH><TH w={52} color={C.accent}>Visa D</TH>
-                  <TH w={78}>N° SN</TH><TH w={42}>💬</TH><TH w={112}>Actions</TH>
+                  <TH w={78}>N° SN</TH><TH w={42}>💬</TH>
                 </tr>
               </thead>
               <tbody>
@@ -441,7 +442,7 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                   const tone=connectorStateTone(last?.action);
                   return [
                   <tr key={`${c.id}_group`} style={{background:last?.action==="Mating"?C.green+"1f":last?.action==="Demating"?C.red+"1f":C.blue+"12",borderLeft:`3px solid ${tone.stroke}`}}>
-                    <td colSpan={10} style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
+                    <td colSpan={9} style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
                       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
                         <span style={{fontFamily:"monospace",fontSize:13,fontWeight:900,color:C.text}}>{c.nConect||"J?"}</span>
                         <Badge label={status.label.replace("⚡ ","").replace("✓ ","")} color={status.color}/>
@@ -456,7 +457,10 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                     </td>
                   </tr>,
                   ...cycles.map(({idx,mat,dem,empty},i)=>(
-                    <tr key={`${c.id}_${idx||"empty"}_${i}`} style={{background:(gi+i)%2===0?"transparent":C.stripe}}>
+                    <tr key={`${c.id}_${idx||"empty"}_${i}`} onContextMenu={event=>rowActions.open(event,`${c.nConect||"connecteur"} · cycle ${empty?"vide":idx}`,[
+                      mat&&canEdit(c)?{label:"Annuler l'action Mating",icon:"×",color:C.green,onSelect:()=>setDeleteEvTarget({cid:c.id,eid:mat.id})}:null,
+                      dem&&canEdit(c)?{label:"Annuler l'action Demating",icon:"×",color:C.blue,onSelect:()=>setDeleteEvTarget({cid:c.id,eid:dem.id})}:null,
+                    ])} style={{background:(gi+i)%2===0?"transparent":C.stripe}}>
                       <TD></TD>
                       <TD></TD>
                       <TD><span style={{fontFamily:"monospace",fontSize:11,color:C.muted}}>{empty?"—":idx}</span></TD>
@@ -466,27 +470,12 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                       <TD><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:dem?C.accent:C.muted}}>{dem?.visa||"—"}</span></TD>
                       <TD></TD>
                       <TD></TD>
-                      <TD center style={{pointerEvents:"all"}}>
-                        {canEdit(c)&&<ActionGroup>
-                          {mat&&<button onClick={()=>setDeleteEvTarget({cid:c.id,eid:mat.id})}
-                            title="Annuler l'action Mating"
-                            style={{background:C.green+"22",border:`1px solid ${C.green}`,borderRadius:4,
-                              color:C.green,fontSize:9,padding:"2px 5px",cursor:"pointer",fontWeight:800,whiteSpace:"nowrap"}}>
-                            Annuler M
-                          </button>}
-                          {dem&&<button onClick={()=>setDeleteEvTarget({cid:c.id,eid:dem.id})}
-                            title="Annuler l'action Demating"
-                            style={{background:C.blue+"22",border:`1px solid ${C.blue}`,borderRadius:4,
-                              color:C.blue,fontSize:9,padding:"2px 5px",cursor:"pointer",fontWeight:800,whiteSpace:"nowrap"}}>
-                            Annuler D
-                          </button>}
-                        </ActionGroup>}
-                      </TD>
                     </tr>
                   ))
                 ]})}
               </tbody>
             </table>
+            <RowActionMenu controller={rowActions}/>
             {cycleGroups.length===0&&<div style={{textAlign:"center",color:C.muted,padding:14,fontSize:12}}>Aucun connecteur actif</div>}
           </div>
         </div>

@@ -152,6 +152,7 @@ const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,canComment,
 };
 
 const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all",header={},forceShowDeleted=false,onDownloadPdf=null}) => {
+  const rowActions=useRowActionMenu();
   const [showDeleted,setShowDeleted]=useState(false);
   const [excelScope,setExcelScope]=useState(activeUnitId==="all"?"all":"current");
   const canWrite=!!perms?.canWrite;
@@ -248,7 +249,7 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
         <table style={{borderCollapse:"collapse",width:"100%",minWidth:1030}}>
           <thead><tr>
             <TH w={125}>Fiche suiveuse</TH><TH w={82}>Étape / OP</TH><TH w={190}>Mesure</TH><TH w={70}>Unité</TH><TH w={78}>Min attendu</TH><TH w={78}>Max attendu</TH>
-            <TH w={160}>Avancement</TH><TH w={190}>Résultats OF</TH><TH w={45}>💬</TH><TH w={55}></TH>
+            <TH w={160}>Avancement</TH><TH w={190}>Résultats OF</TH><TH w={45}>💬</TH>
           </tr></thead>
           <tbody>{visibleRows.map((row,index)=>{
             const stats=measurementStats(row,activeUnits);
@@ -257,7 +258,12 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
             const nonconforming=statuses.filter(status=>status.id==="nonconforming"||status.id==="invalid").length;
             const missing=statuses.filter(status=>status.id==="missing").length;
             const editable=canWrite&&!row.deleted;
-            return <tr key={row.id} style={{opacity:row.deleted?.55:1,background:row.deleted?C.red+"0b":index%2?C.raised+"55":"transparent"}}>
+            const contextActions=row.deleted
+              ? (isAdminManager(user)?[
+                  {label:"Restaurer cette mesure",icon:"↶",color:C.green,onSelect:()=>restoreRow(row)},
+                  perms?.godMode?{label:"Effacer définitivement",icon:"×",color:C.red,onSelect:()=>purgeRow(row)}:null]:[])
+              : (canWrite?[{label:perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure",icon:"×",color:C.red,onSelect:()=>removeRow(row)}]:[]);
+            return <tr key={row.id} onContextMenu={event=>rowActions.open(event,row.mesure||"mesure",contextActions)} style={{opacity:row.deleted?.55:1,background:row.deleted?C.red+"0b":index%2?C.raised+"55":"transparent"}}>
               <TD><MeasurementField value={row.fiche} readOnly={!editable} onCommit={value=>updatePlanField(row,"fiche",value,"Fiche suiveuse")} placeholder="DOC-0013405_1" style={{minWidth:110}}/></TD>
               <TD><MeasurementField value={row.etape} readOnly={!editable} onCommit={value=>updatePlanField(row,"etape",value,"Étape / OP")} placeholder="40" style={{minWidth:65}}/></TD>
               <TD><MeasurementField value={row.mesure} readOnly={!editable} onCommit={value=>updatePlanField(row,"mesure",value,"Mesure")} placeholder="Tension TP1" style={{minWidth:165}}/></TD>
@@ -275,16 +281,11 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
                 {!!stats.maxUnits.length&&<div title={stats.maxUnits.join(" ; ")} style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Max : {stats.maxUnits.join(" · ")}</div>}
               </div></TD>
               <TD center><CommentBtn comments={row.comments||[]} onChange={comments=>updateRow(row.id,{comments})} user={user} disabled={!perms?.canComment}/></TD>
-              <TD center>{row.deleted
-                ? isAdminManager(user)&&<div style={{display:"flex",gap:4,justifyContent:"center"}}>
-                    <IconBtn title="Restaurer cette mesure" color={C.green} onClick={()=>restoreRow(row)}>↶</IconBtn>
-                    {perms?.godMode&&<IconBtn title="Effacer définitivement cette mesure annulée" color={C.red} onClick={()=>purgeRow(row)}>×</IconBtn>}
-                  </div>
-                : canWrite&&<IconBtn title={perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure"} color={C.red} onClick={()=>removeRow(row)}>×</IconBtn>}</TD>
             </tr>;
           })}</tbody>
         </table>
         {!visibleRows.length&&<EmptyTableAction message="Aucune mesure définie pour cet OF" actionLabel="+ Ajouter la première mesure" onAction={addRow} canAdd={canWrite}/>}
+        <RowActionMenu controller={rowActions}/>
       </div>
       {!!gridMeasures.length&&<section aria-label="Grille de saisie des mesures" style={{border:`1px solid ${C.blue}`,borderRadius:5,overflow:"hidden"}}>
         <div style={{padding:"7px 10px",background:C.blue+"12",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.muted}}>

@@ -22,6 +22,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
   const browser = await chromium.launch({headless: true, channel: 'msedge'});
   try {
     const page = await browser.newPage({viewport: {width: 1920, height: 1080}});
+    const chooseRowAction=async (row,name)=>{await row.click({button:'right'});await page.getByRole('menuitem',{name,exact:true}).click();};
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/*', route => route.fulfill(route.request().url().endsWith('/assets/logo.png')
@@ -379,7 +380,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     const dossierSheet=await dossierSheetPromise;
     await dossierSheet.saveAs(path.join(__dirname,'artifacts/component-sheet-dossier.pdf'));
     const labelPromise=page.waitForEvent('download');
-    await page.getByTitle('Imprimer l’étiquette composant 50 × 75 mm').first().click();
+    await chooseRowAction(page.locator('[data-rework-row="blocked-D"]'),'Imprimer l’étiquette composant');
     const labelDownload=await labelPromise;
     await labelDownload.saveAs(path.join(__dirname,'artifacts/component-label.pdf'));
     assert.equal(await page.locator('.compact-ui').evaluate(el=>getComputedStyle(el).fontFamily),homeFont);
@@ -454,24 +455,24 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button',{name:'Fermer les commentaires',exact:true}).click();
     await importedMain.locator('[data-entry-field="valeur"]').fill('12K');
     await importedMain.getByLabel('Importé, modifié',{exact:true}).waitFor();
-    await importedMain.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(importedMain,'Valider');
     await page.waitForFunction(()=>{
       const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.repere==='R-IMP1');
       return row?.validated&&row.createdVisa==='JGR'&&!!row.createdDT&&row.importOrigin?.modifiedBy==='JGR';
     });
     assert.equal(await importedMain.getByLabel('Importé, modifié',{exact:true}).count(),1);
-    await importedMain.getByTitle('Modifier',{exact:true}).click();
+    await chooseRowAction(importedMain,'Modifier');
     await importedMain.locator('[data-entry-field="valeur"]').fill('99K');
-    await importedMain.getByTitle('Annuler les modifications',{exact:true}).click();
+    await chooseRowAction(importedMain,'Annuler les modifications');
     await page.waitForFunction(()=>{
       const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.repere==='R-IMP1');
       return row?.validated&&!row.deleted&&row.valeur==='12K'&&!row.editBase;
     });
     assert.equal(await importedMain.locator('[data-entry-field="valeur"]').inputValue(),'12K');
     const importedExisting=page.locator('[data-rework-row]').filter({has:page.locator('[data-entry-field="repere"][value="R-IMPORTED"]')});
-    await importedExisting.getByTitle('Modifier',{exact:true}).click();
+    await chooseRowAction(importedExisting,'Modifier');
     await importedExisting.getByLabel("Date de l'opération",{exact:true}).fill('2026-10-30T14:15');
-    await importedExisting.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(importedExisting,'Valider');
     await page.waitForFunction(()=>{
       const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.id==='imported-existing');
       return row?.validated&&row.createdDT==='30/10/2026 14:15'&&!row.editBase;
@@ -494,7 +495,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       await row.locator('[data-entry-field="fiche"]').fill('DOC-QUICK');
       await row.locator('[data-entry-field="etape"]').fill('10');
       await row.locator('[data-entry-field="etape"]').press('Tab');
-      assert.equal(await page.evaluate(()=>document.activeElement.title),'Valider');
+      assert.ok(await page.evaluate(()=>!!document.activeElement.dataset.reworkRow));
       const before=await row.locator('[data-entry-field="lot"]').evaluate(el=>el.style.background);
       await page.keyboard.press('Shift+Tab');
       assert.equal(await page.evaluate(()=>document.activeElement.dataset.entryField),'etape');
@@ -517,11 +518,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok(await observationMain.getByText('N/A',{exact:true}).count()>=2);
     let missingObservationMessage='';
     page.once('dialog',async dialog=>{missingObservationMessage=dialog.message();await dialog.accept();});
-    await observationMain.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(observationMain,'Valider');
     await page.waitForFunction(id=>window.testRecords['of:test-of'].rework.rows.some(row=>row.id===id&&!row.validated&&row.validError?.includes('Observation')),observationId);
     assert.ok(missingObservationMessage.includes('Observation'));
     await observationDetail.locator('[data-entry-field="remarques"]').fill('C100 vérifié, laissé en état');
-    await observationMain.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(observationMain,'Valider');
     await page.waitForFunction(id=>window.testRecords['of:test-of'].rework.rows.some(row=>row.id===id&&row.validated&&row.remarques==='C100 vérifié, laissé en état'),observationId);
     await observationMain.waitFor();
     const repereFilter=page.getByTitle('Filtrer repère topo',{exact:true});
@@ -537,11 +538,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await pointedNoValue.locator('[data-entry-field="etape"]').fill('10');
     let missingValueMessage='';
     page.once('dialog',async d=>{missingValueMessage=d.message();await d.accept();});
-    await pointedNoValue.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(pointedNoValue,'Valider');
     await page.waitForFunction(()=>window.testRecords['of:test-of'].rework.rows.some(r=>r.repere==='P-NOVALUE'&&!r.validated&&r.validError?.includes('Valeur')));
     assert.ok(missingValueMessage.includes('Valeur'));
     await pointedNoValue.locator('[data-entry-field="valeur"]').fill('10K');
-    await pointedNoValue.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(pointedNoValue,'Valider');
     await page.waitForFunction(()=>window.testRecords['of:test-of'].rework.rows.some(r=>r.repere==='P-NOVALUE'&&r.validated));
     for(const [action,value] of [['D','10K'],['S','20K']]) {
       await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
@@ -552,7 +553,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       if(action==='S') await mismatchRow.locator('[data-entry-field="codeERP"]').fill('123');
       await mismatchRow.locator('[data-entry-field="fiche"]').fill('DOC-WARN');
       await mismatchRow.locator('[data-entry-field="etape"]').fill('10');
-      await mismatchRow.getByTitle('Valider',{exact:true}).click();
+      await chooseRowAction(mismatchRow,'Valider');
       if(action==='S') {
         const substitutionDialog=page.getByRole('dialog',{name:'Justifier le changement de valeur',exact:true});
         await substitutionDialog.getByText(/Aucun fait NC, DM ou ISS/).waitFor();
@@ -567,7 +568,9 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       assert.ok((await valueField.evaluate(el=>el.style.borderColor)).length>0);
     }
     await page.screenshot({path:path.join(__dirname,'artifacts/rework-quick-entry-1920.png')});
-    await page.locator('[data-rework-row="r1"]').getByTitle('Dupliquer',{exact:true}).click();
+    assert.equal(await page.getByRole('button',{name:/composant désoudé.*à surveiller/}).getAttribute('aria-expanded'),'false');
+    assert.equal(await page.getByRole('button',{name:/Contrôle soudage/}).getAttribute('aria-expanded'),'false');
+    await chooseRowAction(page.locator('[data-rework-row="r1"]'),'Dupliquer');
     const copyDialog=page.getByRole('dialog',{name:'Copier vers OF / SN',exact:true});
     await copyDialog.getByRole('checkbox',{name:'OF 100TEST — SN2',exact:true}).waitFor();
     const copySource=copyDialog.getByLabel('Source de la copie',{exact:true});
@@ -748,20 +751,20 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     page.removeAllListeners('dialog');
     let multiPrompt='';
     page.once('dialog',async dialog=>{multiPrompt=dialog.message();await dialog.dismiss();});
-    await multiDraft.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(multiDraft,'Valider');
     assert.ok(multiPrompt.includes('SN1')&&multiPrompt.includes('SN2'));
     assert.ok(!(await page.evaluate(()=>window.testRecords['of:test-of'].rework.rows.at(-1).validated)));
     page.once('dialog',dialog=>dialog.accept());
-    await multiDraft.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(multiDraft,'Valider');
     await page.waitForFunction(()=>window.testRecords['of:test-of'].rework.rows.filter(row=>row.repere==='MULTI-DEMO'&&row.validated).length===2);
     const independentRows=await page.evaluate(()=>window.testRecords['of:test-of'].rework.rows.filter(row=>row.repere==='MULTI-DEMO'));
     assert.equal(independentRows.length,2);assert.notEqual(independentRows[0].id,independentRows[1].id);
     assert.deepEqual(independentRows.map(row=>row.snIds),[['u1'],['u2']]);
     const secondSnRow=page.locator(`[data-rework-row="${independentRows[1].id}"]`);
-    await secondSnRow.getByTitle('Modifier',{exact:true}).click();
+    await chooseRowAction(secondSnRow,'Modifier');
     await secondSnRow.locator('[data-entry-field="valeur"]').fill('Independent change');
     await secondSnRow.locator('[data-entry-field="isAdjust"]').check();
-    await secondSnRow.getByTitle('Valider',{exact:true}).click();
+    await chooseRowAction(secondSnRow,'Valider');
     await page.waitForFunction(()=>window.testRecords['of:test-of'].rework.rows.find(row=>row.repere==='MULTI-DEMO'&&row.snIds?.[0]==='u2')?.isAdjust===true);
     const firstSnRow=await page.evaluate(()=>window.testRecords['of:test-of'].rework.rows.find(row=>row.repere==='MULTI-DEMO'&&row.snIds?.[0]==='u1'));
     assert.equal(firstSnRow.isAdjust,false);assert.notEqual(firstSnRow.valeur,'Independent change');
@@ -858,8 +861,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
         assert.equal(await page.locator('#fours-etuvage option').getAttribute('value'),'INV-123');
         await page.evaluate(()=>{window.testRecords['of:other-of'].testequip={rows:[]};});
       }
-      const copyButton=tab==='demating'?page.getByTitle('Copier vers OF / SN',{exact:true}).first():page.locator('table').last().getByTitle('Dupliquer',{exact:true}).first();
-      await copyButton.click();
+      if(tab==='demating') await page.getByTitle('Copier vers OF / SN',{exact:true}).first().click();
+      else await chooseRowAction(page.locator('table').last().locator('tbody tr').first(),'Dupliquer');
       console.log('Testing copy modal:',tab);
       const modal=page.getByRole('dialog',{name:'Copier vers OF / SN',exact:true});
       await modal.getByRole('checkbox',{name:'OF 100TEST — SN1',exact:true}).waitFor();
@@ -911,7 +914,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       ['Consommables','tr:has(input[value="DRAFT-LOT"])','consommables','ops','draft-conso-op']
     ]){
       await page.getByRole('button',{name:label,exact:true}).click();
-      await page.locator(selector).getByTitle('Annuler les modifications',{exact:true}).click();
+      await chooseRowAction(page.locator(selector),'Annuler les modifications');
       assert.equal(await page.getByText("Motif de l'annulation *",{exact:true}).count(),0);
       await page.waitForFunction(({tab,collection,id})=>{
         const row=window.testRecords['of:test-of'][tab][collection].find(row=>row.id===id);
@@ -940,7 +943,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       ['Mating','[role="group"][aria-label="Connecteur J-DELETE"]','demating','connectors','draft-connector-delete']
     ]){
       await page.getByRole('button',{name:label,exact:true}).click();
-      await page.locator(selector).getByTitle('Annuler les modifications',{exact:true}).click();
+      if(tab==='demating') await page.locator(selector).getByTitle('Annuler les modifications',{exact:true}).click();
+      else await chooseRowAction(page.locator(selector),'Annuler les modifications');
       assert.equal(await page.getByText("Motif de l'annulation *",{exact:true}).count(),0);
       await page.waitForFunction(({tab,collection,id})=>{
         const row=window.testRecords['of:test-of'][tab][collection].find(row=>row.id===id);

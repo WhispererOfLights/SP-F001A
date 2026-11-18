@@ -77,7 +77,7 @@ async function waitFor(check) {
     await rework.locator('[data-entry-field="fiche"]').fill('DOC');
     await rework.locator('[data-entry-field="etape"]').fill('10');
     await rework.locator('[data-entry-field="etape"]').press('Tab');
-    assert.equal(await page.evaluate(()=>document.activeElement.title),'Valider');
+    assert.ok(await page.evaluate(()=>!!document.activeElement.dataset.reworkRow));
     await page.keyboard.press('Enter');
     await waitFor(async()=>{
       const record=await (await fetch(base+'/api/storage/of%3Asql-of')).json();

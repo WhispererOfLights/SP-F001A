@@ -750,6 +750,44 @@ const HistoryBtn = ({row, mini=false}) => {
   const BtnCmp=mini?MiniIconBtn:IconBtn;
   return <BtnCmp onClick={show} color={disabled?C.border:C.blue} title={disabled?"Historique : aucune modification":"Historique des modifications"} disabled={disabled}>◷{hist.length||""}</BtnCmp>;
 };
+const rowHistoryAction = row => {
+  const hist=auditHistoryEntries(row);
+  return {
+    label:hist.length?`Historique des modifications (${hist.length})`:"Historique : aucune modification",
+    icon:"◷",disabled:hist.length===0,color:C.blue,
+    onSelect:()=>window.alert(hist.slice().reverse().map(h=>`${h.dt} - ${h.actor}\n• ${h.text}`).join("\n\n")),
+  };
+};
+const useRowActionMenu = () => {
+  const [menu,setMenu]=useState(null);
+  useEffect(()=>{
+    if(!menu)return;
+    const close=event=>{if(event.type==="keydown"&&event.key!=="Escape")return;setMenu(null);};
+    window.addEventListener("pointerdown",close);
+    window.addEventListener("keydown",close);
+    return()=>{window.removeEventListener("pointerdown",close);window.removeEventListener("keydown",close);};
+  },[menu]);
+  const open=(event,label,actions=[])=>{
+    const available=actions.filter(Boolean);
+    if(!available.length)return;
+    event.preventDefault();event.stopPropagation();
+    const width=230,height=Math.min(available.length*38+10,280);
+    setMenu({label,actions:available,x:Math.max(8,Math.min(event.clientX,window.innerWidth-width-8)),y:Math.max(8,Math.min(event.clientY,window.innerHeight-height-8))});
+  };
+  return {menu,open,close:()=>setMenu(null)};
+};
+const RowActionMenu = ({controller}) => {
+  const menu=controller?.menu;
+  if(!menu)return null;
+  return <div role="menu" aria-label={`Actions ${menu.label}`} onPointerDown={event=>event.stopPropagation()}
+    style={{position:"fixed",left:menu.x,top:menu.y,zIndex:1200,width:230,padding:5,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,boxShadow:"0 8px 24px #0005"}}>
+    {menu.actions.map((action,index)=><button key={`${action.label}-${index}`} type="button" role="menuitem" disabled={action.disabled}
+      onClick={()=>{if(action.disabled)return;controller.close();action.onSelect?.();}}
+      style={{width:"100%",border:0,borderRadius:4,background:"transparent",color:action.disabled?C.muted:(action.color||C.text),padding:"8px 10px",textAlign:"left",fontSize:12,fontWeight:700,cursor:action.disabled?"default":"pointer",opacity:action.disabled?.55:1}}>
+      <span aria-hidden="true" style={{display:"inline-block",width:22}}>{action.icon||""}</span>{action.label}
+    </button>)}
+  </div>;
+};
 
 const pdfAscii = v => String(v??"")
   .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
@@ -3237,37 +3275,37 @@ export default function App(){
           <ReportTitle/>
           {(printAll||activeTab==="rework")&&<>
             <ReportHead tab="Adjust/Rework"/>
-            <SectionTitle>Adjust/Rework</SectionTitle>
+            {printAll&&<SectionTitle>Adjust/Rework</SectionTitle>}
             <TabRework data={ofData.rework} contextData={ofData} onChange={d=>updateTab("rework",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"rework",row})}/>
           </>}
           {(!printAll&&activeTab==="consommables"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Consommables"/>
-            <SectionTitle>Consommables</SectionTitle>
+            {printAll&&<SectionTitle>Consommables</SectionTitle>}
             <TabConsommables data={ofData.consommables||{}} contextData={ofData} onChange={d=>updateTab("consommables",d)} user={user} perms={perms} consommables={consommables} onEditList={openConsommablesEditor} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"consommables",row})}/>
           </div>}
           {(!printAll&&activeTab==="testequip"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Test Equip."/>
-            <SectionTitle>Test Equip.</SectionTitle>
+            {printAll&&<SectionTitle>Test Equip.</SectionTitle>}
             <TabTestEquip data={ofData.testequip} onChange={d=>updateTab("testequip",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"testequip",row})}/>
           </div>}
           {(!printAll&&activeTab==="faits"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Suivi technique"/>
-            <SectionTitle>Suivi technique</SectionTitle>
+            {printAll&&<SectionTitle>Suivi technique</SectionTitle>}
             <TabFaits data={ofData.faits||{}} onChange={d=>updateTab("faits",d)} user={user} perms={perms} faitTypes={faitTypes} onEditTypes={()=>setShowFaitTypes(true)} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"faits",row})} onCloseRow={(rowId,closed)=>closeWorkItem("faits",rowId,closed)}/>
           </div>}
           {(!printAll&&activeTab==="etuvage"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Étuvages"/>
-            <SectionTitle>Étuvages</SectionTitle>
+            {printAll&&<SectionTitle>Étuvages</SectionTitle>}
             <TabEtuvage data={ofData.etuvage} onChange={d=>updateTab("etuvage",d)} user={user} perms={perms} allRows={ofData.etuvage?.rows} tstRows={ofData.testequip?.rows} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"etuvage",row})}/>
           </div>}
           {(!printAll&&activeTab==="demating"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Mating"/>
-            <SectionTitle>Mating</SectionTitle>
+            {printAll&&<SectionTitle>Mating</SectionTitle>}
             <TabDeMating data={ofData.demating} onChange={d=>updateTab("demating",d)} user={user} perms={perms} header={workHeader} forceShowDeleted={printAll} onCopyAcross={row=>setCopyAcrossRow({tab:"demating",row})}/>
           </div>}
           {(!printAll&&activeTab==="mesures"||printAll)&&<div style={printAll?{breakBefore:"page",marginTop:24}:{}}>
             <ReportHead tab="Mesures"/>
-            <SectionTitle>Mesures</SectionTitle>
+            {printAll&&<SectionTitle>Mesures</SectionTitle>}
             <TabMeasurements data={ofData.mesures||{}} onChange={d=>updateTab("mesures",d)} user={user} perms={perms}
               units={snRows} activeUnitId={activeUnitChoice} header={workHeader} forceShowDeleted={printAll}
               onDownloadPdf={()=>downloadReportPdf({selectedSections:["mesures"],selectedSnIds:null,includeHistory:true,includeDeleted:true,fileSuffix:" - Mesures"})}/>

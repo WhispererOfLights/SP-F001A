@@ -15,6 +15,7 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
   const browser=await chromium.launch({headless:true,channel:'msedge'});
   try{
     const page=await browser.newPage({viewport:{width:1800,height:1000}});
+    const chooseRowAction=async (row,name)=>{await row.click({button:'right'});await page.getByRole('menuitem',{name,exact:true}).click();};
     const errors=[];
     page.on('pageerror',error=>errors.push(error.message));
     await page.route('**/*',route=>route.fulfill(route.request().url().endsWith('/assets/logo.png')
@@ -124,13 +125,13 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
       dialogs.push({type:dialog.type(),message:dialog.message()});
       await dialog.accept(dialog.type()==='prompt'?'Mesure créée par erreur':undefined);
     });
-    await page.getByTitle('Annuler cette mesure',{exact:true}).last().click();
+    await chooseRowAction(page.locator('table').first().locator('tbody tr').last(),'Annuler cette mesure');
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows[1]?.deleted===true);
     await page.getByText('Afficher les mesures annulées',{exact:true}).click();
     await page.getByLabel('God mode',{exact:true}).check();
-    await page.getByTitle('Effacer définitivement cette mesure annulée',{exact:true}).click();
+    await chooseRowAction(page.locator('tr').filter({has:page.locator('input[value="DOC-TEST_1"]')}).last(),'Effacer définitivement');
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows.length===1);
-    await page.getByTitle('Effacer définitivement cette mesure',{exact:true}).click();
+    await chooseRowAction(page.locator('table').first().locator('tbody tr').first(),'Effacer définitivement cette mesure');
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows.length===0);
     assert.deepEqual(dialogs.map(dialog=>dialog.type),['prompt','confirm','confirm']);
     assert.ok(dialogs[1].message.includes('Effacer définitivement'));

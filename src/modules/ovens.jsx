@@ -49,6 +49,7 @@ const closePreviousOpenEtuvages = (rows=[],startedRow,entryDate,header,audit={})
 
 const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceShowDeleted=false,onCopyAcross}) => {
   const rows=data.rows||[];
+  const rowActions=useRowActionMenu();
   const canEdit = row => canEditLine(user,row);
   const fours=uniqueOvenChoices(tstRows);
   const [deleteTarget,setDeleteTarget] = useState(null);
@@ -169,7 +170,6 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
               <TH w={112}>▶ Entrée</TH><TH w={138}>Date/Heure entrée</TH>
               <TH w={96}>■ Sortie</TH><TH w={122}>Date/Heure sortie</TH>
               <TH w={34}>💬</TH>
-              <TH w={104}></TH>
             </tr>
           </thead>
           <tbody>
@@ -183,8 +183,25 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                 (t.nInv||"").trim().toLowerCase()===fourVal ||
                 (t.designation||"").trim().toLowerCase()===fourVal
               );
+              const contextActions=[];
+              if(!r.deleted&&!inFour&&!r.editBase&&editable) contextActions.push(
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:"Supprimer",icon:"×",color:C.red,onSelect:()=>del(r.id)});
+              if(!r.deleted&&!inFour&&r.editBase&&editable) contextActions.push(
+                {label:"Valider les modifications",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:"Annuler les modifications",icon:"×",color:C.red,onSelect:()=>cancelEdit(r.id)});
+              if(!r.deleted&&inFour&&r.validated&&editable) contextActions.push(
+                {label:"Modifier",icon:"✎",color:C.yellow,onSelect:()=>unlockRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:r.editBase?"Annuler les modifications":"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>r.editBase?cancelEdit(r.id):del(r.id)});
+              if(!r.deleted&&inFour&&!r.validated&&editable) contextActions.push(
+                {label:"Valider les modifications",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:r.editBase?"Annuler les modifications":"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>r.editBase?cancelEdit(r.id):del(r.id)});
+              if(!r.deleted&&!editable&&perms.canWrite) contextActions.push({label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
               return [
-                <tr key={r.id} style={{background:r.deleted?"#da363318":vacuumExit?"#23863610":outFour?"#23863610":inFour?"#1f6feb10":i%2===0?"transparent":C.stripe,
+                <tr key={r.id} onContextMenu={event=>rowActions.open(event,`${vacuumExit?"Sortie vide":r.fourN||"étuvage"} · ${snScopeLabel(r,snRowsFromHeader(header))}`,contextActions)} style={{background:r.deleted?"#da363318":vacuumExit?"#23863610":outFour?"#23863610":inFour?"#1f6feb10":i%2===0?"transparent":C.stripe,
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
                   pointerEvents:r.deleted?"none":undefined,
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
@@ -268,45 +285,6 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   <TD center style={{pointerEvents:"all"}}>
                     <CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/>
                   </TD>
-                  <TD center style={{pointerEvents:"all"}}>
-                    {!r.deleted&&!inFour&&!r.editBase&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>del(r.id)} color={C.border} title="Supprimer">×</IconBtn>
-                      </ActionGroup>
-                    )}
-                    {!r.deleted&&!inFour&&r.editBase&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider les modifications">✓</IconBtn>
-                        <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>cancelEdit(r.id)} color={C.red} title="Annuler les modifications">×</IconBtn>
-                      </ActionGroup>
-                    )}
-                    {!r.deleted&&inFour&&r.validated&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>unlockRow(r.id)} color={C.yellow} title="Modifier">✎</IconBtn>
-                        <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={C.red} title={r.editBase?"Annuler les modifications":"Annuler la ligne"}>×</IconBtn>
-                      </ActionGroup>
-                    )}
-                    {!r.deleted&&inFour&&!r.validated&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider les modifications">✓</IconBtn>
-                        <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={C.red} title={r.editBase?"Annuler les modifications":"Annuler la ligne"}>×</IconBtn>
-                      </ActionGroup>
-                    )}
-                    {!r.deleted&&!editable&&perms.canWrite&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={r}/>
-                      </ActionGroup>
-                    )}
-                  </TD>
                 </tr>,
               r.validError&&!r.validated&&(
                 <tr key={r.id+"_err"}>
@@ -337,6 +315,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
             })}
           </tbody>
         </table>
+        <RowActionMenu controller={rowActions}/>
         {rows.length===0&&<EmptyTableAction message="Aucun étuvage enregistré" actionLabel="+ Ajouter le premier étuvage" onAction={add} canAdd={!!perms.canWrite}/>}
       </div>
       {deleteTarget&&<DeleteModal godMode={perms.godMode} onConfirm={confirmDel} onCancel={()=>setDeleteTarget(null)}/>}

@@ -47,6 +47,7 @@ const TEST_EQUIP_EDIT_FIELDS = [
 
 const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false,onCopyAcross}) => {
   const rows=data.rows||[];
+  const rowActions=useRowActionMenu();
   const canEdit = row => canEditLine(user,row);
   const add=()=>{ if(!perms.canWrite) return; onChange({rows:[...rows,{
     id:uid(),...defaultSnScope(header),nInv:"",type:"",designation:"",
@@ -123,7 +124,6 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
               <TH w={95}>Statut</TH>
               <TH w={96}>Date contrôle</TH>
               <TH w={36}>💬</TH>
-              <TH w={104}></TH>
             </tr>
           </thead>
           <tbody>
@@ -132,8 +132,18 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
               const invalid=r.dateExpiration&&!isValidCalibDate(r.dateExpiration);
               const editable = canEdit(r);
               const locked = !!r.validated || !editable;
+              const contextActions=[];
+              if(!r.deleted&&!r.validated&&editable) contextActions.push(
+                {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:r.editBase?"Annuler les modifications":"Supprimer",icon:"×",color:C.red,onSelect:()=>r.editBase?cancelEdit(r.id):del(r.id)});
+              if(!r.deleted&&r.validated&&editable) contextActions.push(
+                {label:"Modifier",icon:"✎",color:C.yellow,onSelect:()=>unlockRow(r.id)},
+                {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
+                {label:"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>setDeleteTarget(r.id)});
+              if(!r.deleted&&!editable&&perms.canWrite) contextActions.push({label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
               return [
-                <tr key={r.id} style={{background:r.deleted?"#da363318":st?.bg||(i%2===0?"transparent":C.stripe),
+                <tr key={r.id} onContextMenu={event=>rowActions.open(event,`${r.nInv||"équipement"} · ${snScopeLabel(r,snRowsFromHeader(header))}`,contextActions)} style={{background:r.deleted?"#da363318":st?.bg||(i%2===0?"transparent":C.stripe),
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
                   pointerEvents:r.deleted?"none":undefined,
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
@@ -167,30 +177,6 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                     <Input value={r.checkDate} onChange={v=>upd(r.id,"checkDate",v)} small readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/>
                   </TD>
                   <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
-                  <TD center style={{pointerEvents:"all"}}>
-                    {!r.deleted&&!r.validated&&editable&&(
-                      <ActionGroup>
-                        <IconBtn onClick={()=>validateRow(r.id)} color={C.green} title="Valider">✓</IconBtn>
-                        <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                        <HistoryBtn row={r}/>
-                        <IconBtn onClick={()=>r.editBase?cancelEdit(r.id):del(r.id)} color={r.editBase?C.red:C.border} title={r.editBase?"Annuler les modifications":"Supprimer"}>×</IconBtn>
-                      </ActionGroup>
-                    )}
-                  {!r.deleted&&r.validated&&editable&&(
-                    <ActionGroup>
-                      <IconBtn onClick={()=>unlockRow(r.id)} color={C.yellow} title="Modifier">✎</IconBtn>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                      <IconBtn onClick={()=>setDeleteTarget(r.id)} color={C.red} title="Annuler">×</IconBtn>
-                    </ActionGroup>
-                  )}
-                  {!r.deleted&&!editable&&perms.canWrite&&(
-                    <ActionGroup>
-                      <IconBtn onClick={()=>dup(r.id)} color={C.blue} title="Dupliquer">⧉</IconBtn>
-                      <HistoryBtn row={r}/>
-                    </ActionGroup>
-                  )}
-                  </TD>
                 </tr>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>
@@ -214,6 +200,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
             })}
           </tbody>
         </table>
+        <RowActionMenu controller={rowActions}/>
       </div>
       {rows.length===0&&<EmptyTableAction message="Aucun équipement enregistré" actionLabel="+ Ajouter le premier équipement" onAction={add} canAdd={!!perms.canWrite}/>}
       <div style={{marginTop:8,fontSize:11,color:C.muted}}>
