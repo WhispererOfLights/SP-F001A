@@ -129,6 +129,9 @@ const document = {header:entry,units:{rows:units},rework:{rows:[]},consommables:
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows[1]?.deleted===true);
     await page.getByText('Afficher les mesures annulées',{exact:true}).click();
     await page.getByLabel('God mode',{exact:true}).check();
+    await page.getByLabel('God mode actif',{exact:true}).waitFor();
+    assert.equal(await page.locator('.god-mode-ui').count(),1);
+    await page.screenshot({path:path.join(__dirname,'artifacts/god-mode-1920.png')});
     await chooseRowAction(page.locator('tr').filter({has:page.locator('input[value="DOC-TEST_1"]')}).last(),'Effacer définitivement');
     await page.waitForFunction(()=>window.testRecords['of:measure-of'].mesures.rows.length===1);
     await chooseRowAction(page.locator('table').first().locator('tbody tr').first(),'Effacer définitivement cette mesure');

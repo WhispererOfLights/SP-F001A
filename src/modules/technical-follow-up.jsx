@@ -258,7 +258,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
       <table style={{width:"100%",minWidth:1080,borderCollapse:"collapse",tableLayout:"fixed"}}>
         <thead>
           <tr>
-            <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH><TH w={32}>✓</TH>
+            <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
             <TH w={78}>N° SN</TH>
             <TH w={76}>Type</TH>
             <TH w={105}>N° (saisi)</TH>
@@ -269,6 +269,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
             <TH w={70}>Visa clôt.</TH>
             <TH w={42}>💬</TH>
             <TH w={108}>Action</TH>
+            <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Ligne</TH>
           </tr>
         </thead>
         <tbody>
@@ -295,8 +296,6 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
 
                 <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
-                <TD center><RowCommitButton validated={!!r.validated} editable={editable} hidden={!!r.deleted}
-                  onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
 
                 {/* Type — liste déroulante */}
@@ -363,6 +362,10 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
                       {closed_r?"Ouvrir":"Clore"}
                     </button>
                   </ActionGroup>}
+                </TD>
+                <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
+                  <RowVisibleActions row={r} validated={!!r.validated} editable={editable} onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}
+                    onDelete={()=>r.editBase?cancelEdit(r.id):del(r.id)} deleteTitle={r.editBase?"Annuler les modifications":r.validated?"Annuler la ligne":"Effacer la ligne"}/>
                 </TD>
 
               </tr>,

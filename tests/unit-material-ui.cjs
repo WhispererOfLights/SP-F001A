@@ -461,10 +461,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       return row?.validated&&row.createdVisa==='JGR'&&!!row.createdDT&&row.importOrigin?.modifiedBy==='JGR';
     });
     assert.equal(await importedMain.getByLabel('Importé, modifié',{exact:true}).count(),1);
+    await importedMain.getByTitle('Annuler la ligne',{exact:true}).waitFor();
     await importedMain.getByRole('button',{name:'Modifier la ligne',exact:true}).click();
     await importedMain.getByRole('button',{name:'Valider la ligne',exact:true}).waitFor();
     await importedMain.locator('[data-entry-field="valeur"]').fill('99K');
-    await chooseRowAction(importedMain,'Annuler les modifications');
+    await importedMain.getByTitle('Annuler les modifications',{exact:true}).click();
     await page.waitForFunction(()=>{
       const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.repere==='R-IMP1');
       return row?.validated&&!row.deleted&&row.valeur==='12K'&&!row.editBase;
@@ -478,6 +479,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       const row=window.testRecords['of:test-of'].rework.rows.find(item=>item.id==='imported-existing');
       return row?.validated&&row.createdDT==='30/10/2026 14:15'&&!row.editBase;
     });
+    await importedExisting.getByLabel('1 modification',{exact:true}).waitFor();
     const importedExistingSaved=await page.evaluate(()=>window.testRecords['of:test-of'].rework.rows.find(item=>item.id==='imported-existing'));
     assert.equal(importedExistingSaved.createdVisa,'OTHER','Modifier la date d’une ligne importée existante ne doit pas réattribuer son visa');
     for(const action of ['S','M','P']) {
@@ -692,7 +694,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByTitle(/consommable périmé à la date de la ligne/i).first().waitFor();
     assert.equal(await page.getByText(/Anomalie : consommable périmé à la date de la ligne/).count(),0);
     const consoHeaders=await page.getByRole('columnheader',{name:'Code SAP',exact:true}).locator('xpath=..').locator('th').allTextContents();
-    assert.deepEqual(consoHeaders.slice(6,11),['Code SAP','Désignation','LOT','DP','N° échant.']);
+    assert.deepEqual(consoHeaders.slice(5,10),['Code SAP','Désignation','LOT','DP','N° échant.']);
     const sapCell=page.getByTitle('Code SAP : 1600000046',{exact:true});
     assert.equal(await sapCell.inputValue(),'1600000046');
     assert.ok(await page.getByTitle('Désignation : Colle test longue référence',{exact:true}).isVisible());
@@ -703,7 +705,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.waitForFunction(()=>window.testRecords['of:test-of'].consommables.ops.at(-1).items[0].consoId==='long-sap');
     await page.locator('body').click({position:{x:1800,y:950}});
     assert.equal(await sapSelect.inputValue(),'1600000046');
-    const designationDisplay=sapSelect.locator('xpath=ancestor::tr[1]').locator('td').nth(7).locator('input');
+    const designationDisplay=sapSelect.locator('xpath=ancestor::tr[1]').locator('td').nth(6).locator('input');
     assert.equal(await designationDisplay.inputValue(),'Colle test longue référence');
     assert.equal(await designationDisplay.evaluate(el=>el.readOnly),true);
     await designationDisplay.click();
@@ -716,8 +718,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.screenshot({path:path.join(__dirname,'artifacts/consumables-sap-1920.png')});
     const consoDraft=sapSelect.locator('xpath=ancestor::tr[1]');
     await consoDraft.getByRole('button',{name:'Valider la ligne',exact:true}).waitFor();
-    await consoDraft.locator('td').nth(4).locator('input').fill('CS-DOC');
-    await consoDraft.locator('td').nth(5).locator('input').fill('88');
+    await consoDraft.locator('td').nth(3).locator('input').fill('CS-DOC');
+    await consoDraft.locator('td').nth(4).locator('input').fill('88');
     await page.waitForFunction(()=>window.testRecords['of:test-of'].consommables.ops.at(-1).op==='88');
     await page.getByRole('button',{name:'Adjust/Rework',exact:true}).click();
     await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
@@ -730,8 +732,8 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await page.getByRole('button',{name:'Consommables',exact:true}).click();
     await page.getByRole('button',{name:'+ Ligne',exact:true}).click();
     const reciprocal=page.getByRole('textbox',{name:'Code SAP du consommable',exact:true}).first().locator('xpath=ancestor::tr[1]');
-    assert.equal(await reciprocal.locator('td').nth(4).locator('input').inputValue(),'RW-DOC');
-    assert.equal(await reciprocal.locator('td').nth(5).locator('input').inputValue(),'99');
+    assert.equal(await reciprocal.locator('td').nth(3).locator('input').inputValue(),'RW-DOC');
+    assert.equal(await reciprocal.locator('td').nth(4).locator('input').inputValue(),'99');
     await page.locator('#active-work-sn').selectOption('all');
     await page.getByLabel('Nouvelle ligne pour',{exact:true}).waitFor();
     assert.equal(await page.getByLabel('Nouvelle ligne pour',{exact:true}).inputValue(),'u2');

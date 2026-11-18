@@ -665,7 +665,6 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
             <tr style={{background:C.raised}}>
               <TH w={118}>Date / Heure</TH>
               <TH w={34} color={C.accent}>Visa</TH>
-              <TH w={32}>✓</TH>
               <TH w={82}>SN(s)</TH>
               <TH w={150}>Fiche suiveuse</TH>
               <TH w={34}>OP</TH>
@@ -677,11 +676,11 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               <TH w={145}>Sous vide dès</TH>
               <TH w={52} color={C.green}>Traça</TH>
               <TH w={28}>💬</TH>
+              <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
             <tr style={{background:C.blue+"0c",borderBottom:`2px solid ${C.border}`}}>
               <th style={{padding:"3px 4px"}}><Input value={filters.date} onChange={v=>setFilters(f=>({...f,date:v}))} small title="Filtrer date"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.visa} onChange={v=>setFilters(f=>({...f,visa:v}))} small title="Filtrer visa"/></th>
-              <th></th>
               <th style={{padding:"3px 4px"}}><SnFilter value={filters.snTarget} onChange={v=>setFilters(f=>({...f,snTarget:v}))} header={header}/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.fiche} onChange={v=>setFilters(f=>({...f,fiche:v}))} small title="Filtrer fiche suiveuse"/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.op} onChange={v=>setFilters(f=>({...f,op:v}))} small title="Filtrer OP"/></th>
@@ -703,6 +702,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               <th style={{padding:"3px 4px"}}><Input value={filters.remarque} onChange={v=>setFilters(f=>({...f,remarque:v}))} small title="Filtrer remarque"/>
                 {hasFilters&&<IconBtn onClick={clearFilters} color={C.border} title="Effacer les filtres">×</IconBtn>}
               </th>
+              <th style={{position:"sticky",right:0,zIndex:3,background:C.panel,borderLeft:`1px solid ${C.border}`}}></th>
             </tr>
           </thead>
           <tbody>
@@ -738,8 +738,6 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                   textDecoration:rowDeleted?"line-through":undefined,opacity:rowDeleted?.6:1,pointerEvents:rowDeleted?"none":undefined}}>
                   <TD><OperationDateCell value={it.createdDT||o.createdDT} editing={!!it.editBase&&editable&&!rowDeleted} onChange={value=>updItem(oid,iid,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:800,fontSize:12,color:C.accent}}>{it.createdVisa||o.createdVisa||"—"}</span><CopyOriginMark origin={it.copyOrigin||o.copyOrigin}/></TD>
-                  <TD center><RowCommitButton validated={valid} editable={editable} hidden={rowDeleted}
-                    onValidate={()=>validateLine(oid,iid)} onEdit={()=>unlockLine(oid,iid)}/></TD>
                   <TD style={{pointerEvents:rowDeleted?"none":"all"}}><CopyCell value={snScopeLabel(o,snRowsFromHeader(header))} title="Copier SN cible">
                     <SnScopePicker row={o} header={header} onChange={fields=>patchOp(oid,fields)} disabled={locked}/>
                   </CopyCell></TD>
@@ -798,6 +796,10 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                       <CommentBtn comments={it.comments||[]} onChange={v=>updItem(oid,iid,"comments",v)} user={user} disabled={!perms.canComment}/>
                       {it.remarque&&<span title={it.remarque} style={{fontSize:10,color:C.muted,fontFamily:"monospace",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.remarque}</span>}
                     </div>
+                  </TD>
+                  <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
+                    <RowVisibleActions row={{...o,items:[it]}} validated={valid} editable={editable} onValidate={()=>validateLine(oid,iid)} onEdit={()=>unlockLine(oid,iid)}
+                      onDelete={()=>(o.editBase||it.editBase)?cancelLineEdit(oid,iid):delItem(oid,iid)} deleteTitle={(o.editBase||it.editBase)?"Annuler les modifications":valid?"Annuler la ligne":"Effacer la ligne"}/>
                   </TD>
                 </tr>,
                 rowDeleted&&(

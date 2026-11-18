@@ -760,8 +760,21 @@ const HistoryBtn = ({row, mini=false}) => {
     ).join("\n\n"));
   };
   const BtnCmp=mini?MiniIconBtn:IconBtn;
-  return <BtnCmp onClick={show} color={disabled?C.border:C.blue} title={disabled?"Historique : aucune modification":"Historique des modifications"} disabled={disabled}>◷{hist.length||""}</BtnCmp>;
+  return <span style={{position:"relative",display:"inline-flex",flexShrink:0}}>
+    <BtnCmp onClick={show} color={disabled?C.border:C.blue}
+      title={disabled?"Historique : aucune modification":`Historique des modifications (${hist.length})`} disabled={disabled}>◷</BtnCmp>
+    {hist.length>0&&<span aria-label={`${hist.length} modification${hist.length>1?"s":""}`} style={{position:"absolute",top:-6,right:-6,
+      minWidth:13,height:13,padding:"0 2px",boxSizing:"border-box",borderRadius:7,display:"inline-flex",alignItems:"center",justifyContent:"center",
+      background:C.red,color:"#fff",fontSize:8,fontWeight:900,lineHeight:1,border:`1px solid ${C.panel}`,pointerEvents:"none"}}>{hist.length}</span>}
+  </span>;
 };
+const RowVisibleActions = ({row,validated=false,editable=false,onValidate,onEdit,onDelete,deleteTitle="Effacer la ligne",commitHidden=false}) => (
+  <div className="no-print" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:5,pointerEvents:"all"}}>
+    <RowCommitButton validated={validated} editable={editable} hidden={commitHidden} onValidate={onValidate} onEdit={onEdit}/>
+    <HistoryBtn row={row} mini/>
+    {editable&&onDelete&&<MiniIconBtn onClick={event=>{event.stopPropagation();onDelete();}} color={C.red} title={deleteTitle}>×</MiniIconBtn>}
+  </div>
+);
 const rowHistoryAction = row => {
   const hist=auditHistoryEntries(row);
   return {
@@ -818,10 +831,10 @@ const pdfEsc = v => [...pdfText(v)].map(character=>{
 }).join("");
 // @include modules/reporting.jsx
 
-const TH = ({children,w,color}) => (
+const TH = ({children,w,color,style}) => (
   <th style={{background:C.raised,color:color||C.muted,fontSize:10,fontWeight:700,letterSpacing:.8,
     textTransform:"uppercase",padding:"4px 5px",textAlign:"left",
-    borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap",width:w}}>
+    borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap",width:w,...style}}>
     {children}
   </th>
 );
@@ -3027,12 +3040,22 @@ export default function App(){
   ) : null;
 
   return (
-    <div className={`${printAll?"print-report ":""}compact-ui`} style={{background:C.bg,minHeight:"100vh",color:C.text,fontFamily:"system-ui,sans-serif"}}>
+    <div className={`${printAll?"print-report ":""}compact-ui${perms.godMode?" god-mode-ui":""}`} style={{background:perms.godMode?C.red+"18":C.bg,minHeight:"100vh",color:C.text,fontFamily:"system-ui,sans-serif"}}>
       <style>{`
+        .god-mode-ui::after {
+          content: "";
+          position: fixed;
+          inset: 0;
+          z-index: 9998;
+          pointer-events: none;
+          background: ${C.red}18;
+          box-shadow: inset 0 0 0 4px ${C.red};
+        }
         @media print {
           @page { size: A4 landscape; margin: 10mm; }
           body { background: #fff !important; color: #111 !important; }
           .no-print, .sticky-tabs, .sticky-of-header > div button { display: none !important; }
+          .god-mode-ui::after { display: none !important; }
           .print-report, .print-report * {
             color: #111 !important;
             box-shadow: none !important;
@@ -3115,6 +3138,9 @@ export default function App(){
           white-space: nowrap !important;
         }
       `}</style>
+      {perms.godMode&&<div className="no-print" aria-label="God mode actif" style={{position:"fixed",right:14,bottom:12,zIndex:9999,
+        background:C.red,color:"#fff",border:`2px solid #fff`,borderRadius:4,padding:"6px 10px",fontSize:11,fontWeight:900,
+        letterSpacing:.8,boxShadow:"0 2px 8px #0005",pointerEvents:"none"}}>GOD MODE ACTIF</div>}
       {/* Top bar */}
       <div style={{background:perms.godMode?C.red+"28":C.surface,borderBottom:`2px solid ${perms.godMode?C.red:C.border}`,padding:"10px 20px",
         display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,height:68,boxSizing:"border-box",position:"sticky",top:0,zIndex:100}}>

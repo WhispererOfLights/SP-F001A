@@ -993,7 +993,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
         <table ref={tableRef} style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed",fontSize:12}}>
           <thead>
             <tr>
-              <TH w={118}>Date / Heure</TH><TH w={48} color={C.accent}>Visa</TH><TH w={32}>✓</TH>
+              <TH w={118}>Date / Heure</TH><TH w={48} color={C.accent}>Visa</TH>
               <TH w={82}>SN / LOT</TH>
               <TH w={66}>Repère TOPO</TH>
               <TH w={58}>Adj</TH>
@@ -1010,9 +1010,10 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
               <TH w={46} color={C.green}>TRA</TH>
               {perms.canWrite&&!forceShowDeleted&&<TH w={38}>DEM</TH>}
               <TH w={28}>💬</TH>
+              <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
             <tr style={{background:C.blue+"0c",borderBottom:`2px solid ${C.border}`}}>
-              <th colSpan={2} style={{color:C.blue,fontSize:11,textAlign:"left",padding:"6px 5px"}}>⌕ Filtres</th><th></th>
+              <th colSpan={2} style={{color:C.blue,fontSize:11,textAlign:"left",padding:"6px 5px"}}>⌕ Filtres</th>
               <th style={{padding:"3px 4px"}}><SnFilter value={filters.snTarget} onChange={v=>fset("snTarget",v)} header={header}/></th>
               <th style={{padding:"3px 4px"}}><Input value={filters.repere} onChange={v=>fset("repere",v)} small title="Filtrer repère topo"/></th>
               <th style={{padding:"3px 4px"}}>
@@ -1040,6 +1041,7 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                   title="Effacer les filtres"
                   style={{background:C.border,border:"none",borderRadius:4,color:C.text,width:26,height:22,cursor:"pointer",fontWeight:800}}>×</button>}
               </th>
+              <th style={{position:"sticky",right:0,zIndex:3,background:C.panel,borderLeft:`1px solid ${C.border}`}}></th>
             </tr>
           </thead>
           <tbody>
@@ -1073,8 +1075,6 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                 <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                 <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
-                <TD center><RowCommitButton validated={!!r.validated} editable={editable} hidden={!!r.deleted}
-                  onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}/></TD>
                 <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                 <TD><Input entryField="repere" value={r.repere} onChange={v=>updRepere(r.id,v)} small readOnly={locked} style={{...(locked?LOCKED_INPUT_STYLE:{}),textTransform:"uppercase"}}/></TD>
                 <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
@@ -1144,6 +1144,10 @@ const TabRework = ({data,onChange,user,perms={},header,forceShowDeleted=false,on
                 </TD>
                 {perms.canWrite&&!forceShowDeleted&&<TD center><input type="checkbox" aria-label={`Demander la matière ${r.repere||"ligne"} ${r.codeERP||""}`} title={["S","M"].includes(r.action1)?"Sélectionner pour la demande matière":"Demande matière réservée aux actions S et M"} disabled={!!r.deleted||!["S","M"].includes(r.action1)} checked={!r.deleted&&["S","M"].includes(r.action1)&&requestIds.includes(r.id)} onChange={()=>{if(!r.deleted&&["S","M"].includes(r.action1)) setRequestIds(ids=>ids.includes(r.id)?ids.filter(id=>id!==r.id):[...ids,r.id]);}}/></TD>}
                 <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!canCommentRow()} systemInfo={importOriginCommentInfo(r)}/></TD>
+                <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
+                  <RowVisibleActions row={r} validated={!!r.validated} editable={editable} onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}
+                    onDelete={()=>r.editBase?cancelEdit(r.id):del(r.id)} deleteTitle={r.editBase?"Annuler les modifications":r.validated?"Annuler la ligne":"Effacer la ligne"}/>
+                </TD>
               </tr>,
               (isObservation||String(r.remarques||"").trim())&&(
                 <tr key={r.id+"_observation"} style={{background:r.deleted?"#da363318":i%2===0?C.blue+"08":C.stripe,borderLeft:r.validated?`3px solid ${C.green}`:`3px solid ${C.border}`}}>

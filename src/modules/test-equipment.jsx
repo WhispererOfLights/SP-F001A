@@ -114,7 +114,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
         <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
           <thead>
             <tr>
-              <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH><TH w={32}>✓</TH>
+              <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
               <TH w={78}>N° SN</TH>
               <TH w={48}>Four</TH>
               <TH>N° INV</TH>
@@ -124,6 +124,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
               <TH w={95}>Statut</TH>
               <TH w={96}>Date contrôle</TH>
               <TH w={36}>💬</TH>
+              <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
           </thead>
           <tbody>
@@ -149,8 +150,6 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                   <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
-                  <TD center><RowCommitButton validated={!!r.validated} editable={editable} hidden={!!r.deleted}
-                    onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}/></TD>
                   <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                   <TD center style={{pointerEvents:r.deleted?"none":"all"}}>
                     <input type="checkbox" checked={!!r.isFour} disabled={locked}
@@ -179,6 +178,10 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                     <Input value={r.checkDate} onChange={v=>upd(r.id,"checkDate",v)} small readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/>
                   </TD>
                   <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
+                  <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
+                    <RowVisibleActions row={r} validated={!!r.validated} editable={editable} onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}
+                      onDelete={()=>r.editBase?cancelEdit(r.id):del(r.id)} deleteTitle={r.editBase?"Annuler les modifications":r.validated?"Annuler la ligne":"Effacer la ligne"}/>
+                  </TD>
                 </tr>,
               r.deleted&&(
                 <tr key={r.id+"_ann"}>

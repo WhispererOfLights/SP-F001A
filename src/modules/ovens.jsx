@@ -164,12 +164,13 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
         <table style={{width:"100%",borderCollapse:"collapse",tableLayout:"fixed"}}>
           <thead>
             <tr>
-              <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH><TH w={32}>✓</TH>
+              <TH w={118}>Date / Heure</TH><TH w={46} color={C.accent}>Visa</TH>
               <TH w={78}>N° SN</TH>
               <TH w={70}>Four N°</TH><TH w={58}>Durée [H]</TH><TH w={58}>Temp [°C]</TH>
               <TH w={112}>▶ Entrée</TH><TH w={138}>Date/Heure entrée</TH>
               <TH w={96}>■ Sortie</TH><TH w={122}>Date/Heure sortie</TH>
               <TH w={34}>💬</TH>
+              <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
           </thead>
           <tbody>
@@ -207,9 +208,6 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   borderLeft:r.validated?`3px solid ${C.green}`:r.validError?`3px solid ${C.red}`:`3px solid ${C.border}`}}>
                   <TD><OperationDateCell value={r.createdDT} editing={!!r.editBase&&editable&&!r.deleted} onChange={value=>upd(r.id,"createdDT",value)}/></TD>
                   <TD><span style={{fontFamily:"monospace",fontWeight:700,fontSize:12,color:C.accent}}>{r.createdVisa||"—"}</span><CopyOriginMark origin={r.copyOrigin}/></TD>
-                  <TD center><RowCommitButton validated={!!r.validated} editable={editable}
-                    hidden={!!r.deleted||vacuumExit||(!inFour&&!r.editBase)}
-                    onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}/></TD>
                   <TD style={{pointerEvents:r.deleted?"none":"all"}}><SnScopePicker row={r} header={header} onChange={fields=>patchRow(r.id,fields)} disabled={locked}/></TD>
                   <TD>
                     {vacuumExit?(
@@ -287,6 +285,11 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                   </TD>
                   <TD center style={{pointerEvents:"all"}}>
                     <CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/>
+                  </TD>
+                  <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
+                    <RowVisibleActions row={r} validated={!!r.validated} editable={editable}
+                      commitHidden={vacuumExit||(!inFour&&!r.editBase)} onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}
+                      onDelete={()=>r.editBase?cancelEdit(r.id):del(r.id)} deleteTitle={r.editBase?"Annuler les modifications":r.validated?"Annuler la ligne":"Effacer la ligne"}/>
                   </TD>
                 </tr>,
               r.validError&&!r.validated&&(
