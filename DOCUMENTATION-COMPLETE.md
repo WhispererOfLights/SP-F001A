@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v349
+**Version documentée :** v350
 **Date :** 18 novembre 2026  
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -30,6 +30,7 @@ La solution est fonctionnelle pour un usage atelier, mais l'hébergement reste p
 - Les annulations, suppressions et corrections restent traçables. Les Admin et Manager disposent d'outils supplémentaires encadrés.
 - Les actions principales restent visibles à droite de chaque ligne : valider ou modifier, consulter l'historique et annuler ou supprimer. Le nombre de modifications est affiché comme une notification sur l'historique.
 - Les actions secondaires restent accessibles par clic droit afin de garder les tableaux lisibles sans masquer les commandes essentielles.
+- La duplication utilise deux étapes : paramétrage puis vérification obligatoire. Avant confirmation, l'interface récapitule les lignes sources, la règle de copie, chaque destination et le nombre exact de lignes qui seront créées. Aucune ligne existante n'est remplacée.
 
 ## 4. Profils et droits
 
@@ -100,7 +101,7 @@ Les commentaires peuvent être rattachés aux lignes métier et au SN ou lot con
 - Attribution de la ligne importée à l'opérateur qui la complète et la valide.
 - Remarques importées placées dans la bulle de commentaires plutôt que dans une ligne métier artificielle.
 - Lignes Observation toujours visibles.
-- Copie d'une ligne dans le même SN, vers plusieurs SN ou vers un autre OF.
+- Duplication d'une ou plusieurs lignes dans le même SN, vers plusieurs SN ou vers un autre OF, avec choix explicite entre la même opération déjà réalisée et une nouvelle opération créée depuis la source.
 - Détection des composants dessoudés sans opération ultérieure et des contrôles manquants.
 - Détection des changements de valeur. Une référence ISS, DM ou NC peut justifier une valeur différente; une référence DOC exige normalement la même valeur sauf cas ADJ.
 - Proposition des faits techniques déjà présents sur le SN.

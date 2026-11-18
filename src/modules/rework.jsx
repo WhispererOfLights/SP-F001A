@@ -407,6 +407,7 @@ const CopyReworkModal = ({row,sourceRows=[],ofList,user,onCopy,onClose,busy,sour
   const [reuseSample,setReuseSample]=useState(false);
   const [loading,setLoading]=useState(true);
   const [running,setRunning]=useState(false);
+  const [reviewing,setReviewing]=useState(false);
   const [message,setMessage]=useState("");
   const [completed,setCompleted]=useState([]);
   const checksAllowed=canControlRework(user)&&canTraceability(user);
@@ -458,6 +459,9 @@ const CopyReworkModal = ({row,sourceRows=[],ofList,user,onCopy,onClose,busy,sour
   });
   const limit=query?80:12;
   const visible=matches.slice(0,limit);
+  const selectedTargets=targets.filter(target=>selected.includes(target.key));
+  const plannedCopies=chosenSources.length*selectedTargets.length;
+  const includesSourceTarget=selectedTargets.some(target=>target.ofId===sourceOfId&&defaultUnitIds.includes(target.unitId));
   const copy=async()=>{
     setRunning(true);setMessage("");
     try{
@@ -465,67 +469,91 @@ const CopyReworkModal = ({row,sourceRows=[],ofList,user,onCopy,onClose,busy,sour
       setCompleted(ids=>[...ids,...result.copied]);
       setSelected(ids=>ids.filter(id=>!result.copied.includes(id)));
       setMessage(`${result.copyCount||0} ligne(s) copiée(s). ${result.errors.join(" ; ")}`);
+      setReviewing(false);
     }catch(error){setMessage(error.message||"Copie impossible");}
     finally{setRunning(false);}
   };
+  const stepStyle=active=>({display:"inline-flex",alignItems:"center",gap:6,padding:"5px 9px",borderRadius:4,fontSize:11,fontWeight:700,background:active?C.blue:C.raised,color:active?"white":C.muted,border:`1px solid ${active?C.blue:C.border}`});
+  const panelStyle={border:`1px solid ${C.border}`,borderRadius:5,padding:12,background:C.surface};
   return <div style={{position:"fixed",inset:0,zIndex:340,background:"#000000aa",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-    <div role="dialog" aria-modal="true" aria-label="Copier vers OF / SN" style={{width:800,maxWidth:"100%",maxHeight:"90vh",overflow:"auto",padding:18,background:C.surface,color:C.text,border:`1px solid ${C.blue}`,borderRadius:6}}>
-      <h2 style={{margin:"0 0 12px",fontSize:18}}>Copier vers OF / SN / LOT — {row.repere||"Ligne"}</h2>
-      <div aria-label="Source de la copie" style={{display:"grid",gridTemplateColumns:"auto minmax(90px,.7fr) minmax(180px,1.6fr) minmax(130px,1fr)",gap:12,alignItems:"center",padding:"8px 10px",marginBottom:10,background:C.raised,borderLeft:`3px solid ${C.blue}`,fontSize:12}}>
-        <strong style={{color:C.blue}}>COPIE DE</strong>
-        <span><span style={{display:"block",color:C.muted,fontSize:10}}>OF</span><strong>{sourceHeader?.of||sourceOfId||"—"}</strong></span>
-        <span style={{minWidth:0,overflowWrap:"anywhere"}}><span style={{display:"block",color:C.muted,fontSize:10}}>ARTICLE</span><strong>{sourceHeader?.codeArticle||"N/A"}</strong>{sourceHeader?.description&&<span style={{display:"block",color:C.muted,marginTop:1}}>{sourceHeader.description}</span>}</span>
-        <span style={{minWidth:0,overflowWrap:"anywhere"}}><span style={{display:"block",color:C.muted,fontSize:10}}>SN / LOT</span><strong>{sourceUnitText}</strong></span>
-      </div>
-      <details style={{marginBottom:10,border:`1px solid ${C.border}`,background:C.surface}}>
-        <summary style={{padding:"7px 10px",cursor:"pointer",fontSize:12,fontWeight:700,color:C.text}}>
-          Lignes à copier : {chosenSources.length} sélectionnée(s) sur {availableSources.length}
-        </summary>
-        <div style={{maxHeight:170,overflow:"auto",borderTop:`1px solid ${C.border}`}}>
-          {availableSources.map(source=>{
-            const key=copySourceKey(tab,source),checked=selectedSources.includes(key);
-            return <label key={key} style={{display:"grid",gridTemplateColumns:"24px minmax(0,1fr) auto",gap:8,alignItems:"center",padding:"6px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12}}>
-              <input type="checkbox" aria-label={`Copier la source ${copySourceLabel(tab,source)}`} checked={checked} disabled={running||(checked&&chosenSources.length===1)} onChange={e=>setSelectedSources(keys=>e.target.checked?[...new Set([...keys,key])]:keys.filter(value=>value!==key))}/>
-              <span style={{overflowWrap:"anywhere"}}>{copySourceLabel(tab,source)}</span>
-              <span style={{color:C.muted,fontSize:11}}>{snScopeLabel(source,sourceUnits)}</span>
-            </label>;
-          })}
+    <div role="dialog" aria-modal="true" aria-label="Copier vers OF / SN" style={{width:900,maxWidth:"100%",maxHeight:"92vh",overflow:"auto",padding:18,background:C.surface,color:C.text,border:`1px solid ${C.blue}`,borderRadius:6}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,marginBottom:12}}>
+        <div>
+          <h2 style={{margin:0,fontSize:18}}>Dupliquer des lignes</h2>
+          <div style={{fontSize:12,color:C.muted,marginTop:3}}>Aucune ligne existante ne sera modifiée ou remplacée.</div>
         </div>
-      </details>
-      <input autoFocus aria-label="Rechercher les destinations" placeholder="Rechercher : OF, N° article, description, SN ou LOT" value={search} disabled={running} onChange={e=>setSearch(e.target.value)} style={{width:"100%",padding:8,marginBottom:6,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/>
-      <div style={{fontSize:12,color:C.muted,marginBottom:10}}>
-        {loading?"Chargement des destinations…":query
-          ?`${matches.length} destination(s) trouvée(s)${matches.length>limit?` — ${limit} affichées, précisez la recherche`:""}`
-          :`SN / LOT de l'OF actuel affichés. Tapez pour rechercher dans les ${targets.length} destinations.`}
+        <button type="button" aria-label="Fermer" title="Fermer" onClick={onClose} disabled={running} style={{width:30,height:30,border:`1px solid ${C.border}`,borderRadius:4,background:C.raised,color:C.text,fontSize:18,cursor:"pointer"}}>×</button>
       </div>
-      <div style={{display:"flex",gap:12,marginBottom:10}}>
-        <Btn small color={C.border} disabled={loading||running} onClick={()=>setSelected(ids=>[...new Set([...ids,...visible.filter(t=>!completed.includes(t.key)).map(t=>t.key)])])}>Tout sélectionner</Btn>
-        <Btn small color={C.border} disabled={running} onClick={()=>setSelected([])}>Tout désélectionner</Btn>
-      </div>
-      <div style={{maxHeight:320,overflow:"auto",border:`1px solid ${C.border}`}}>
-        {loading?<div style={{padding:10}}>Chargement…</div>:visible.length?visible.map(t=><label key={t.key} style={{display:"grid",gridTemplateColumns:"24px 110px minmax(130px,1fr) minmax(130px,1.4fr)",gap:8,padding:"7px 10px",borderBottom:`1px solid ${C.border}`,alignItems:"center"}}>
-          <input type="checkbox" aria-label={`OF ${t.of} — ${t.label}`} checked={selected.includes(t.key)} disabled={running||completed.includes(t.key)} onChange={e=>setSelected(ids=>e.target.checked?[...ids,t.key]:ids.filter(id=>id!==t.key))}/>
-          <span>{t.of}</span><span>{t.label}{completed.includes(t.key)?" — Copié":""}</span><span style={{minWidth:0,overflowWrap:"anywhere"}}>{t.article}<span style={{display:"block",color:C.muted,fontSize:12,marginTop:2}}>{t.description||"—"}</span></span>
-        </label>):<div style={{padding:10}}>{query?"Aucune destination trouvée":"Aucun SN / LOT dans l'OF actuel"}</div>}
-      </div>
-      <fieldset style={{border:`1px solid ${C.border}`,padding:"9px 10px",margin:"12px 0 8px"}}>
-        <legend style={{fontSize:11,color:C.muted,padding:"0 5px"}}>Type de copie</legend>
-        <label style={{display:"flex",gap:7,alignItems:"flex-start",fontSize:12,marginBottom:8}}>
-          <input type="radio" name="copy-mode" value="same" checked={copyMode==="same"} disabled={running} onChange={()=>setCopyMode("same")}/>
-          <span><strong>Même opération sur plusieurs SN/OF</strong><span style={{display:"block",color:C.muted,marginTop:2}}>Conserve l’auteur, les dates, les visas, CTRL et TRA.</span></span>
-        </label>
-        <label style={{display:"flex",gap:7,alignItems:"flex-start",fontSize:12}}>
-          <input type="radio" name="copy-mode" value="new" checked={copyMode==="new"} disabled={running||tab==="etuvage"} onChange={()=>setCopyMode("new")}/>
-          <span><strong>Nouvelle opération à partir de cette ligne</strong><span style={{display:"block",color:C.muted,marginTop:2}}>La personne qui copie devient l’auteur ; les informations techniques sont reprises.</span>{tab==="etuvage"&&<span style={{display:"block",color:C.yellow,marginTop:2}}>Un étuvage réalisé est toujours recopié comme la même opération.</span>}</span>
-        </label>
-      </fieldset>
-      {copyMode==="new"&&["rework","consommables"].includes(tab)&&<label style={{display:"flex",gap:6,alignItems:"center",margin:"8px 0",fontSize:12}}><input type="checkbox" checked={includeChecks} disabled={!checksAllowed||running} onChange={e=>setIncludeChecks(e.target.checked)}/>Inclure {tab==="rework"?"le contrôle et la traçabilité":"la traçabilité"}{!checksAllowed?" (Admin / Manager)":""}</label>}
-      {copyMode==="new"&&includeChecks&&<div style={{color:C.yellow,fontSize:12,marginBottom:8}}>CTRL / TRA repris avec leurs visas et dates d’origine.</div>}
-      {tab==="consommables"&&copyMode==="new"&&<label style={{display:"flex",gap:6,alignItems:"center",margin:"8px 0",fontSize:12}}><input type="checkbox" checked={reuseSample} disabled={running} onChange={e=>setReuseSample(e.target.checked)}/>Reprendre le N° d’échantillon source</label>}
-      <div role="status" style={{fontSize:12,marginBottom:10}}>{message}</div>
-      <div style={{display:"flex",justifyContent:"flex-end",gap:8}}>
-        <Btn small onClick={onClose} color={C.border} disabled={running}>Fermer</Btn>
-        <Btn small onClick={copy} color={C.blue} disabled={loading||running||busy||!selected.length||!chosenSources.length}>{running?"Copie…":`Copier ${chosenSources.length} ligne(s) vers ${selected.length} destination(s)`}</Btn>
+      <div style={{display:"flex",gap:7,marginBottom:14}}><span style={stepStyle(!reviewing)}>1 Paramètres</span><span style={stepStyle(reviewing)}>2 Vérification</span></div>
+      {!reviewing?<>
+        <section style={{...panelStyle,marginBottom:10}}>
+          <h3 style={{margin:"0 0 9px",fontSize:13}}>1. Ligne(s) source(s)</h3>
+          <div aria-label="Source de la copie" style={{display:"grid",gridTemplateColumns:"minmax(80px,.6fr) minmax(180px,1.5fr) minmax(130px,1fr)",gap:12,alignItems:"center",padding:"8px 10px",marginBottom:8,background:C.raised,borderLeft:`3px solid ${C.blue}`,fontSize:12}}>
+            <span><span style={{display:"block",color:C.muted,fontSize:10}}>OF</span><strong>{sourceHeader?.of||sourceOfId||"—"}</strong></span>
+            <span style={{minWidth:0,overflowWrap:"anywhere"}}><span style={{display:"block",color:C.muted,fontSize:10}}>ARTICLE</span><strong>{sourceHeader?.codeArticle||"N/A"}</strong>{sourceHeader?.description&&<span style={{display:"block",color:C.muted,marginTop:1}}>{sourceHeader.description}</span>}</span>
+            <span style={{minWidth:0,overflowWrap:"anywhere"}}><span style={{display:"block",color:C.muted,fontSize:10}}>SN / LOT SOURCE</span><strong>{sourceUnitText}</strong></span>
+          </div>
+          <details style={{border:`1px solid ${C.border}`,background:C.surface}}>
+            <summary style={{padding:"7px 10px",cursor:"pointer",fontSize:12,fontWeight:700,color:C.text}}>Lignes à dupliquer : {chosenSources.length} sélectionnée(s) sur {availableSources.length}</summary>
+            <div style={{maxHeight:170,overflow:"auto",borderTop:`1px solid ${C.border}`}}>
+              {availableSources.map(source=>{
+                const key=copySourceKey(tab,source),checked=selectedSources.includes(key);
+                return <label key={key} style={{display:"grid",gridTemplateColumns:"24px minmax(0,1fr) auto",gap:8,alignItems:"center",padding:"6px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12}}>
+                  <input type="checkbox" aria-label={`Copier la source ${copySourceLabel(tab,source)}`} checked={checked} disabled={running||(checked&&chosenSources.length===1)} onChange={e=>setSelectedSources(keys=>e.target.checked?[...new Set([...keys,key])]:keys.filter(value=>value!==key))}/>
+                  <span style={{overflowWrap:"anywhere"}}>{copySourceLabel(tab,source)}</span><span style={{color:C.muted,fontSize:11}}>{snScopeLabel(source,sourceUnits)}</span>
+                </label>;
+              })}
+            </div>
+          </details>
+        </section>
+        <section style={{...panelStyle,marginBottom:10}}>
+          <h3 style={{margin:"0 0 9px",fontSize:13}}>2. Que doit créer la duplication ?</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:9}}>
+            <label style={{display:"flex",gap:9,alignItems:"flex-start",padding:10,border:`2px solid ${copyMode==="same"?C.blue:C.border}`,borderRadius:5,background:copyMode==="same"?C.raised:C.surface,fontSize:12,cursor:"pointer"}}>
+              <input type="radio" name="copy-mode" value="same" checked={copyMode==="same"} disabled={running} onChange={()=>setCopyMode("same")}/>
+              <span><strong>Dupliquer l’opération déjà réalisée</strong><span style={{display:"block",color:C.muted,marginTop:3}}>Même opération sur plusieurs pièces : auteur, dates, visas, CTRL et TRA sont conservés.</span><span style={{display:"block",color:C.yellow,marginTop:4}}>À utiliser seulement si l’opération source concerne réellement toutes les destinations.</span></span>
+            </label>
+            <label style={{display:"flex",gap:9,alignItems:"flex-start",padding:10,border:`2px solid ${copyMode==="new"?C.blue:C.border}`,borderRadius:5,background:copyMode==="new"?C.raised:C.surface,fontSize:12,cursor:tab==="etuvage"?"not-allowed":"pointer",opacity:tab==="etuvage"?.65:1}}>
+              <input type="radio" name="copy-mode" value="new" checked={copyMode==="new"} disabled={running||tab==="etuvage"} onChange={()=>setCopyMode("new")}/>
+              <span><strong>Créer une nouvelle opération depuis la source</strong><span style={{display:"block",color:C.muted,marginTop:3}}>Les informations techniques sont reprises ; vous devenez l’auteur avec la date actuelle.</span>{tab==="etuvage"&&<span style={{display:"block",color:C.yellow,marginTop:4}}>Un étuvage réalisé est toujours dupliqué comme la même opération.</span>}</span>
+            </label>
+          </div>
+          {copyMode==="new"&&["rework","consommables"].includes(tab)&&<label style={{display:"flex",gap:6,alignItems:"center",margin:"10px 0 0",fontSize:12}}><input type="checkbox" checked={includeChecks} disabled={!checksAllowed||running} onChange={e=>setIncludeChecks(e.target.checked)}/>Reprendre aussi {tab==="rework"?"le contrôle et la traçabilité":"la traçabilité"}{!checksAllowed?" (Admin / Manager)":""}</label>}
+          {copyMode==="new"&&includeChecks&&<div style={{color:C.yellow,fontSize:12,marginTop:5}}>Les visas et dates CTRL / TRA d’origine seront conservés.</div>}
+          {tab==="consommables"&&copyMode==="new"&&<label style={{display:"flex",gap:6,alignItems:"center",margin:"8px 0 0",fontSize:12}}><input type="checkbox" checked={reuseSample} disabled={running} onChange={e=>setReuseSample(e.target.checked)}/>Reprendre le N° d’échantillon source</label>}
+        </section>
+        <section style={panelStyle}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}><h3 style={{margin:0,fontSize:13}}>3. Destination(s)</h3><strong style={{fontSize:12,color:selectedTargets.length?C.blue:C.muted}}>{selectedTargets.length} sélectionnée(s)</strong></div>
+          <input autoFocus aria-label="Rechercher les destinations" placeholder="Rechercher : OF, N° article, description, SN ou LOT" value={search} disabled={running} onChange={e=>setSearch(e.target.value)} style={{width:"100%",padding:8,marginBottom:5,background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4}}/>
+          <div style={{fontSize:11,color:C.muted,marginBottom:8}}>{loading?"Chargement des destinations…":query?`${matches.length} destination(s) trouvée(s)${matches.length>limit?` — ${limit} affichées, précisez la recherche`:""}`:`SN / LOT de l'OF actuel affichés. Tapez pour rechercher dans les ${targets.length} destinations.`}</div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}><Btn small color={C.border} disabled={loading||running} onClick={()=>setSelected(ids=>[...new Set([...ids,...visible.filter(t=>!completed.includes(t.key)).map(t=>t.key)])])}>Sélectionner les résultats affichés</Btn><Btn small color={C.border} disabled={running} onClick={()=>setSelected([])}>Effacer la sélection</Btn></div>
+          <div style={{maxHeight:250,overflow:"auto",border:`1px solid ${C.border}`}}>
+            {loading?<div style={{padding:10}}>Chargement…</div>:visible.length?visible.map(t=>{
+              const isSource=t.ofId===sourceOfId&&defaultUnitIds.includes(t.unitId);
+              return <label key={t.key} style={{display:"grid",gridTemplateColumns:"24px 100px minmax(120px,.8fr) minmax(160px,1.5fr) auto",gap:8,padding:"7px 10px",borderBottom:`1px solid ${C.border}`,alignItems:"center",fontSize:12}}>
+                <input type="checkbox" aria-label={`OF ${t.of} — ${t.label}`} checked={selected.includes(t.key)} disabled={running||completed.includes(t.key)} onChange={e=>setSelected(ids=>e.target.checked?[...ids,t.key]:ids.filter(id=>id!==t.key))}/>
+                <strong>{t.of}</strong><span>{t.label}{completed.includes(t.key)?" — Copié":""}</span><span style={{minWidth:0,overflowWrap:"anywhere"}}>{t.article}<span style={{display:"block",color:C.muted,fontSize:11,marginTop:2}}>{t.description||"—"}</span></span>{isSource&&<span style={{fontSize:10,color:C.yellow,fontWeight:700}}>SOURCE ACTUELLE</span>}
+              </label>;
+            }):<div style={{padding:10}}>{query?"Aucune destination trouvée":"Aucun SN / LOT dans l'OF actuel"}</div>}
+          </div>
+        </section>
+      </>:<>
+        <section style={{...panelStyle,borderColor:C.blue,marginBottom:10}}>
+          <h3 style={{margin:"0 0 4px",fontSize:16}}>Vérification avant duplication</h3>
+          <div style={{fontSize:24,fontWeight:800,color:C.blue,margin:"8px 0"}}>{plannedCopies} ligne(s) seront créées</div>
+          <div style={{fontSize:12,color:C.muted}}>{chosenSources.length} ligne(s) source × {selectedTargets.length} destination(s)</div>
+        </section>
+        <div style={{display:"grid",gridTemplateColumns:"minmax(260px,.9fr) minmax(320px,1.3fr)",gap:10,marginBottom:10}}>
+          <section style={panelStyle}><h3 style={{margin:"0 0 8px",fontSize:13}}>Opération créée</h3><strong>{copyMode==="same"?"Opération déjà réalisée dupliquée":"Nouvelle opération créée depuis la source"}</strong><div style={{fontSize:12,color:C.muted,marginTop:5}}>{copyMode==="same"?"Auteur, dates, visas, CTRL et TRA conservés.":`Auteur : ${user?.trigram||"utilisateur actuel"} · date actuelle${includeChecks?" · contrôles repris":" · contrôles non repris"}.`}</div><h3 style={{margin:"12px 0 6px",fontSize:13}}>Source(s)</h3>{chosenSources.map(source=><div key={copySourceKey(tab,source)} style={{padding:"5px 0",borderTop:`1px solid ${C.border}`,fontSize:12}}>{copySourceLabel(tab,source)}<span style={{display:"block",color:C.muted}}>{snScopeLabel(source,sourceUnits)}</span></div>)}</section>
+          <section style={panelStyle}><h3 style={{margin:"0 0 8px",fontSize:13}}>Destination(s)</h3><div style={{maxHeight:260,overflow:"auto"}}>{selectedTargets.map(target=><div key={target.key} style={{display:"grid",gridTemplateColumns:"90px 120px minmax(0,1fr)",gap:8,padding:"6px 0",borderTop:`1px solid ${C.border}`,fontSize:12}}><strong>OF {target.of}</strong><strong>{target.label}</strong><span>{target.article}<span style={{display:"block",color:C.muted}}>{target.description||"—"}</span></span></div>)}</div></section>
+        </div>
+        {includesSourceTarget&&<div role="alert" style={{padding:"9px 11px",marginBottom:10,border:`1px solid ${C.yellow}`,background:C.raised,color:C.yellow,fontSize:12,fontWeight:700}}>Attention : la pièce source est aussi sélectionnée comme destination. Une nouvelle ligne sera donc ajoutée sur cette pièce.</div>}
+        <div style={{padding:"9px 11px",border:`1px solid ${C.green}`,color:C.green,fontSize:12,fontWeight:700}}>Aucune ligne existante ne sera modifiée ou remplacée.</div>
+      </>}
+      <div role="status" style={{fontSize:12,marginTop:10}}>{message}</div>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,marginTop:12,borderTop:`1px solid ${C.border}`,paddingTop:12}}>
+        <Btn small onClick={reviewing?()=>setReviewing(false):onClose} color={reviewing?C.orange:C.border} disabled={running}>{reviewing?"← Modifier":"Annuler"}</Btn>
+        {!reviewing?<Btn small onClick={()=>setReviewing(true)} color={C.blue} disabled={loading||running||busy||!selectedTargets.length||!chosenSources.length}>Vérifier la duplication</Btn>:<Btn small onClick={copy} color={C.blue} disabled={loading||running||busy||!selectedTargets.length||!chosenSources.length}>{running?"Duplication…":`Confirmer la duplication (${plannedCopies})`}</Btn>}
       </div>
     </div>
   </div>;

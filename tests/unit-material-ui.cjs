@@ -598,7 +598,7 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     assert.ok((await copySource.textContent()).includes('100TEST'));
     assert.ok((await copySource.textContent()).includes('250001163'));
     assert.ok((await copySource.textContent()).includes('SN1 + SN2'));
-    await copyDialog.getByText(/Lignes à copier : 1 sélectionnée\(s\)/).click();
+    await copyDialog.getByText(/Lignes à dupliquer : 1 sélectionnée\(s\)/).click();
     await copyDialog.getByRole('checkbox',{name:/Copier la source RD/}).check();
     assert.ok(!(await copyDialog.getByRole('checkbox',{name:'OF 100TEST — SN2',exact:true}).isChecked()));
     assert.equal(await copyDialog.getByRole('checkbox',{name:/^OF /}).first().getAttribute('aria-label'),'OF 100TEST — SN2');
@@ -614,7 +614,11 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await copyDialog.getByRole('checkbox',{name:'OF 100OTHER — SNOTHER',exact:true}).check();
     await copyDialog.getByRole('textbox',{name:'Rechercher les destinations',exact:true}).fill('');
     await copyDialog.getByRole('checkbox',{name:'OF 100TEST — SN1',exact:true}).check();
-    await copyDialog.getByRole('button',{name:'Copier 2 ligne(s) vers 3 destination(s)',exact:true}).click();
+    await copyDialog.getByRole('button',{name:'Vérifier la duplication',exact:true}).click();
+    assert.ok(await copyDialog.getByText('6 ligne(s) seront créées',{exact:true}).isVisible());
+    assert.ok(await copyDialog.getByText('2 ligne(s) source × 3 destination(s)',{exact:true}).isVisible());
+    await page.screenshot({path:path.join(__dirname,'artifacts/copy-review-1920.png')});
+    await copyDialog.getByRole('button',{name:'Confirmer la duplication (6)',exact:true}).click();
     await page.waitForFunction(()=>window.testRecords['of:other-of'].rework?.rows?.length===2);
     const cross=await page.evaluate(()=>window.testRecords['of:other-of'].rework.rows.find(row=>row.repere==='R96'));
     assert.equal(cross.createdVisa,'JGR');assert.equal(cross.repere,'R96');assert.equal(cross.validated,true);assert.equal(cross.visaOper,'JGR');assert.equal(cross.visaCtrl,'');assert.equal(cross.tracaOk,false);
@@ -889,16 +893,18 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
       const modal=page.getByRole('dialog',{name:'Copier vers OF / SN',exact:true});
       await modal.getByRole('checkbox',{name:'OF 100TEST — SN1',exact:true}).waitFor();
       if(tab==='etuvage'){
-        assert.ok(await modal.getByRole('radio',{name:/Même opération sur plusieurs SN\/OF/}).isChecked());
-        assert.ok(await modal.getByRole('radio',{name:/Nouvelle opération à partir de cette ligne/}).isDisabled());
+        assert.ok(await modal.getByRole('radio',{name:/Dupliquer l’opération déjà réalisée/}).isChecked());
+        assert.ok(await modal.getByRole('radio',{name:/Créer une nouvelle opération depuis la source/}).isDisabled());
       }else{
-        assert.ok(await modal.getByRole('radio',{name:/Nouvelle opération à partir de cette ligne/}).isChecked());
+        assert.ok(await modal.getByRole('radio',{name:/Créer une nouvelle opération depuis la source/}).isChecked());
       }
       assert.equal(await modal.getByRole('checkbox',{name:/^OF /}).first().getAttribute('aria-label'),'OF 100TEST — SN1');
       assert.equal(await modal.getByRole('checkbox',{name:/^OF /,checked:true}).count(),0);
       await modal.getByRole('textbox',{name:'Rechercher les destinations',exact:true}).fill('SNOTHER');
       await modal.getByRole('checkbox',{name:'OF 100OTHER — SNOTHER',exact:true}).check();
-      await modal.getByRole('button',{name:'Copier 1 ligne(s) vers 1 destination(s)',exact:true}).click();
+      await modal.getByRole('button',{name:'Vérifier la duplication',exact:true}).click();
+      assert.ok(await modal.getByText('1 ligne(s) seront créées',{exact:true}).isVisible());
+      await modal.getByRole('button',{name:'Confirmer la duplication (1)',exact:true}).click();
       await page.waitForFunction(({tab,collection})=>window.testRecords['of:other-of'][tab]?.[collection]?.length===1,{tab,collection});
       const copied=await page.evaluate(({tab,collection})=>window.testRecords['of:other-of'][tab][collection][0],{tab,collection});
       assert.equal(copied.createdVisa,tab==='etuvage'?'OTHER':'JGR');assert.equal(copied.validated,true);assert.deepEqual(copied.snIds,['other-unit']);
