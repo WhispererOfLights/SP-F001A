@@ -37,7 +37,7 @@ ROOT = Path(__file__).resolve().parent
 WRITE_LOCK = Lock()
 SESSION_LOCK = Lock()
 DB_NAME = "sp-f001a.sqlite"
-SESSION_COOKIE = "sp_f001a_session"
+SESSION_COOKIE = os.environ.get("SP_F001A_SESSION_COOKIE", "sp_f001a_session").strip() or "sp_f001a_session"
 SESSION_IDLE_SECONDS = 15 * 60
 PASSWORD_ITERATIONS = 240_000
 SESSIONS: dict[str, dict] = {}
@@ -715,8 +715,14 @@ class StorageServer(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
         request_path=urlparse(self.path).path.rstrip("/")
         public_url=os.environ.get("SP_F001A_PUBLIC_URL","").strip()
-        if request_path=="/app-config.js" and public_url:
-            data=f"window.SP_F001A_PUBLIC_URL = {json.dumps(public_url)};\n".encode("utf-8")
+        instance_mode=os.environ.get("SP_F001A_INSTANCE_MODE","production").strip().lower() or "production"
+        instance_label=os.environ.get("SP_F001A_INSTANCE_LABEL","").strip()
+        if request_path=="/app-config.js":
+            data=(
+                f"window.SP_F001A_PUBLIC_URL = {json.dumps(public_url)};\n"
+                f"window.SP_F001A_INSTANCE_MODE = {json.dumps(instance_mode)};\n"
+                f"window.SP_F001A_INSTANCE_LABEL = {json.dumps(instance_label)};\n"
+            ).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type","application/javascript; charset=utf-8")
             self.send_header("Content-Length",str(len(data)))
@@ -734,6 +740,8 @@ class StorageServer(SimpleHTTPRequestHandler):
                 "backend": self.database_backend,
                 "schemaVersion": self.database_schema_version,
                 "readOnly": cutover_read_only(),
+                "instance": instance_mode,
+                "instanceLabel": instance_label,
             }
             if self.database_backend=="sqlite":
                 payload.update({"dataDir":str(self.data_dir),"dbPath":str(self.db_path)})

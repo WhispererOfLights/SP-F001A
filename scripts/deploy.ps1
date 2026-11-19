@@ -13,7 +13,7 @@ Set-Location $root
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $indexPath = Join-Path $root "index.html"
-$index = Get-Content $indexPath -Raw
+$index = Get-Content $indexPath -Raw -Encoding utf8
 $index = [regex]::Replace($index, 'App\.runtime\.js\?v=\d+', "App.runtime.js?v=$Version")
 $index = [regex]::Replace($index, 'clients\.js\?v=\d+', "clients.js?v=$Version")
 [IO.File]::WriteAllText($indexPath, $index, [Text.UTF8Encoding]::new($false))
@@ -36,7 +36,7 @@ if (Test-Path -LiteralPath $targetConfig) {
 $runtimeItems = @(
     "index.html", "server.py", "relational_store.py", "postgres_store.py", "postgres_relational.py", "replication_bridge.py",
     "requirements.txt", "src", "assets", "vendor", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
-    "start-prod-invisible.vbs", "server-status.vbs"
+    "start-prod-invisible.vbs", "server-status.vbs", "run-pilot-server.ps1", "start-pilot-invisible.ps1"
 )
 $obsoleteDeployItems = @(
     "migration.html", "Dockerfile", "compose.yaml", ".dockerignore", ".env.example", "scripts", "tests",

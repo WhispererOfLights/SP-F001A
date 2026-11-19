@@ -132,6 +132,20 @@ powershell -ExecutionPolicy Bypass -File install-scheduled-task.ps1
 
 Le script installe une tâche planifiée quand Windows l'autorise. Sans droits suffisants, il crée automatiquement un raccourci dans le dossier `Démarrage` de l'utilisateur, ce qui conserve l'accès au partage réseau. `inspect-scheduled-task.ps1` indique le mode actif et `test-scheduled-task.ps1` vérifie le lanceur sans arrêter un serveur lorsqu'aucune tâche n'existe.
 
+## Instance pilote isolée
+
+L'instance de production reste accessible sur `http://NEU-JGR-SP:5181/` avec la base PostgreSQL `spf001a`.
+Le bac à sable est accessible sur `http://NEU-JGR-SP:5182/` avec la base séparée `spf001a_pilot`.
+
+- Les données ont été copiées une fois depuis la production ; les modifications suivantes ne sont pas synchronisées.
+- Les comptes et mots de passe présents au moment de la copie sont conservés dans le pilote.
+- Le pilote utilise le cookie `sp_f001a_pilot_session`, afin de ne pas mélanger les connexions avec la production.
+- Un bandeau rouge permanent `BASE TEST` identifie l'instance.
+- `C:\ProgramData\SP-F001A\pilot.env` contient sa configuration locale et ne doit jamais être ajouté à Git.
+- `start-pilot-invisible.ps1` surveille le port 5182. Le lanceur de production démarre ce watchdog au démarrage de Windows.
+
+La création initiale est effectuée avec `scripts\create-pilot-database.ps1`. Par sécurité, ce script refuse d'écraser une base pilote existante.
+
 ### Adresse des liens vers les dossiers
 
 Les liens copiés depuis un dossier et ajoutés aux emails contiennent l'OF et le SN/lot en plus des identifiants internes. Ils restent ainsi utilisables après une migration des données.

@@ -7,6 +7,7 @@ $statusUrl = "http://127.0.0.1:5181/api/health"
 $logDir = Join-Path $env:LOCALAPPDATA "SP-F001A"
 $logFile = Join-Path $logDir "scheduled-server.log"
 $environmentFile = "C:\ProgramData\SP-F001A\server.env"
+$pilotWatchdog = Join-Path $root "start-pilot-invisible.ps1"
 
 if (Test-Path -LiteralPath $environmentFile -PathType Leaf) {
     foreach ($line in Get-Content -LiteralPath $environmentFile) {
@@ -20,6 +21,11 @@ if (Test-Path -LiteralPath $environmentFile -PathType Leaf) {
 }
 
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+
+if (Test-Path -LiteralPath $pilotWatchdog -PathType Leaf) {
+    Start-Process -FilePath "powershell.exe" -WindowStyle Hidden `
+        -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", ('"' + $pilotWatchdog + '"')) | Out-Null
+}
 
 try {
     $response = Invoke-WebRequest -UseBasicParsing $statusUrl -TimeoutSec 2

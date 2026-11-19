@@ -2,8 +2,8 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v350
-**Date :** 18 novembre 2026  
+**Version documentée :** v351
+**Date :** 19 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
 ## 1. Objet du document
@@ -19,6 +19,8 @@ Ce document présente ce qui est déjà disponible dans le pilote, les règles d
 Le pilote est utilisé sur le réseau interne depuis un poste Windows. L'application est servie par une API Python et utilise PostgreSQL comme source de vérité. Le serveur redémarre automatiquement au démarrage de Windows, sans ouverture de session utilisateur. Les déploiements sont bloqués si les tests échouent et chaque version remplace la précédente après création d'une sauvegarde du paquet de production.
 
 La solution est fonctionnelle pour un usage atelier, mais l'hébergement reste provisoire. Une mise en ligne institutionnelle devra transférer l'application, PostgreSQL, les sauvegardes et la supervision vers une infrastructure administrée par l'IT, avec une adresse pérenne et HTTPS.
+
+Une instance pilote isolée est disponible sur le port 5182 avec sa propre base PostgreSQL. Elle contient une copie ponctuelle des données destinée aux essais, utilise une session distincte et affiche en permanence le bandeau « BASE TEST ». Les modifications réalisées dans le pilote n'affectent pas la production du port 5181 et ne sont pas resynchronisées vers elle.
 
 ## 3. Principes d'utilisation
 

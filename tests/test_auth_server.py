@@ -137,6 +137,22 @@ class AuthServerTests(unittest.TestCase):
         self.assertTrue(server.verify_password(record, "admin"))
         self.assertNotIn("pwd", record)
 
+    def test_test_instance_is_exposed_in_runtime_config_and_health(self):
+        settings = {
+            "SP_F001A_PUBLIC_URL": "http://NEU-JGR-SP:5182/",
+            "SP_F001A_INSTANCE_MODE": "test",
+            "SP_F001A_INSTANCE_LABEL": "BASE TEST",
+        }
+        with patch.dict("os.environ", settings):
+            with urllib.request.urlopen(self.base + "/app-config.js") as response:
+                config = response.read().decode("utf-8")
+            status, health, _ = self.request("/api/health")
+        self.assertEqual(status, 200)
+        self.assertIn('window.SP_F001A_INSTANCE_MODE = "test"', config)
+        self.assertIn('window.SP_F001A_INSTANCE_LABEL = "BASE TEST"', config)
+        self.assertEqual(health["instance"], "test")
+        self.assertEqual(health["instanceLabel"], "BASE TEST")
+
     def test_manager_can_deactivate_user_without_losing_activity(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"}

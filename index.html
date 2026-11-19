@@ -11,8 +11,33 @@
       * { box-sizing: border-box; }
       body { margin: 0; background: #0d1117; font-family: system-ui, sans-serif; }
       button, input, select, textarea { font: inherit; }
+      body.test-instance { padding-bottom: 44px; }
+      #test-instance-banner {
+        position: fixed;
+        z-index: 20000;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 7px 16px;
+        border-top: 3px solid #fff;
+        background: #b42318;
+        color: #fff;
+        box-shadow: 0 -3px 12px #0008;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-align: center;
+      }
+      #test-instance-banner strong { font-size: 20px; }
+      #test-instance-banner span { font-size: 12px; }
       @media print {
         body { background: #fff !important; }
+        body.test-instance { padding-bottom: 0; }
+        #test-instance-banner { display: none !important; }
         .sticky-tabs, .sticky-of-header { position: static !important; top: auto !important; }
         button { display: none !important; }
         input, select, textarea { border-color: #777 !important; color: #111 !important; background: #fff !important; }
@@ -23,10 +48,27 @@
   <body>
     <div id="root"></div>
     <script src="./app-config.js"></script>
-    <script src="./src/clients.js?v=350"></script>
+    <script>
+      (() => {
+        const isTest = window.SP_F001A_INSTANCE_MODE === "test" || window.location.port === "5182";
+        if (!isTest) return;
+        document.body.classList.add("test-instance");
+        document.title = "BASE TEST - SP-F001A7";
+        const banner = document.createElement("div");
+        banner.id = "test-instance-banner";
+        banner.setAttribute("role", "status");
+        const title = document.createElement("strong");
+        title.textContent = window.SP_F001A_INSTANCE_LABEL || "BASE TEST";
+        const detail = document.createElement("span");
+        detail.textContent = "Donn\u00e9es de test copi\u00e9es \u00b7 aucun impact sur la production";
+        banner.append(title, detail);
+        document.body.appendChild(banner);
+      })();
+    </script>
+    <script src="./src/clients.js?v=351"></script>
     <script src="./vendor/react.production.min.js"></script>
     <script src="./vendor/react-dom.production.min.js"></script>
-    <script src="./src/App.runtime.js?v=350"></script>
+    <script src="./src/App.runtime.js?v=351"></script>
   </body>
 </html>
 
