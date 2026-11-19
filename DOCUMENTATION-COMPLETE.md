@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v351
+**Version documentée :** v352
 **Date :** 19 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -20,7 +20,7 @@ Le pilote est utilisé sur le réseau interne depuis un poste Windows. L'applica
 
 La solution est fonctionnelle pour un usage atelier, mais l'hébergement reste provisoire. Une mise en ligne institutionnelle devra transférer l'application, PostgreSQL, les sauvegardes et la supervision vers une infrastructure administrée par l'IT, avec une adresse pérenne et HTTPS.
 
-Une instance pilote isolée est disponible sur le port 5182 avec sa propre base PostgreSQL. Elle contient une copie ponctuelle des données destinée aux essais, utilise une session distincte et affiche en permanence le bandeau « BASE TEST ». Les modifications réalisées dans le pilote n'affectent pas la production du port 5181 et ne sont pas resynchronisées vers elle.
+Une instance pilote isolée est disponible sur le port 5182 avec sa propre base PostgreSQL. Elle contient une copie ponctuelle des données destinée aux essais, utilise une session distincte et affiche en permanence un bandeau rouge « BASE TEST » en haut de l'écran. La production du port 5181 affiche un bandeau bleu « BASE PRODUCTION ». Les modifications réalisées dans le pilote n'affectent pas la production et ne sont pas resynchronisées vers elle.
 
 ## 3. Principes d'utilisation
 

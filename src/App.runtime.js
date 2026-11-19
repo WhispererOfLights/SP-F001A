@@ -30240,7 +30240,7 @@ function App() {
       height: 68,
       boxSizing: "border-box",
       position: "sticky",
-      top: 0,
+      top: "var(--instance-banner-height, 0px)",
       zIndex: 100
     }
   }, /*#__PURE__*/React.createElement("div", {
@@ -30525,7 +30525,7 @@ function App() {
       overflowX: "auto",
       padding: "0 12px",
       position: "sticky",
-      top: 68,
+      top: "calc(68px + var(--instance-banner-height, 0px))",
       zIndex: 95
     }
   }, TABS.map(function (t) {
@@ -30568,7 +30568,7 @@ function App() {
     className: "sticky-of-header",
     style: {
       position: "sticky",
-      top: 111,
+      top: "calc(111px + var(--instance-banner-height, 0px))",
       zIndex: 90,
       background: C.bg,
       paddingTop: 4,

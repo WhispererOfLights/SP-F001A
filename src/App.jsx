@@ -3143,7 +3143,7 @@ export default function App(){
         letterSpacing:.8,boxShadow:"0 2px 8px #0005",pointerEvents:"none"}}>GOD MODE ACTIF</div>}
       {/* Top bar */}
       <div style={{background:perms.godMode?C.red+"28":C.surface,borderBottom:`2px solid ${perms.godMode?C.red:C.border}`,padding:"10px 20px",
-        display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,height:68,boxSizing:"border-box",position:"sticky",top:0,zIndex:100}}>
+        display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,height:68,boxSizing:"border-box",position:"sticky",top:"var(--instance-banner-height, 0px)",zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <button onClick={()=>{setCurrentId(null);setActiveUnitId("all");}} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:18}}>←</button>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -3223,7 +3223,7 @@ export default function App(){
       />}
       {/* Tabs */}
       <div className="sticky-tabs" style={{background:C.surface,borderBottom:`1px solid ${C.border}`,
-        display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:68,zIndex:95}}>
+        display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:"calc(68px + var(--instance-banner-height, 0px))",zIndex:95}}>
         {TABS.map(t=>{
           const active=activeTab===t.id;
           const dot=(t.id==="faits"&&(faitsOpen>0||ows>0))||(t.id==="testequip"&&horsCalib>0);
@@ -3244,7 +3244,7 @@ export default function App(){
 
       {/* Content */}
       <div style={{padding:20,maxWidth:1560}}>
-        <div className="sticky-of-header" style={{position:"sticky",top:111,zIndex:90,background:C.bg,paddingTop:4,paddingBottom:2,maxWidth:1520}}>
+        <div className="sticky-of-header" style={{position:"sticky",top:"calc(111px + var(--instance-banner-height, 0px))",zIndex:90,background:C.bg,paddingTop:4,paddingBottom:2,maxWidth:1520}}>
           <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",
             marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>
