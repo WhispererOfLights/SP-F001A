@@ -9,8 +9,8 @@ const homeUnitStatusSummary = rows => {
     result[status]=(result[status]||0)+1;
     return result;
   },{});
-  const parts=Object.keys(STATUTS).filter(status=>counts[status]).map(status=>({
-    status,count:counts[status],label:STATUTS[status]?.label||status,color:STATUTS[status]?.color||C.border,
+  const parts=Object.keys(UNIT_STATUTS).filter(status=>counts[status]).map(status=>({
+    status,count:counts[status],label:UNIT_STATUTS[status]?.label||status,color:UNIT_STATUTS[status]?.color||C.border,
   }));
   Object.keys(counts).filter(status=>!parts.some(part=>part.status===status)).forEach(status=>parts.push({status,count:counts[status],label:status,color:C.border}));
   return {
@@ -139,6 +139,7 @@ const parseOfImportPaste = text => {
 };
 const ofWarnings = (data,consommables=[]) => {
   const messages=[];
+  if((data?.units?.rows||[]).some(unit=>!unit.deleted&&unit.status==="bloque")) messages.push("SN / LOT bloqué");
   const rows=effectiveScopedRows(data,"rework");
   const checks=computeReworkWarnings(rows,data?.units?.rows||data?.header?._snRows||[]);
   if(checks.sequence.length) messages.push("Actions soudage/dessoudage consécutives incohérentes");
@@ -191,7 +192,7 @@ const homeWorkedFilter = (rows,workedIds,onlyWorked,searchActive) => {
 const homeSearchMatches = (row,query,contributors=[]) => {
   const q=String(query||"").trim();
   return !q||[row.of,row.sn,row.lot,row.snProduitFini,row.description,row.otp,row.projet,row.ofRework,row.codeArticle,
-    STATUTS[row.status||"en_cours"]?.label,STATUTS[row.unitStatus||"en_cours"]?.label,
+    ofStatusMeta(row.status).label,UNIT_STATUTS[row.unitStatus||"en_cours"]?.label,
     row._homeFactSearch,...contributors
   ].some(value=>textFilterMatches(value,q));
 };
@@ -460,9 +461,9 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
   };
   const closeModal=async()=>{
     if(isIp||!draftOpened||!onMarkForClosure){onClose();return;}
-    if(!window.confirm(`Mettre les ${rows.length} SN / LOT sélectionné${rows.length>1?"s":""} au statut « À clôturer » ?`)){onClose();return;}
+    if(!window.confirm(`Mettre les ${rows.length} SN / LOT sélectionné${rows.length>1?"s":""} à l’avancement « À clôturer » ?`)){onClose();return;}
     setSending(true);
-    setMessage("Mise à jour des statuts en cours…");
+    setMessage("Mise à jour des avancements en cours…");
     try{
       await onMarkForClosure(rows);
       onClose();
@@ -541,7 +542,7 @@ const HomeMailModal = ({kind,rows,user,onClose,onMarkForClosure}) => {
           const cc=ccEmails.length?`&cc=${encodeURIComponent(ccEmails.join(","))}`:"";
           window.location.href=`mailto:${encodeURIComponent(recipient.trim())}?subject=${encodeURIComponent(draft.subject)}${cc}&body=${encodeURIComponent(draft.body)}`;
           setDraftOpened(true);
-          setMessage("Brouillon Outlook ouvert. Le statut sera proposé à la fermeture.");
+          setMessage("Brouillon Outlook ouvert. L’avancement sera proposé à la fermeture.");
         }} color={color} small>Ouvrir la messagerie</Btn>}
       </div>
     </div>
@@ -697,6 +698,40 @@ const HomeOperationalAlerts = ({polymerizations,ovens,loading,onSelect}) => {
   </section>;
 };
 const homeActionMenuStyle={width:"100%",border:0,borderRadius:4,background:"transparent",color:C.text,padding:"8px 10px",textAlign:"left",fontSize:12,fontWeight:700,cursor:"pointer"};
+const HomeUnitStatusModal = ({rows,onClose,onConfirm}) => {
+  const current=[...new Set((rows||[]).map(row=>row.unitStatus||"en_cours"))];
+  const [status,setStatus]=useState(current.length===1?current[0]:"");
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState("");
+  const unique=(rows||[]).filter((row,index,list)=>list.findIndex(item=>homeRowKey(item)===homeRowKey(row))===index);
+  const submit=async()=>{
+    if(!status||saving) return;
+    setSaving(true);setError("");
+    try{await onConfirm(unique,status);onClose();}
+    catch(err){setError(err?.message||"Mise à jour impossible");setSaving(false);}
+  };
+  return <div style={{position:"fixed",inset:0,zIndex:345,background:"#000000aa",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div role="dialog" aria-modal="true" aria-labelledby="home-status-title" style={{width:520,maxWidth:"100%",background:C.surface,color:C.text,border:`2px solid ${C.blue}`,borderRadius:6,padding:18,boxShadow:`0 0 0 4px ${C.blue}18`}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:12}}>
+        <div><h2 id="home-status-title" style={{margin:0,fontSize:16}}>Changer l’avancement</h2><div style={{marginTop:3,fontSize:11,color:C.muted}}>{unique.length} SN / LOT concerné{unique.length>1?"s":""}</div></div>
+        <button type="button" aria-label="Fermer" disabled={saving} onClick={onClose} style={{border:0,background:"transparent",color:C.muted,fontSize:20,cursor:"pointer"}}>×</button>
+      </div>
+      <div style={{maxHeight:170,overflowY:"auto",border:`1px solid ${C.border}`,borderRadius:4,marginBottom:12}}>
+        {unique.map(row=><div key={homeRowKey(row)} style={{display:"grid",gridTemplateColumns:"110px 1fr auto",gap:8,padding:"6px 9px",borderBottom:`1px solid ${C.border}`,fontSize:11,alignItems:"center"}}>
+          <strong style={{fontFamily:"monospace"}}>OF {row.of}</strong><span style={{fontFamily:"monospace"}}>{homeUnitName(row)}</span><Badge label={UNIT_STATUTS[row.unitStatus||"en_cours"]?.label||row.unitStatus} color={UNIT_STATUTS[row.unitStatus||"en_cours"]?.color||C.border}/>
+        </div>)}
+      </div>
+      <label style={{display:"block",fontSize:11,fontWeight:800,color:C.muted}}>Nouvel avancement
+        <select autoFocus aria-label="Nouvel avancement des SN et lots" value={status} onChange={event=>setStatus(event.target.value)} style={{display:"block",width:"100%",marginTop:5,padding:"8px 9px",background:C.input,color:status?UNIT_STATUTS[status]?.color:C.text,border:`1px solid ${status?UNIT_STATUTS[status]?.color:C.border}`,borderRadius:4,fontSize:13,fontWeight:800}}>
+          <option value="">Choisir un avancement…</option>
+          {Object.entries(UNIT_STATUTS).map(([value,item])=><option key={value} value={value}>{item.label}</option>)}
+        </select>
+      </label>
+      {error&&<div role="alert" style={{marginTop:10,color:C.red,fontSize:11,fontWeight:700}}>{error}</div>}
+      <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:16}}><Btn onClick={onClose} disabled={saving} color={C.border} small>Annuler</Btn><Btn onClick={submit} disabled={!status||saving} color={status?UNIT_STATUTS[status]?.color:C.border} small>{saving?"Enregistrement…":"Appliquer"}</Btn></div>
+    </div>
+  </div>;
+};
 const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,user,onLogout,openHistory,onUpdateStatus,onUnitStatusChange,onBulkUnitStatusChange,onFinishedSnChange,onSaveProfile,onManageSettings}) => {
   const densityStorageKey=`sp-f001-home-density:${user?.trigram||"default"}`;
   const [homeDensity,setHomeDensity]=useState(()=>{
@@ -729,6 +764,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   const [bulkLabelEntries,setBulkLabelEntries] = useState(null);
   const [copiedTeamsKey,setCopiedTeamsKey] = useState("");
   const [homeRowMenu,setHomeRowMenu] = useState(null);
+  const [statusRows,setStatusRows] = useState(null);
   const [homeNow,setHomeNow] = useState(()=>new Date());
   useEffect(()=>{const timer=setInterval(()=>setHomeNow(new Date()),60000);return()=>clearInterval(timer);},[]);
   useEffect(()=>{
@@ -786,7 +822,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   };
   const columnValue=(o,key)=>{
     if(key==="reprise") return ["oui","true"].includes(String(o.ofRework||"").toLowerCase())?"Oui":"Non";
-    if(key==="status") return STATUTS[o.status||"en_cours"]?.label||"";
+    if(key==="status") return ofStatusMeta(o.status).label;
     if(key==="unitStatus") return UNIT_STATUTS[o.unitStatus]?.label||"";
     if(key==="otp") return o.otp||o.projet||"";
     if(key==="nextEtuvage"){const n=nextEtuvageForRow(o);return n.count?n.label:"";}
@@ -806,7 +842,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     return {...row,_homeFacts:facts,_homeFactSearch:homeFactSearchText(facts),_homeContributors:contributors};
   });
   const operationalRows=baseHomeRows.filter(row=>
-    !STATUTS[row.status||"en_cours"]?.closed&&!UNIT_STATUTS[row.unitStatus||"en_cours"]?.closed
+    !ofStatusMeta(row.status).closed&&!UNIT_STATUTS[row.unitStatus||"en_cours"]?.closed
   );
   const polymerizationAlerts=operationalRows.map(row=>{
     const status=pendingHomePolymerization(dataById[row.id],consommables,row._homeUnitId,homeNow);
@@ -829,9 +865,9 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
   }):baseHomeRows;
   const matching=allHomeRows.filter(o=>{
     const q=search.toLowerCase().trim();
-    if(hideCloture&&STATUTS[o.status||"en_cours"]?.closed) return false;
+    if(hideCloture&&ofStatusMeta(o.status).closed) return false;
     if(onlyWarnings&&!warningsById[o.id]?.length) return false;
-    if(filterStatus.length&&!filterStatus.includes(o.status||"en_cours")&&!filterStatus.includes(o.unitStatus||"en_cours")) return false;
+    if(filterStatus.length&&!filterStatus.includes(o.unitStatus||"en_cours")) return false;
     if(Object.entries(columnFilters).some(([key,value])=>value&&!textFilterMatches(columnValue(o,key),value))) return false;
     return homeSearchMatches(o,q,contributorsById[o.id]);
   });
@@ -867,6 +903,12 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
     await copyRichToClipboard(homeClipboardData(rows));
     setCopiedTeamsKey(key);
     setTimeout(()=>setCopiedTeamsKey(current=>current===key?"":current),1800);
+  };
+  const changeAdministrativeStatus=async(menu,status)=>{
+    const label=OF_STATUTS[status]?.label||status;
+    if(!window.confirm(`Passer le dossier OF ${menu.of} à l’état « ${label} » ?`)) return;
+    try{await onUpdateStatus(menu.id,status);setHomeRowMenu(null);}
+    catch(error){window.alert(`Enregistrement impossible : ${error?.message||error}`);}
   };
   const exportBulkReports=async options=>{
     const logoImage=await loadPdfLogoImage("assets/logo.png");
@@ -988,7 +1030,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       setBulkLabelEntries(null);
     }catch(error){window.alert(`Impression impossible : ${error?.message||error}`);}
   };
-  const columnFilter=(key,label)=>["status","unitStatus"].includes(key)?<MultiFilter value={filterStatus} onChange={v=>{setFilterStatus(v);setPage(0);}} label="Tous" title="Filtrer les statuts OF et SN/LOT" options={Object.entries(STATUTS).map(([value,s])=>({value,label:s.label}))}/>:key==="reprise"?<select aria-label="Filtrer Reprise" value={columnFilters.reprise||""} onChange={e=>{setColumnFilters(prev=>({...prev,reprise:e.target.value}));setPage(0);}} style={{width:"100%",background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:"5px 6px",fontSize:12}}><option value="">Tous</option><option>Oui</option><option>Non</option></select>:<input aria-label={`Filtrer ${label}`} placeholder="Filtrer…" value={columnFilters[key]||""}
+  const columnFilter=(key,label)=>key==="unitStatus"?<MultiFilter value={filterStatus} onChange={v=>{setFilterStatus(v);setPage(0);}} label="Tous" title="Filtrer l’avancement des SN / LOT" options={Object.entries(UNIT_STATUTS).map(([value,s])=>({value,label:s.label}))}/>:key==="reprise"?<select aria-label="Filtrer Reprise" value={columnFilters.reprise||""} onChange={e=>{setColumnFilters(prev=>({...prev,reprise:e.target.value}));setPage(0);}} style={{width:"100%",background:C.input,color:C.text,border:`1px solid ${C.border}`,borderRadius:4,padding:"5px 6px",fontSize:12}}><option value="">Tous</option><option>Oui</option><option>Non</option></select>:<input aria-label={`Filtrer ${label}`} placeholder="Filtrer…" value={columnFilters[key]||""}
     onChange={e=>{setColumnFilters(prev=>({...prev,[key]:e.target.value}));setPage(0);}}
     style={{width:"100%",minWidth:0,boxSizing:"border-box",padding:"5px 6px",fontSize:12,color:C.text,background:C.input,border:`1px solid ${C.border}`,borderRadius:4}}/>;
   const toggleColumnSort=key=>{setColumnSort(current=>current.key===key?{key,direction:current.direction==="asc"?"desc":"asc"}:{key,direction:"asc"});setPage(0);};
@@ -1050,7 +1092,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         .home-density-comfort .home-workorders-table tbody select { font-size: 13px !important; min-height: 30px; }
         .home-density-comfort .home-workorders-table tbody td span:not([role="img"]) { font-size: 12px !important; line-height: 1.35; }
         .home-density-comfort .home-workorders-table tbody td button { min-height: 28px; }
-        .home-new-of-grid { display:grid; grid-template-columns:minmax(120px,.8fr) minmax(145px,1fr) minmax(250px,2.1fr) minmax(170px,1.2fr) minmax(135px,.9fr) minmax(145px,1fr); gap:8px; align-items:end; }
+        .home-new-of-grid { display:grid; grid-template-columns:minmax(120px,.8fr) minmax(145px,1fr) minmax(250px,2.1fr) minmax(170px,1.2fr) minmax(135px,.9fr); gap:8px; align-items:end; }
         .home-new-unit-row { display:grid; grid-template-columns:34px 112px minmax(180px,1fr) 110px 34px; gap:8px; align-items:center; }
         @media (max-width:1250px) {
           .home-new-of-grid { grid-template-columns:repeat(2,minmax(180px,1fr)); }
@@ -1109,7 +1151,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         <button onClick={()=>setHideCloture(v=>!v)}
           style={{background:hideCloture?"#23863622":"transparent",border:`1px solid ${hideCloture?"#238636":C.border}`,
             borderRadius:4,color:hideCloture?"#238636":C.muted,padding:"6px 10px",fontSize:11,cursor:"pointer",fontFamily:"monospace",whiteSpace:"nowrap"}}>
-          {hideCloture?"✓ États finaux masqués":"Afficher états finaux"}
+          {hideCloture?"✓ Dossiers clôturés masqués":"Afficher les dossiers clôturés"}
         </button>
         <div role="group" aria-label="Densité de l'accueil" style={{display:"inline-flex",alignItems:"center",gap:2,padding:2,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,whiteSpace:"nowrap"}}>
           <button type="button" aria-pressed={homeDensity==="comfort"} onClick={()=>changeHomeDensity("comfort")}
@@ -1128,6 +1170,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
 
       {selectionMode&&<div role="toolbar" aria-label="Actions sur la sélection" style={{display:"flex",alignItems:"center",gap:7,flexWrap:"wrap",marginBottom:12,padding:"8px 10px",background:C.blue+"10",border:`1px solid ${C.blue}`,borderRadius:6}}>
         <strong style={{color:C.blue,fontSize:12,minWidth:105}}>{selectedRows.length} sélectionnée{selectedRows.length>1?"s":""}</strong>
+        {isAdminManager(user)&&<Btn onClick={()=>setStatusRows(selectedRows)} color={C.blue} small>Changer l’avancement</Btn>}
         <Btn onClick={()=>copyHomeRows(selectedRows,"selection")} color={copiedTeamsKey==="selection"?C.green:C.blue} small>{copiedTeamsKey==="selection"?"✓ Copié":"📋 Copier la sélection"}</Btn>
         <Btn onClick={()=>setShowBulkPdf(true)} color={C.blue} small>Imprimer les dossiers</Btn>
         <Btn onClick={prepareBulkLabels} color={C.blue} small>Imprimer des étiquettes</Btn>
@@ -1163,13 +1206,6 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
             <label style={{height:31,display:"flex",alignItems:"center",gap:7,padding:"0 9px",background:form.ofRework==="oui"?C.yellow+"18":C.input,border:`1px solid ${form.ofRework==="oui"?C.yellow:C.border}`,borderRadius:4,color:form.ofRework==="oui"?C.yellow:C.text,fontSize:12,fontWeight:700,cursor:"pointer"}}>
               <input type="checkbox" checked={form.ofRework==="oui"} onChange={e=>setForm(f=>({...f,ofRework:e.target.checked?"oui":"non",typeOF:e.target.checked?"reprise":"production"}))}/>
               OF de reprise
-            </label>
-            <label style={{minWidth:0}}>
-              <span style={{display:"block",color:C.muted,fontSize:9,marginBottom:3,textTransform:"uppercase"}}>Statut OF</span>
-              <select value={form.status||"en_cours"} onChange={e=>setForm(f=>({...f,status:e.target.value}))}
-                style={{width:"100%",height:31,background:STATUTS[form.status||"en_cours"]?.color+"18",border:`1px solid ${STATUTS[form.status||"en_cours"]?.color}`,borderRadius:4,color:STATUTS[form.status||"en_cours"]?.color,padding:"4px 8px",fontSize:12,fontWeight:700,outline:"none"}}>
-                {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-              </select>
             </label>
           </div>
 
@@ -1245,13 +1281,13 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 {sortableTh("lot","LOT",110)}
                 {sortableTh("otp","OTP",190)}
                 {sortableTh("snProduitFini","SN Prod. Fini",110)}
-                {sortableTh("unitStatus","État",170)}
+                {sortableTh("unitStatus","Avancement",170)}
                 {sortableTh("nextEtuvage","Prochain étuvage",150)}
                 {sortableTh("followup","Suivi technique",330)}
               </tr>
               <tr style={{background:C.raised}}>
                 <td><button type="button" title="Effacer les filtres de colonne" aria-label="Effacer les filtres de colonne" onClick={()=>{setColumnFilters({});setFilterStatus([]);setPage(0);}} style={{border:0,background:"transparent",color:C.muted,cursor:"pointer"}}>×</button></td>
-                {[['of','OF'],['codeArticle','N° Article'],['description','Description'],['sn','SN'],['lot','LOT'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['unitStatus','État'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
+                {[['of','OF'],['codeArticle','N° Article'],['description','Description'],['sn','SN'],['lot','LOT'],['otp','OTP'],['snProduitFini','SN Produit Fini'],['unitStatus','Avancement'],['nextEtuvage','Prochain étuvage']].map(([key,label])=><td key={key} style={{padding:"4px 5px"}}>{columnFilter(key,label)}</td>)}
                 <td style={{padding:"4px 5px"}}>{columnFilter("followup","Suivi technique")}</td>
               </tr>
             </thead>
@@ -1277,19 +1313,21 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                 const snSummary=snCount?`${snCount} SN`:"—";
                 const lotSummary=lotCount?`${lotCount} LOT`:"—";
                 const summaryName=[snCount&&`${snCount} SN`,lotCount&&`${lotCount} LOT`].filter(Boolean).join(" / ")||`${ofRows.length} élément(s)`;
-                const groupStatuses=[...new Set(ofRows.map(row=>row.unitStatus||"en_cours"))];
                 const statusSummary=homeUnitStatusSummary(ofRows);
-                const administrativeStatus=o.status||"en_cours";
-                const showAdministrativeStatus=groupStart&&(groupStatuses.length!==1||administrativeStatus!==groupStatuses[0]);
+                const administrativeStatus=normalizeOfStatus(o.status);
+                const administrativeMeta=OF_STATUTS[administrativeStatus];
+                const readyForClosure=ofRows.length>0&&ofRows.every(row=>UNIT_STATUTS[row.unitStatus||"en_cours"]?.closed);
+                const showAdministrativeStatus=groupStart&&administrativeStatus!=="en_cours";
                 const actionKey=collapsed?`${o.id}:all`:homeRowKey(o);
                 const contributors=contributorsById[o.id]||[];
                 const isRework=String(o.ofRework||"non").toLowerCase()==="oui"||String(o.ofRework||"").toLowerCase()==="true";
                 const openActions=event=>{
                   event.preventDefault();event.stopPropagation();
-                  const menuWidth=210,menuHeight=isAdminManager(user)?132:96;
+                  const menuWidth=210,menuHeight=isAdminManager(user)?260:96;
                   const x=Math.max(8,Math.min(event.clientX,window.innerWidth-menuWidth-8));
                   const y=Math.max(8,Math.min(event.clientY,window.innerHeight-menuHeight-8));
-                  setHomeRowMenu({key:actionKey,x,y,id:o.id,unitId:collapsed?null:o._homeUnitId,of:o.of,unitName:collapsed?summaryName:homeUnitName(o),ofRows});
+                  setHomeRowMenu({key:actionKey,x,y,id:o.id,unitId:collapsed?null:o._homeUnitId,of:o.of,unitName:collapsed?summaryName:homeUnitName(o),ofRows,
+                    statusRows:collapsed?ofRows:[o],administrativeStatus,readyForClosure});
                 };
                 return (
                   <tr key={`${o.id}:${o._homeUnitId||"global"}`}
@@ -1317,13 +1355,15 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
                     <TD onClick={e=>e.stopPropagation()}>{collapsed?<span style={{color:C.muted}}>—</span>:<FinishedProductSn of={o} user={user} onSave={onFinishedSnChange}/>}</TD>
                     <TD onClick={e=>e.stopPropagation()}>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"stretch",gap:3}}>
-                        {collapsed?<Badge label={statusSummary.label} color={statusSummary.color}/>:o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
+                        {collapsed?<button type="button" aria-label={`Afficher le détail des avancements de l'OF ${o.of}`} title="Afficher le détail des SN / LOT" onClick={event=>{event.stopPropagation();toggleOfExpanded(o.id);}}
+                          style={{padding:0,border:0,background:"transparent",cursor:"pointer",textAlign:"left"}}><Badge label={statusSummary.label} color={statusSummary.color}/></button>:o._homeUnitId?<select aria-label={`Statut SN ${o.sn||o.lot} - OF ${o.of}`} disabled={!isAdminManager(user)} value={o.unitStatus||"en_cours"}
                           onChange={e=>onUnitStatusChange(o.id,o._homeUnitId,e.target.value).catch(error=>window.alert(`Enregistrement impossible : ${error?.message||error}`))}
                           style={{width:"100%",background:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color+"18",color:UNIT_STATUTS[o.unitStatus||"en_cours"]?.color,border:`1px solid ${UNIT_STATUTS[o.unitStatus||"en_cours"]?.color}`,borderRadius:4,padding:"3px 5px",fontSize:12}}>
                           {Object.entries(UNIT_STATUTS).map(([value,s])=><option key={value} value={value}>{s.label}</option>)}
                         </select>:<span style={{color:C.muted}}>—</span>}
-                        {showAdministrativeStatus&&<span title="État administratif de l’OF, modifiable dans le dossier" style={{fontSize:9,color:STATUTS[administrativeStatus]?.color||C.muted,fontWeight:800,whiteSpace:"nowrap"}}>
-                          OF · {STATUTS[administrativeStatus]?.label||administrativeStatus}
+                        {groupStart&&readyForClosure&&administrativeStatus==="en_cours"&&<span title="Tous les SN / LOT sont dans un état final" style={{fontSize:9,color:C.green,fontWeight:900,whiteSpace:"nowrap"}}>Prêt à clôturer</span>}
+                        {showAdministrativeStatus&&<span title="État administratif du dossier, modifiable dans le dossier ou par clic droit" style={{fontSize:9,color:administrativeMeta?.color||C.muted,fontWeight:800,whiteSpace:"nowrap"}}>
+                          Dossier · {administrativeMeta?.label||administrativeStatus}
                         </span>}
                       </div>
                     </TD>
@@ -1360,6 +1400,10 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       {homeRowMenu&&<div role="menu" aria-label={`Actions OF ${homeRowMenu.of} - ${homeRowMenu.unitName}`} onPointerDown={event=>event.stopPropagation()}
         style={{position:"fixed",left:homeRowMenu.x,top:homeRowMenu.y,zIndex:1000,width:210,padding:5,background:C.surface,border:`1px solid ${C.border}`,borderRadius:6,boxShadow:"0 8px 24px #0004"}}>
         <button type="button" role="menuitem" aria-label={`Ouvrir OF ${homeRowMenu.of} - ${homeRowMenu.unitName}`} onClick={()=>{onSelect(homeRowMenu.id,homeRowMenu.unitId);setHomeRowMenu(null);}} style={homeActionMenuStyle}>→ Ouvrir le dossier</button>
+        {isAdminManager(user)&&<button type="button" role="menuitem" aria-label={`Changer l'avancement de ${homeRowMenu.unitName}`} onClick={()=>{setStatusRows(homeRowMenu.statusRows);setHomeRowMenu(null);}} style={{...homeActionMenuStyle,color:C.blue}}>● Changer l’avancement…</button>}
+        {isAdminManager(user)&&homeRowMenu.readyForClosure&&homeRowMenu.administrativeStatus==="en_cours"&&<button type="button" role="menuitem" onClick={()=>changeAdministrativeStatus(homeRowMenu,"a_cloturer")} style={{...homeActionMenuStyle,color:C.accent}}>✓ Dossier à clôturer</button>}
+        {isAdminManager(user)&&homeRowMenu.administrativeStatus==="a_cloturer"&&<button type="button" role="menuitem" onClick={()=>changeAdministrativeStatus(homeRowMenu,"cloture")} style={{...homeActionMenuStyle,color:C.green}}>✓ Clôturer le dossier</button>}
+        {isAdminManager(user)&&homeRowMenu.administrativeStatus!=="en_cours"&&<button type="button" role="menuitem" onClick={()=>changeAdministrativeStatus(homeRowMenu,"en_cours")} style={{...homeActionMenuStyle,color:C.blue}}>↶ Réactiver le dossier</button>}
         <button type="button" role="menuitem" aria-label={`Copier toutes les lignes de l'OF ${homeRowMenu.of} dans le presse-papier`} onClick={()=>{copyHomeRows(homeRowMenu.ofRows,homeRowMenu.key);setHomeRowMenu(null);}} style={homeActionMenuStyle}>📋 Copier tout l’OF</button>
         {isAdminManager(user)&&<button type="button" role="menuitem" aria-label={`Supprimer l'OF ${homeRowMenu.of}`} onClick={()=>{onDelete(homeRowMenu.id);setHomeRowMenu(null);}} style={{...homeActionMenuStyle,color:C.red}}>× Supprimer l’OF</button>}
       </div>}
@@ -1379,6 +1423,10 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
       {showProfile&&<ProfileModal user={user} onClose={()=>setShowProfile(false)} onSave={v=>{onSaveProfile&&onSaveProfile(v);setShowProfile(false);}}/> }
       {showBulkPdf&&<BulkPdfOptionsModal rows={selectedRows} onCancel={()=>setShowBulkPdf(false)} onConfirm={exportBulkReports}/>}
       {bulkLabelEntries&&<BulkLabelOptionsModal entries={bulkLabelEntries} consommables={consommables} onCancel={()=>setBulkLabelEntries(null)} onConfirm={exportBulkLabels}/>}
+      {statusRows&&isAdminManager(user)&&<HomeUnitStatusModal rows={statusRows} onClose={()=>setStatusRows(null)} onConfirm={async(rows,status)=>{
+        if(onBulkUnitStatusChange) await onBulkUnitStatusChange(rows,status);
+        else await Promise.all(rows.filter(row=>row._homeUnitId).map(row=>onUnitStatusChange(row.id,row._homeUnitId,status)));
+      }}/>}
       {homeMailKind&&isAdminManager(user)&&<HomeMailModal kind={homeMailKind} rows={selectedRows} user={user} onClose={()=>setHomeMailKind(null)}
         onMarkForClosure={rows=>onBulkUnitStatusChange
           ? onBulkUnitStatusChange(rows,"a_cloturer")

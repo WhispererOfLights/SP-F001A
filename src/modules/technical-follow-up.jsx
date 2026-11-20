@@ -107,8 +107,8 @@ const StatusTypesManager = ({types,onClose,onSave}) => {
     <div style={{width:"100%",maxWidth:720,maxHeight:"84vh",overflow:"hidden",display:"flex",flexDirection:"column",background:C.surface,border:`1px solid ${C.accent}`,borderRadius:8}}>
       <div style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,borderBottom:`1px solid ${C.border}`}}>
         <div>
-          <div style={{fontSize:14,fontWeight:800,color:C.text}}>Statuts OF et SN/LOT</div>
-          <div style={{fontSize:11,color:C.muted}}>Cette liste est commune aux deux niveaux.</div>
+          <div style={{fontSize:14,fontWeight:800,color:C.text}}>Avancement des SN / LOT</div>
+          <div style={{fontSize:11,color:C.muted}}>Ces états décrivent le travail opérationnel. L’état administratif du dossier reste Actif, À clôturer ou Clôturé.</div>
         </div>
         <div style={{display:"flex",gap:8}}>
           <Btn onClick={()=>onSave(normalizeStatusTypes(list))} color={C.green} small>Enregistrer</Btn>
@@ -117,7 +117,7 @@ const StatusTypesManager = ({types,onClose,onSave}) => {
       </div>
       <div style={{padding:14,display:"grid",gridTemplateColumns:"1fr 70px auto",gap:8,alignItems:"end",borderBottom:`1px solid ${C.border}`,background:C.input}}>
         <div>
-          <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",marginBottom:3}}>Nouveau statut</div>
+          <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",marginBottom:3}}>Nouvel avancement</div>
           <Input value={label} onChange={value=>{setLabel(value);setError("");}} onKeyDown={event=>{if(event.key==="Enter")add();}} placeholder="Ex. En attente qualité" small/>
         </div>
         <div>

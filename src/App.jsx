@@ -265,6 +265,22 @@ const DEFAULT_STATUS_TYPES = [
 ];
 const STATUTS = {};
 const UNIT_STATUTS = STATUTS;
+const OF_STATUTS = {
+  en_cours:{label:"Actif",color:"#1f6feb",closed:false},
+  a_cloturer:{label:"À clôturer",color:"#e05c00",closed:false},
+  cloture:{label:"Clôturé",color:"#238636",closed:true},
+};
+const normalizeOfStatus = value => {
+  const status=String(value||"en_cours");
+  if(status==="cloture"||status==="termine"||STATUTS[status]?.closed) return "cloture";
+  if(status==="a_cloturer") return "a_cloturer";
+  return "en_cours";
+};
+const ofStatusMeta = value => OF_STATUTS[normalizeOfStatus(value)]||OF_STATUTS.en_cours;
+const unitsReadyForClosure = rows => {
+  const active=(rows||[]).filter(row=>!row.deleted&&hasUnitIdentity(row));
+  return active.length>0&&active.every(row=>UNIT_STATUTS[row.status||"en_cours"]?.closed);
+};
 const normalizeStatusTypes = list => {
   const seen=new Set();
   const clean=(Array.isArray(list)?list:DEFAULT_STATUS_TYPES).map((item,index)=>{
@@ -985,14 +1001,17 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
   const [draft, setDraft]     = useState({});
   const [copiedField,setCopiedField] = useState("");
 
-  const startEdit = () => { if(!isAdminManager(user)) return; setDraft({...h}); setEditing(true); };
+  const startEdit = () => { if(!isAdminManager(user)) return; setDraft({...h,status:normalizeOfStatus(h.status)}); setEditing(true); };
   const save      = () => {
-    const {_snRows,_defaultSnIds,...cleanDraft}=draft;
+    const {_snRows,_defaultSnIds,_entrySnIds,_confirmMultiSn,_readyForClosure,...cleanDraft}=draft;
     onUpdate(cleanDraft);
     setEditing(false);
   };
   const cancel    = () => setEditing(false);
   const headerSnRows = snRowsFromHeader(h);
+  const administrativeStatus=normalizeOfStatus(h.status);
+  const administrativeMeta=ofStatusMeta(h.status);
+  const readyForClosure=!!h._readyForClosure&&administrativeStatus==="en_cours";
   const headerSnFull = headerSnRows.map(snTitle).join(" · ")||h.sn||"—";
   const headerSnDisplay = headerSnRows.length>4 ? `${headerSnRows.length} SN` : headerSnFull;
   const copyHeaderField=(label,value)=>{
@@ -1029,12 +1048,12 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
           </select>
         </div>
         <div>
-          <div style={{color:C.muted,fontSize:9,letterSpacing:.8,textTransform:"uppercase",marginBottom:3}}>Statut OF</div>
-          <select value={draft.status||"en_cours"} onChange={e=>setDraft(d=>({...d,status:e.target.value}))}
-            style={{width:"100%",background:STATUTS[draft.status||"en_cours"]?.color+"22",
-              border:`1px solid ${STATUTS[draft.status||"en_cours"]?.color}`,borderRadius:4,
-              color:STATUTS[draft.status||"en_cours"]?.color,padding:"4px 6px",fontSize:11,fontFamily:"monospace",fontWeight:700,outline:"none"}}>
-            {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          <div style={{color:C.muted,fontSize:9,letterSpacing:.8,textTransform:"uppercase",marginBottom:3}}>État du dossier</div>
+          <select value={normalizeOfStatus(draft.status)} onChange={e=>setDraft(d=>({...d,status:e.target.value}))}
+            style={{width:"100%",background:OF_STATUTS[normalizeOfStatus(draft.status)]?.color+"22",
+              border:`1px solid ${OF_STATUTS[normalizeOfStatus(draft.status)]?.color}`,borderRadius:4,
+              color:OF_STATUTS[normalizeOfStatus(draft.status)]?.color,padding:"4px 6px",fontSize:11,fontFamily:"monospace",fontWeight:700,outline:"none"}}>
+            {Object.entries(OF_STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
           </select>
         </div>
       </div>
@@ -1069,16 +1088,17 @@ const Header = ({of:h, onUpdate, onUpdateStatus, user, onCommentsChange}) => {
               overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{copied?"✓ ":""}{val}</div>
           </div>
         })}
-        {/* Statut */}
+        {/* État administratif du dossier */}
         <div style={{background:C.surface,padding:"6px 10px",display:"flex",flexDirection:"column",justifyContent:"center",minWidth:0}}>
-          <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>Statut OF</div>
-          <select disabled={!isAdminManager(user)} value={h.status||"en_cours"} onChange={e=>onUpdateStatus&&onUpdateStatus(e.target.value)}
-            style={{background:STATUTS[h.status||"en_cours"]?.color+"22",
-              border:`1px solid ${STATUTS[h.status||"en_cours"]?.color}`,
+          <div style={{color:C.muted,fontSize:9,letterSpacing:1,textTransform:"uppercase",marginBottom:3}}>État dossier</div>
+          <select aria-label="État administratif du dossier" disabled={!isAdminManager(user)} value={administrativeStatus} onChange={e=>onUpdateStatus&&onUpdateStatus(e.target.value)}
+            style={{background:administrativeMeta.color+"22",
+              border:`1px solid ${administrativeMeta.color}`,
               borderRadius:14,padding:"3px 8px",fontSize:11,fontWeight:700,
-              color:STATUTS[h.status||"en_cours"]?.color,outline:"none",cursor:"pointer",width:"100%"}}>
-            {Object.entries(STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+              color:administrativeMeta.color,outline:"none",cursor:"pointer",width:"100%"}}>
+            {Object.entries(OF_STATUTS).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
           </select>
+          {readyForClosure&&<span title="Tous les SN / LOT sont dans un état final" style={{marginTop:3,fontSize:8,color:C.green,fontWeight:900,whiteSpace:"nowrap"}}>PRÊT À CLÔTURER</span>}
         </div>
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:1}}>
@@ -1654,6 +1674,12 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
     if(m==="single"&&visible[0]) onActiveUnitChange(visible[0].id);
   };
   const upd=(id,f,v)=>emit({rows:rows.map(r=>r.id===id?{...r,[f]:v}:r)});
+  const setAllStatuses=status=>{
+    if(!editable||!status) return;
+    const label=UNIT_STATUTS[status]?.label||status;
+    if(!window.confirm(`Mettre les ${visible.length} SN / LOT à l’avancement « ${label} » ?`)) return;
+    emit({rows:rows.map(row=>row.deleted?row:{...row,status})});
+  };
   const updSn=(id,v)=>{
     const sn=cleanSn(v);
     if(sn&&visible.some(r=>r.id!==id&&cleanSn(r.sn)===sn)){
@@ -1718,6 +1744,11 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
             <option value="single">1 OF / 1 SN ou lot</option>
             <option value="multi">1 OF / plusieurs SN ou lots</option>
           </select>
+          {editable&&visible.length>1&&<select aria-label="Changer l’avancement de tous les SN et lots" value="" onChange={event=>{setAllStatuses(event.target.value);event.target.value="";}}
+            style={{background:C.input,border:`1px solid ${C.blue}`,borderRadius:4,color:C.blue,padding:"5px 8px",fontSize:11,fontWeight:800,outline:"none"}}>
+            <option value="">Avancement de tout l’OF…</option>
+            {Object.entries(UNIT_STATUTS).map(([value,status])=><option key={value} value={value}>Tout mettre : {status.label}</option>)}
+          </select>}
           {editable&&<Btn onClick={add} small disabled={mode==="single"&&visible.length>=1}>+ SN / lot</Btn>}
         </div>
       </div>
@@ -1728,7 +1759,7 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:620}}>
             <thead>
               <tr>
-                <TH w={150}>SN</TH><TH w={150}>LOT</TH>{showQty&&<TH w={90}>Qté actuelle</TH>}<TH w={150}>SN produit fini</TH><TH w={120}>Statut SN</TH><TH w={150}>Commentaires</TH><TH w={240}></TH>
+                <TH w={150}>SN</TH><TH w={150}>LOT</TH>{showQty&&<TH w={90}>Qté actuelle</TH>}<TH w={150}>SN produit fini</TH><TH w={120}>Avancement</TH><TH w={150}>Commentaires</TH><TH w={240}></TH>
               </tr>
             </thead>
             <tbody>
@@ -2017,7 +2048,7 @@ const TABS=[
 const SettingsModal = ({user,onClose,onUsers,onStatuses,onConsumables}) => {
   const options=[
     canManageUsers(user)&&{id:"users",label:"Utilisateurs",detail:"Comptes, rôles, mots de passe et activation",action:onUsers,color:C.blue},
-    canManageLists(user)&&{id:"statuses",label:"Statuts",detail:"Statuts communs aux OF et aux SN / LOT",action:onStatuses,color:C.green},
+    canManageLists(user)&&{id:"statuses",label:"Avancement SN / LOT",detail:"États opérationnels proposés pour chaque pièce suivie",action:onStatuses,color:C.green},
     canManageLists(user)&&{id:"consumables",label:"Consommables",detail:"Catalogue, articles SAP et polymérisation",action:onConsumables,color:C.yellow},
   ].filter(Boolean);
   return <div role="dialog" aria-modal="true" aria-label="Paramètres" style={{position:"fixed",inset:0,zIndex:190,background:"#000000cc",display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
@@ -2780,7 +2811,7 @@ export default function App(){
       applyStatusTypes(clean);
       setStatusTypes(clean);
       setShowStatusTypes(false);
-    }catch(error){window.alert(`Statuts non enregistrés : ${error.message||error}`);}
+    }catch(error){window.alert(`Avancements non enregistrés : ${error.message||error}`);}
   };
 
   const saveSections=async (tabs,updated)=>{
@@ -3127,12 +3158,31 @@ export default function App(){
   };
   const entryUnit=activeUnit||snRows.find(u=>u.id===entryUnitId)||snRows[0]||null;
   const snSummary = snRows.length ? `${snRows.length} SN` : (h.sn ? `SN ${h.sn}` : "aucun SN");
+  const unitStatusSummary=homeUnitStatusSummary(snRows.map(unit=>({unitStatus:unit.status||"en_cours"})));
+  const readyForClosure=unitsReadyForClosure(snRows);
   const workHeader = {
     ...h,
     _snRows:snRows,
     _defaultSnIds:activeUnit?[activeUnit.id]:[],
     _entrySnIds:entryUnit?[entryUnit.id]:[],
     _confirmMultiSn:true,
+    _readyForClosure:readyForClosure,
+  };
+  const updateCurrentUnitStatus=async(unitIds,status)=>{
+    if(!isAdminManager(user)||!unitIds.length) return;
+    setSaving(true);setSaveError("");
+    try{
+      if(window.storage.updateWorkOrderSummary){
+        const stored=await window.storage.updateWorkOrderSummary(`of:${currentId}`,{units:unitIds.map(id=>({id,status}))});
+        const updated=applyHomeDocument(currentId,stored);
+        setOfData(updated);setLastSaved(new Date().toLocaleTimeString("fr-FR"));
+      }else{
+        let updated=ofData;
+        unitIds.forEach(id=>{updated=patchTrackedUnit(updated,id,{status});});
+        setOfData(updated);await saveSections(["units"],updated);
+      }
+    }catch(error){setSaveError(error?.message||"L’avancement n’a pas été enregistré.");throw error;}
+    finally{setSaving(false);}
   };
   const overdueOvenUnits=snRows.filter(unit=>!UNIT_STATUTS[unit.status||"en_cours"]?.closed).map(unit=>{
     const info=nextEtuvageInfo(effectiveEtuvageRows(ofData).filter(row=>rowMatchesSn(row,unit,snRows)));
@@ -3158,7 +3208,7 @@ export default function App(){
         <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>OF</div><strong>{h.of||"—"}</strong></div>
         <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>OTP</div><strong>{h.otp||h.projet||"—"}</strong></div>
         <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>SN suivis</div><strong>{reportSn}</strong></div>
-        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Statut OF</div><strong>{STATUTS[h.status||"en_cours"]?.label||"—"}</strong></div>
+        <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>État dossier</div><strong>{ofStatusMeta(h.status).label}</strong></div>
         <div><div style={{color:C.muted,fontSize:9,textTransform:"uppercase",letterSpacing:.8}}>Édité</div><strong>{nowDT()} - {user.trigram}</strong></div>
       </div>
     </div>
@@ -3296,7 +3346,16 @@ export default function App(){
               </select>
               {snRows.length>1&&<button type="button" aria-label="SN suivant" title="SN suivant" onClick={()=>moveActiveUnit(1)}
                 style={{width:28,height:28,padding:0,border:`1px solid ${C.border}`,borderRadius:4,background:C.raised,color:C.text,fontSize:18,fontWeight:800,cursor:"pointer"}}>›</button>}
-              {activeUnitChoice==="all"&&<span style={{color:C.yellow,fontSize:11,fontWeight:800,whiteSpace:"nowrap"}}>VUE TOUS LES SN</span>}
+              {activeUnit?<label style={{display:"flex",alignItems:"center",gap:5,fontSize:10,fontWeight:800,color:C.muted,whiteSpace:"nowrap"}}>Avancement
+                <select aria-label={`Avancement de ${snTitle(activeUnit)}`} disabled={!isAdminManager(user)||saving} value={activeUnit.status||"en_cours"}
+                  onChange={event=>updateCurrentUnitStatus([activeUnit.id],event.target.value).catch(error=>window.alert(`Enregistrement impossible : ${error?.message||error}`))}
+                  style={{minWidth:112,background:UNIT_STATUTS[activeUnit.status||"en_cours"]?.color+"18",color:UNIT_STATUTS[activeUnit.status||"en_cours"]?.color,border:`1px solid ${UNIT_STATUTS[activeUnit.status||"en_cours"]?.color}`,borderRadius:4,padding:"4px 6px",fontSize:11,fontWeight:800}}>
+                  {Object.entries(UNIT_STATUTS).map(([value,status])=><option key={value} value={value}>{status.label}</option>)}
+                </select>
+              </label>:snRows.length>0&&<button type="button" aria-label="Afficher le détail des avancements des SN et lots" title="Ouvrir les pièces de l’OF" onClick={()=>setHeaderPanel("sn")}
+                style={{border:`1px solid ${unitStatusSummary.color}`,borderRadius:4,background:unitStatusSummary.color+"16",color:unitStatusSummary.color,padding:"4px 7px",fontSize:10,fontWeight:900,whiteSpace:"nowrap",cursor:"pointer",maxWidth:230,overflow:"hidden",textOverflow:"ellipsis"}}>
+                {unitStatusSummary.label}
+              </button>}
             </div>
           </div>
         </div>
@@ -3435,7 +3494,7 @@ export default function App(){
                 }
                 const updated={...ofData,header:{...ofData.header,status}};
                 setOfData(updated);save(updated);
-              }catch(error){setSaveError(error?.message||"Le statut n'a pas été enregistré.");}
+              }catch(error){setSaveError(error?.message||"L’état du dossier n’a pas été enregistré.");}
             }}/>
         </div>
         {headerPanel==="sn"&&(

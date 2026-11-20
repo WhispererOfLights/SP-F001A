@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v356
+**Version documentée :** v357
 **Date :** 20 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -33,6 +33,7 @@ Une instance pilote isolée est disponible sur le port 5182 avec sa propre base 
 - Les actions principales restent visibles à droite de chaque ligne : valider ou modifier, consulter l'historique et annuler ou supprimer. Le nombre de modifications est affiché comme une notification sur l'historique.
 - Les actions secondaires restent accessibles par clic droit afin de garder les tableaux lisibles sans masquer les commandes essentielles; les commentaires de chaque ligne restent accessibles à la fois par la bulle et par ce menu dans tous les onglets métier.
 - La duplication utilise deux étapes : paramétrage puis vérification obligatoire. Avant confirmation, l'interface récapitule les lignes sources, la règle de copie, chaque destination et le nombre exact de lignes qui seront créées. Aucune ligne existante n'est remplacée.
+- L'avancement opérationnel appartient au SN ou au lot. L'OF conserve séparément un état administratif limité à `Actif`, `À clôturer` ou `Clôturé`; le résumé global est calculé depuis ses SN et lots afin d'éviter une double saisie contradictoire.
 
 ## 4. Profils et droits
 
@@ -63,7 +64,7 @@ L'accueil donne une vue opérationnelle des OF et sert de point de départ aux a
 - Recherche globale sur les informations principales, y compris OF, article, description, SN, lot, OTP et personnes ayant réellement travaillé sur l'OF.
 - Filtres par colonne avec jokers : `R*` commence par R, `*R` finit par R, `*R4B*` contient R4B et `R4*-S*` combine plusieurs motifs.
 - Vues « Tous », « Mes OF » et « À surveiller ».
-- Masquage des états finaux pour limiter le bruit.
+- Masquage des dossiers clôturés pour limiter le bruit sans faire disparaître un OF encore actif dont certains SN sont terminés.
 - Mode Confort ou Compact selon la taille de l'écran.
 
 ### 5.2 Suivi du jour
@@ -93,11 +94,14 @@ L'accueil donne une vue opérationnelle des OF et sert de point de départ aux a
 - Sélection de plusieurs lignes.
 - Copie au presse-papiers sous forme de vrais tableaux adaptés aux SN, lots ou sélections mixtes.
 - Génération groupée de rapports, d'exports Excel SAP et d'étiquettes.
-- Menus au clic droit pour les actions secondaires sur un OF.
+- Modification groupée de l'avancement des SN ou lots sélectionnés.
+- Menus au clic droit pour changer l'avancement d'une ligne ou de tout l'OF replié, puis faire passer un dossier prêt à clôturer vers son état administratif suivant.
 
 ## 6. Dossier OF et navigation SN ou lot
 
-L'en-tête du dossier affiche l'OF, l'article SAP, la description, le SN ou lot, l'OTP, le caractère de reprise et le statut. Les flèches précédent/suivant et les touches `Ctrl+Flèche gauche` ou `Ctrl+Flèche droite` permettent de changer rapidement de SN. Les flèches sont masquées lorsqu'il n'existe qu'un seul SN ou lot.
+L'en-tête du dossier affiche l'OF, l'article SAP, la description, le SN ou lot, l'OTP, le caractère de reprise et l'état administratif du dossier. Les flèches précédent/suivant et les touches `Ctrl+Flèche gauche` ou `Ctrl+Flèche droite` permettent de changer rapidement de SN. Les flèches sont masquées lorsqu'il n'existe qu'un seul SN ou lot.
+
+L'avancement du SN ou lot affiché est modifiable directement à côté du sélecteur. En vue globale, un résumé présente le nombre de pièces dans chaque état et ouvre le tableau des pièces; une commande permet également d'appliquer un avancement à tous les SN et lots de l'OF. Lorsque toutes les pièces sont dans un état final, l'interface affiche `Prêt à clôturer`, mais ne clôture jamais automatiquement le dossier. La clôture administrative reste une action volontaire d'un Admin ou Manager.
 
 Les commentaires peuvent être rattachés aux lignes métier et au SN ou lot concerné. Les liens profonds conservent l'OF, le SN ou lot et l'onglet à ouvrir. Le chemin du dossier photos de l'OF peut être copié pour être ouvert dans l'Explorateur Windows ou ajouté aux messages.
 
@@ -260,8 +264,8 @@ Le schéma suivant présente les relations utiles à la compréhension fonctionn
 flowchart LR
     REF[Référentiels<br/>roles · status_types<br/>consumable_catalog · technical_event_types]
     USERS[users<br/>comptes · rôles · visas]
-    OF[work_orders<br/>OF · article · description · OTP · statut]
-    UNIT[of_units<br/>SN ou LOT · quantité · statut · filiation]
+    OF[work_orders<br/>OF · article · description · OTP · état dossier]
+    UNIT[of_units<br/>SN ou LOT · quantité · avancement · filiation]
 
     OF --> UNIT
     REF --> USERS
