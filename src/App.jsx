@@ -78,12 +78,17 @@ const QuickOfSearch = ({ofList,currentId,onSelect,disabled}) => {
 };
 const CLIMATE_ZONE_FALLBACKS = [
   {id:"room-512",code:"#512",label:"Salle blanche"},
-  {id:"sas-512a",code:"#512a",label:"SAS"},
   {id:"stock-510",code:"#510",label:"Stock MA12"},
 ];
 const formatClimateMetric = (value,digits=1) => Number.isFinite(Number(value))
   ? Number(value).toLocaleString("fr-FR",{minimumFractionDigits:digits,maximumFractionDigits:digits})
   : "—";
+const climateRefreshLabel = data => {
+  if(!data?.retrievedAt) return "";
+  const date=new Date(data.retrievedAt);
+  if(Number.isNaN(date.getTime())) return "";
+  return `actualisé ${date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}`;
+};
 const climateHeaderState = data => {
   if(!data?.ok) return {key:"unavailable",label:"AC2M indisponible",color:C.muted};
   if(data.stale) return {key:"stale",label:"Données AC2M anciennes",color:C.yellow};
@@ -122,6 +127,7 @@ const HeaderStatusBar = () => {
     return ()=>{active=false;clearInterval(timer);};
   },[]);
   const status=climateHeaderState(climate);
+  const refreshLabel=climateRefreshLabel(climate);
   const zones=CLIMATE_ZONE_FALLBACKS.map(fallback=>({
     ...fallback,
     ...(climate?.zones||[]).find(zone=>zone.id===fallback.id),
@@ -147,11 +153,13 @@ const HeaderStatusBar = () => {
         </div>;
       })}
     </div>
-    <div role="status" title={sourceInfo} style={{display:"flex",alignItems:"center",gap:7,padding:"0 13px",borderRight:`1px solid ${C.border}`,
+    <div style={{display:"flex",alignItems:"center",padding:"0 14px",borderRight:`1px solid ${C.border}`,flexShrink:0}}><HeaderClock compact/></div>
+    <div role="status" title={sourceInfo} style={{display:"flex",alignItems:"center",gap:7,padding:"0 13px",
       color:status.color,background:status.color+"12",fontSize:11,fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>
-      <span aria-hidden="true" style={{width:8,height:8,borderRadius:"50%",background:status.color}}/>{status.label}
+      <span aria-hidden="true" style={{width:8,height:8,borderRadius:"50%",background:status.color}}/>
+      <span>{status.label}</span>
+      {refreshLabel&&<span style={{color:C.muted,borderLeft:`1px solid ${C.border}`,paddingLeft:7,fontFamily:"monospace",fontWeight:700}}>↻ {refreshLabel}</span>}
     </div>
-    <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0}}><HeaderClock compact/></div>
   </div>;
 };
 

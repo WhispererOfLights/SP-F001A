@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v353
+**Version documentée :** v354
 **Date :** 20 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -78,9 +78,10 @@ L'accueil donne une vue opérationnelle des OF et sert de point de départ aux a
 
 - Bandeau climatique commun à l'accueil et aux dossiers, avec semaine, date et heure.
 - Lecture en temps réel de la page AC2M référencée par la page réseau historique fournie par l'atelier.
-- Affichage permanent des trois lieux : `#512 Salle blanche`, `#512a SAS` et `#510 Stock MA12`.
+- Affichage permanent de `#512 Salle blanche` et `#510 Stock MA12`; le détail du SAS n'encombre pas le bandeau.
 - Température, humidité relative et pression affichées séparément pour chaque lieu.
 - État explicite de l'alarme AC2M et signalement d'une valeur hors limites.
+- Heure de la dernière actualisation affichée à côté de l'état pour confirmer visuellement la fraîcheur des données.
 - Conservation temporaire de la dernière lecture en cas d'indisponibilité brève; l'interface indique alors clairement que les données sont anciennes ou indisponibles.
 - Intégration en lecture seule : SP-F001A7 ne modifie ni les mesures, ni les seuils, ni l'état de l'installation climatique.
 

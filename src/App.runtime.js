@@ -297,10 +297,6 @@ var CLIMATE_ZONE_FALLBACKS = [{
   code: "#512",
   label: "Salle blanche"
 }, {
-  id: "sas-512a",
-  code: "#512a",
-  label: "SAS"
-}, {
   id: "stock-510",
   code: "#510",
   label: "Stock MA12"
@@ -311,6 +307,16 @@ var formatClimateMetric = function formatClimateMetric(value) {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits
   }) : "—";
+};
+var climateRefreshLabel = function climateRefreshLabel(data) {
+  if (!(data !== null && data !== void 0 && data.retrievedAt)) return "";
+  var date = new Date(data.retrievedAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return "actualis\xE9 ".concat(date.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }));
 };
 var climateHeaderState = function climateHeaderState(data) {
   if (!(data !== null && data !== void 0 && data.ok)) return {
@@ -447,6 +453,7 @@ var HeaderStatusBar = function HeaderStatusBar() {
     };
   }, []);
   var status = climateHeaderState(climate);
+  var refreshLabel = climateRefreshLabel(climate);
   var zones = CLIMATE_ZONE_FALLBACKS.map(function (fallback) {
     return _objectSpread(_objectSpread({}, fallback), ((climate === null || climate === void 0 ? void 0 : climate.zones) || []).find(function (zone) {
       return zone.id === fallback.id;
@@ -514,6 +521,16 @@ var HeaderStatusBar = function HeaderStatusBar() {
       }
     }, formatClimateMetric(zone.temperatureC), " \xB0C \xB7 ", formatClimateMetric(zone.humidityPct), " % \xB7 ", formatClimateMetric(zone.pressurePa, 0), " Pa"));
   })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      padding: "0 14px",
+      borderRight: "1px solid ".concat(C.border),
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement(HeaderClock, {
+    compact: true
+  })), /*#__PURE__*/React.createElement("div", {
     role: "status",
     title: sourceInfo,
     style: {
@@ -521,7 +538,6 @@ var HeaderStatusBar = function HeaderStatusBar() {
       alignItems: "center",
       gap: 7,
       padding: "0 13px",
-      borderRight: "1px solid ".concat(C.border),
       color: status.color,
       background: status.color + "12",
       fontSize: 11,
@@ -537,16 +553,15 @@ var HeaderStatusBar = function HeaderStatusBar() {
       borderRadius: "50%",
       background: status.color
     }
-  }), status.label), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("span", null, status.label), refreshLabel && /*#__PURE__*/React.createElement("span", {
     style: {
-      display: "flex",
-      alignItems: "center",
-      padding: "0 14px",
-      flexShrink: 0
+      color: C.muted,
+      borderLeft: "1px solid ".concat(C.border),
+      paddingLeft: 7,
+      fontFamily: "monospace",
+      fontWeight: 700
     }
-  }, /*#__PURE__*/React.createElement(HeaderClock, {
-    compact: true
-  })));
+  }, "\u21BB ", refreshLabel)));
 };
 var ROLES = ["Consultation", "Opérateur", "Contrôleur", "Logistique", "Product Assurance", "Chef de projet", "Manager", "Admin"];
 var normalizeRole = function normalizeRole(user) {
