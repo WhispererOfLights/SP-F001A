@@ -153,6 +153,25 @@ class AuthServerTests(unittest.TestCase):
         self.assertEqual(health["instance"], "test")
         self.assertEqual(health["instanceLabel"], "BASE TEST")
 
+    def test_climate_endpoint_requires_login_and_returns_snapshot(self):
+        status, _, _ = self.request("/api/climate")
+        self.assertEqual(status, 401)
+
+        status, _, _ = self.request(
+            "/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"}
+        )
+        self.assertEqual(status, 200)
+        snapshot = {
+            "ok": True,
+            "status": "normal",
+            "alarmActive": False,
+            "zones": [{"code": "#512", "label": "Salle blanche"}],
+        }
+        with patch.object(server, "climate_snapshot", return_value=snapshot):
+            status, payload, _ = self.request("/api/climate")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload, snapshot)
+
     def test_manager_can_deactivate_user_without_losing_activity(self):
         status, _, _ = self.request(
             "/api/auth/login", "POST", {"trigram": "JGR", "password": "ancien"}

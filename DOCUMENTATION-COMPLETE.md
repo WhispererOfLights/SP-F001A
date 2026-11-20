@@ -2,8 +2,8 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v352
-**Date :** 19 novembre 2026
+**Version documentée :** v353
+**Date :** 20 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
 ## 1. Objet du document
@@ -74,7 +74,17 @@ L'accueil donne une vue opérationnelle des OF et sert de point de départ aux a
 - Mise en évidence des étuvages en retard uniquement lorsqu'un premier étuvage existe déjà.
 - Alerte dans le dossier concerné et accès direct à l'onglet Étuvages.
 
-### 5.3 Actions depuis l'accueil
+### 5.3 Environnement des salles
+
+- Bandeau climatique commun à l'accueil et aux dossiers, avec semaine, date et heure.
+- Lecture en temps réel de la page AC2M référencée par la page réseau historique fournie par l'atelier.
+- Affichage permanent des trois lieux : `#512 Salle blanche`, `#512a SAS` et `#510 Stock MA12`.
+- Température, humidité relative et pression affichées séparément pour chaque lieu.
+- État explicite de l'alarme AC2M et signalement d'une valeur hors limites.
+- Conservation temporaire de la dernière lecture en cas d'indisponibilité brève; l'interface indique alors clairement que les données sont anciennes ou indisponibles.
+- Intégration en lecture seule : SP-F001A7 ne modifie ni les mesures, ni les seuils, ni l'état de l'installation climatique.
+
+### 5.4 Actions depuis l'accueil
 
 - Création compacte d'un dossier sans choix mono ou multi : une première ligne SN ou lot est proposée, puis autant de SN ou de lots que nécessaire peuvent être ajoutés. Chaque lot possède sa propre quantité.
 - Ouverture d'un dossier au bon SN ou lot.

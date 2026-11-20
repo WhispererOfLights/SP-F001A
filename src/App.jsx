@@ -76,16 +76,82 @@ const QuickOfSearch = ({ofList,currentId,onSelect,disabled}) => {
     {error&&<span role="alert" style={{position:"absolute",top:"100%",left:0,background:C.surface,color:C.red,fontSize:11,padding:4,whiteSpace:"nowrap"}}>{error}</span>}
   </div>;
 };
-const HeaderClock = () => {
+const CLIMATE_ZONE_FALLBACKS = [
+  {id:"room-512",code:"#512",label:"Salle blanche"},
+  {id:"sas-512a",code:"#512a",label:"SAS"},
+  {id:"stock-510",code:"#510",label:"Stock MA12"},
+];
+const formatClimateMetric = (value,digits=1) => Number.isFinite(Number(value))
+  ? Number(value).toLocaleString("fr-FR",{minimumFractionDigits:digits,maximumFractionDigits:digits})
+  : "—";
+const climateHeaderState = data => {
+  if(!data?.ok) return {key:"unavailable",label:"AC2M indisponible",color:C.muted};
+  if(data.stale) return {key:"stale",label:"Données AC2M anciennes",color:C.yellow};
+  if(data.alarmActive) return {key:"alarm",label:"Alarme active",color:C.red};
+  if(data.outOfRange) return {key:"out_of_range",label:"Valeur hors limites",color:C.red};
+  return {key:"normal",label:"Alarme inactive",color:C.green};
+};
+const HeaderClock = ({compact=false}) => {
   const [date,setDate]=useState(()=>new Date());
   useEffect(()=>{const timer=setInterval(()=>setDate(new Date()),1000);return ()=>clearInterval(timer);},[]);
   const iso=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
   iso.setUTCDate(iso.getUTCDate()+4-(iso.getUTCDay()||7));
   const week=Math.ceil((((iso-new Date(Date.UTC(iso.getUTCFullYear(),0,1)))/86400000)+1)/7);
-  return <div aria-label="Date, heure et semaine" style={{display:"flex",alignItems:"center",gap:12,color:C.text,whiteSpace:"nowrap",fontFamily:"monospace"}}>
-    <span style={{fontSize:17,fontWeight:700}}>S{String(week).padStart(2,"0")}</span>
-    <span style={{fontSize:16}}>{date.toLocaleDateString("fr-FR")}</span>
-    <time style={{fontSize:23,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{date.toLocaleTimeString("fr-FR")}</time>
+  return <div aria-label="Date, heure et semaine" style={{display:"flex",alignItems:"center",gap:compact?8:12,color:C.text,whiteSpace:"nowrap",fontFamily:"monospace"}}>
+    <span style={{fontSize:compact?12:17,fontWeight:800}}>S{String(week).padStart(2,"0")}</span>
+    <span style={{fontSize:compact?12:16}}>{date.toLocaleDateString("fr-FR")}</span>
+    <time style={{fontSize:compact?16:23,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{date.toLocaleTimeString("fr-FR")}</time>
+  </div>;
+};
+const HeaderStatusBar = () => {
+  const [climate,setClimate]=useState(null);
+  useEffect(()=>{
+    let active=true;
+    const load=async()=>{
+      try{
+        const response=await fetch("/api/climate",{cache:"no-store",credentials:"same-origin"});
+        if(!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload=await response.json();
+        if(active) setClimate(payload);
+      }catch{
+        if(active) setClimate({ok:false,stale:true,status:"unavailable",zones:[]});
+      }
+    };
+    load();
+    const timer=setInterval(load,30000);
+    return ()=>{active=false;clearInterval(timer);};
+  },[]);
+  const status=climateHeaderState(climate);
+  const zones=CLIMATE_ZONE_FALLBACKS.map(fallback=>({
+    ...fallback,
+    ...(climate?.zones||[]).find(zone=>zone.id===fallback.id),
+  }));
+  const sourceInfo=climate?.sourceDate&&climate?.sourceTime
+    ? `Source AC2M : ${climate.sourceDate} ${climate.sourceTime}`
+    : climate?.retrievedAt?`Lecture AC2M : ${new Date(climate.retrievedAt).toLocaleString("fr-FR")}`:"Source AC2M";
+  return <div className="header-status-bar no-print" style={{height:40,minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"stretch",
+    background:C.surface,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,overflowX:"auto",overflowY:"hidden",color:C.text}}>
+    <div style={{display:"flex",alignItems:"stretch",flex:"1 0 auto",minWidth:0}}>
+      {zones.map(zone=>{
+        const zoneColor=zone.inRange===false?C.red:climate?.ok?C.green:C.muted;
+        const threshold=zone.thresholds;
+        const title=threshold
+          ? `${zone.code} ${zone.label}\nTempérature : ${threshold.temperatureC.min} à ${threshold.temperatureC.max} °C\nHumidité : ${threshold.humidityPct.min} à ${threshold.humidityPct.max} %\nPression : ${threshold.pressurePa.min} à ${threshold.pressurePa.max} Pa`
+          : `${zone.code} ${zone.label}`;
+        return <div key={zone.id} title={title} style={{display:"flex",alignItems:"center",gap:8,minWidth:245,padding:"0 14px",boxSizing:"border-box",borderRight:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>
+          <span aria-hidden="true" style={{width:7,height:7,borderRadius:"50%",background:zoneColor,flexShrink:0}}/>
+          <strong style={{fontSize:12}}>{zone.code} {zone.label}</strong>
+          <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:zone.inRange===false?C.red:C.text}}>
+            {formatClimateMetric(zone.temperatureC)} °C · {formatClimateMetric(zone.humidityPct)} % · {formatClimateMetric(zone.pressurePa,0)} Pa
+          </span>
+        </div>;
+      })}
+    </div>
+    <div role="status" title={sourceInfo} style={{display:"flex",alignItems:"center",gap:7,padding:"0 13px",borderRight:`1px solid ${C.border}`,
+      color:status.color,background:status.color+"12",fontSize:11,fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>
+      <span aria-hidden="true" style={{width:8,height:8,borderRadius:"50%",background:status.color}}/>{status.label}
+    </div>
+    <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0}}><HeaderClock compact/></div>
   </div>;
 };
 
@@ -3166,7 +3232,6 @@ export default function App(){
             </div>
           </div>
         </div>
-        <HeaderClock/>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <span title={lastSaved?`Dernier enregistrement : ${lastSaved}`:""} style={{fontSize:11,color:C.muted}}>{saving?"⟳ …":lastSaved?"✓":""}</span>
           <ThemeButton/>
@@ -3192,6 +3257,9 @@ export default function App(){
             ✎
           </div>
         </div>
+      </div>
+      <div className="no-print" style={{position:"sticky",top:"calc(68px + var(--instance-banner-height, 0px))",zIndex:99}}>
+        <HeaderStatusBar/>
       </div>
 
       {saveError&&<div role="alert" style={{background:C.red+"18",borderBottom:`1px solid ${C.red}`,color:C.red,
@@ -3223,7 +3291,7 @@ export default function App(){
       />}
       {/* Tabs */}
       <div className="sticky-tabs" style={{background:C.surface,borderBottom:`1px solid ${C.border}`,
-        display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:"calc(68px + var(--instance-banner-height, 0px))",zIndex:95}}>
+        display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:"calc(108px + var(--instance-banner-height, 0px))",zIndex:95}}>
         {TABS.map(t=>{
           const active=activeTab===t.id;
           const dot=(t.id==="faits"&&(faitsOpen>0||ows>0))||(t.id==="testequip"&&horsCalib>0);
@@ -3244,7 +3312,7 @@ export default function App(){
 
       {/* Content */}
       <div style={{padding:20,maxWidth:1560}}>
-        <div className="sticky-of-header" style={{position:"sticky",top:"calc(111px + var(--instance-banner-height, 0px))",zIndex:90,background:C.bg,paddingTop:4,paddingBottom:2,maxWidth:1520}}>
+        <div className="sticky-of-header" style={{position:"sticky",top:"calc(151px + var(--instance-banner-height, 0px))",zIndex:90,background:C.bg,paddingTop:4,paddingBottom:2,maxWidth:1520}}>
           <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",
             marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
             <div style={{display:"flex",gap:4,alignItems:"center"}}>

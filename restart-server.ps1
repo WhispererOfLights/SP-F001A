@@ -43,7 +43,7 @@ try {
     Start-ScheduledTask -TaskName $taskName
 
     $healthy = $false
-    for ($attempt = 1; $attempt -le 20; $attempt++) {
+    for ($attempt = 1; $attempt -le 90; $attempt++) {
         Start-Sleep -Seconds 1
         try {
             $health = Invoke-RestMethod $healthUrl -TimeoutSec 3
@@ -55,7 +55,7 @@ try {
     }
 
     if (-not $healthy) {
-        throw "Le serveur ne répond pas après 20 secondes."
+        throw "Le serveur ne répond pas après 90 secondes."
     }
 
     Show-Result "SP-F001A est relancé et répond correctement." "SP-F001A" 64

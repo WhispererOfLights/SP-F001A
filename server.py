@@ -11,6 +11,7 @@ import hmac
 import json
 import mimetypes
 import os
+import re
 import secrets
 import sqlite3
 import sys
@@ -22,6 +23,7 @@ from pathlib import Path
 from threading import Lock
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlparse
+from urllib.request import Request, urlopen
 from relational_store import (
     SCHEMA_VERSION, ConflictError, init_schema, migrate,
     read_document as sqlite_read_document,
@@ -43,6 +45,8 @@ PASSWORD_ITERATIONS = 240_000
 SESSIONS: dict[str, dict] = {}
 HOME_DOCUMENTS_CACHE: dict[str, tuple[tuple, dict[str, dict]]] = {}
 HOME_CACHE_LOCK = Lock()
+CLIMATE_CACHE_LOCK = Lock()
+CLIMATE_CACHE: dict[str, object] = {"expires": 0.0, "payload": None}
 REPLICATION_WORKER = None
 READ_ONLY_ROLES = {"consultation", "lecteur seul", "lecture seule", "lecteur"}
 MANAGER_ROLES = {"Admin", "Manager"}
@@ -64,6 +68,126 @@ APPEND_ONLY_HISTORIES = {
     "ctrlCancellationHistory": "cancelledVisa",
     "tracaCancellationHistory": "cancelledVisa",
 }
+
+DEFAULT_CLIMATE_URL_01 = "http://10.80.227.40:8081/ac2m_affichage_THP_svg_static_01.php"
+DEFAULT_CLIMATE_URL_02 = "http://10.80.227.40:8081/ac2m_affichage_THP_svg_static_02.php"
+
+
+def _legacy_js_value(source: str, name: str) -> str:
+    """Read one scalar emitted by the legacy AC2M inline JavaScript."""
+    match = re.search(rf"\bvar\s+{re.escape(name)}\s*=\s*([^;]+);", source)
+    if not match:
+        raise ValueError(f"Valeur climatique absente : {name}")
+    raw = match.group(1).strip()
+    if raw.startswith("[") and raw.endswith("]"):
+        raw = raw[1:-1].strip()
+    if len(raw) >= 2 and raw[0] == raw[-1] and raw[0] in "\"'":
+        raw = raw[1:-1]
+    return raw.strip()
+
+
+def _climate_number(source: str, name: str) -> float:
+    return float(_legacy_js_value(source, name).replace(",", "."))
+
+
+def _climate_zone(source: str, suffix: str, zone_id: str, code: str, label: str) -> dict:
+    values = {
+        "temperatureC": _climate_number(source, f"temperature_{suffix}"),
+        "humidityPct": _climate_number(source, f"humidite_{suffix}"),
+        "pressurePa": _climate_number(source, f"pression_{suffix}"),
+    }
+    thresholds = {
+        "temperatureC": {
+            "min": _climate_number(source, f"consigne_alarme_temperature_{suffix}_bas"),
+            "max": _climate_number(source, f"consigne_alarme_temperature_{suffix}_haut"),
+        },
+        "humidityPct": {
+            "min": _climate_number(source, f"consigne_alarme_humidite_{suffix}_bas"),
+            "max": _climate_number(source, f"consigne_alarme_humidite_{suffix}_haut"),
+        },
+        "pressurePa": {
+            "min": _climate_number(source, f"consigne_alarme_pression_{suffix}_bas"),
+            "max": _climate_number(source, f"consigne_alarme_pression_{suffix}_haut"),
+        },
+    }
+    alerts = [
+        key for key, value in values.items()
+        if value < thresholds[key]["min"] or value > thresholds[key]["max"]
+    ]
+    return {
+        "id": zone_id,
+        "code": code,
+        "label": label,
+        **values,
+        "thresholds": thresholds,
+        "alerts": alerts,
+        "inRange": not alerts,
+    }
+
+
+def parse_climate_pages(page_one: str, page_two: str) -> dict:
+    """Normalize the two alternating AC2M pages into one stable payload."""
+    zones = [
+        _climate_zone(page_one, "01", "room-512", "#512", "Salle blanche"),
+        _climate_zone(page_one, "02", "sas-512a", "#512a", "SAS"),
+        _climate_zone(page_two, "03", "stock-510", "#510", "Stock MA12"),
+    ]
+    source_date = _legacy_js_value(page_one, "date")
+    source_times = [_legacy_js_value(page_one, "time"), _legacy_js_value(page_two, "time")]
+    alarm_active = any(
+        _legacy_js_value(page, "etat_buzzer").lower() == "true"
+        for page in (page_one, page_two)
+    )
+    out_of_range = any(not zone["inRange"] for zone in zones)
+    return {
+        "ok": True,
+        "stale": False,
+        "sourceDate": source_date,
+        "sourceTime": max(source_times),
+        "alarmActive": alarm_active,
+        "outOfRange": out_of_range,
+        "status": "alarm" if alarm_active else "out_of_range" if out_of_range else "normal",
+        "zones": zones,
+    }
+
+
+def _download_climate_page(url: str) -> str:
+    request = Request(url, headers={"User-Agent": "SP-F001A7 climate reader"})
+    with urlopen(request, timeout=3) as response:
+        if response.status != 200:
+            raise RuntimeError(f"AC2M HTTP {response.status}")
+        return response.read().decode("utf-8", errors="replace")
+
+
+def climate_snapshot() -> dict:
+    """Return a short-lived cached snapshot without blocking every browser."""
+    now = time.monotonic()
+    with CLIMATE_CACHE_LOCK:
+        cached = CLIMATE_CACHE.get("payload")
+        if cached is not None and now < float(CLIMATE_CACHE.get("expires", 0)):
+            return copy.deepcopy(cached)
+        try:
+            page_one = _download_climate_page(os.environ.get("SP_F001A_CLIMATE_URL_01", DEFAULT_CLIMATE_URL_01))
+            page_two = _download_climate_page(os.environ.get("SP_F001A_CLIMATE_URL_02", DEFAULT_CLIMATE_URL_02))
+            payload = parse_climate_pages(page_one, page_two)
+            payload["retrievedAt"] = datetime.now().astimezone().isoformat(timespec="seconds")
+            CLIMATE_CACHE.update({"expires": now + 15, "payload": payload})
+            return copy.deepcopy(payload)
+        except Exception:
+            if isinstance(cached, dict) and cached.get("ok"):
+                payload = copy.deepcopy(cached)
+                payload.update({"stale": True, "error": "Source climatique momentanément indisponible"})
+            else:
+                payload = {
+                    "ok": False,
+                    "stale": True,
+                    "alarmActive": None,
+                    "status": "unavailable",
+                    "zones": [],
+                    "error": "Source climatique indisponible",
+                }
+            CLIMATE_CACHE.update({"expires": now + 5, "payload": payload})
+            return copy.deepcopy(payload)
 
 
 def legacy_hash(value: str) -> str:
@@ -759,6 +883,10 @@ class StorageServer(SimpleHTTPRequestHandler):
             if not session:
                 return
             return self.send_json({"ok": True, "users": self.all_users()})
+        if path == "/api/climate":
+            if not self.require_session():
+                return
+            return self.send_json(climate_snapshot())
         if path == "/api/home-summary":
             if not self.require_session():
                 return

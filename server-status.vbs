@@ -1,6 +1,6 @@
 Option Explicit
 
-Dim shell, fso, root, launcher, statusUrl, appUrl, answer
+Dim shell, fso, root, launcher, statusUrl, appUrl, answer, attempt
 Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
@@ -21,7 +21,10 @@ answer = MsgBox("Le serveur SP-F001A est arrete." & vbCrLf & vbCrLf & _
 If answer <> vbYes Then WScript.Quit 1
 
 shell.Run "wscript.exe """ & launcher & """", 0, True
-WScript.Sleep 3000
+For attempt = 1 To 30
+    WScript.Sleep 2000
+    If ServerIsRunning(statusUrl) Then Exit For
+Next
 
 If ServerIsRunning(statusUrl) Then
     answer = MsgBox("Le serveur SP-F001A a demarre correctement." & vbCrLf & vbCrLf & _

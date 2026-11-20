@@ -1058,7 +1058,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
         }
       `}</style>
       {/* Top bar */}
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
         <div>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
             <img src="assets/logo.png" alt="Safran" style={{width:100,height:32,objectFit:"contain",background:"#ffffff",borderRadius:4}}/>
@@ -1066,7 +1066,6 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
           </div>
           <div style={{fontSize:20,fontWeight:900,color:C.text,fontFamily:"monospace"}}>SP-F001A7</div>
         </div>
-        <HeaderClock/>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <ThemeButton/>
           {(canManageLists(user)||canManageUsers(user))&&<Btn onClick={onManageSettings} color={C.blue} small>Paramètres</Btn>}
@@ -1081,6 +1080,7 @@ const OFSelector = ({ofList,consommables,onSelect,onCreate,onDelete,onImportOFs,
           <Btn onClick={onLogout} color={C.border} small>Déconnexion</Btn>
         </div>
       </div>
+      <div style={{marginBottom:12}}><HeaderStatusBar/></div>
 
       {/* Barre d'actions */}
       <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12,flexWrap:"wrap"}}>
