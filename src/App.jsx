@@ -78,6 +78,9 @@ const QuickOfSearch = ({ofList,currentId,onSelect,disabled}) => {
 };
 const CLIMATE_ZONE_FALLBACKS = [
   {id:"room-512",code:"#512",label:"Salle blanche"},
+];
+const CLIMATE_DETAIL_FALLBACKS = [
+  {id:"sas-512a",code:"#512a",label:"SAS"},
   {id:"stock-510",code:"#510",label:"Stock MA12"},
 ];
 const formatClimateMetric = (value,digits=1) => Number.isFinite(Number(value))
@@ -90,11 +93,11 @@ const climateRefreshLabel = data => {
   return `actualisé ${date.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}`;
 };
 const climateHeaderState = data => {
-  if(!data?.ok) return {key:"unavailable",label:"AC2M indisponible",color:C.muted};
+  if(!data?.ok) return {key:"unavailable",label:"Données indisponibles",color:C.muted};
   if(data.stale) return {key:"stale",label:"Données AC2M anciennes",color:C.yellow};
-  if(data.alarmActive) return {key:"alarm",label:"Alarme active",color:C.red};
+  if(data.alarmActive) return {key:"alarm",label:"Alarme climatique",color:C.red};
   if(data.outOfRange) return {key:"out_of_range",label:"Valeur hors limites",color:C.red};
-  return {key:"normal",label:"Alarme inactive",color:C.green};
+  return {key:"normal",label:"Conditions conformes",color:C.green};
 };
 const HeaderClock = ({compact=false}) => {
   const [date,setDate]=useState(()=>new Date());
@@ -110,6 +113,7 @@ const HeaderClock = ({compact=false}) => {
 };
 const HeaderStatusBar = () => {
   const [climate,setClimate]=useState(null);
+  const [showOtherZones,setShowOtherZones]=useState(false);
   useEffect(()=>{
     let active=true;
     const load=async()=>{
@@ -132,11 +136,25 @@ const HeaderStatusBar = () => {
     ...fallback,
     ...(climate?.zones||[]).find(zone=>zone.id===fallback.id),
   }));
+  const otherZones=CLIMATE_DETAIL_FALLBACKS.map(fallback=>({
+    ...fallback,
+    ...(climate?.zones||[]).find(zone=>zone.id===fallback.id),
+  }));
   const sourceInfo=climate?.sourceDate&&climate?.sourceTime
     ? `Source AC2M : ${climate.sourceDate} ${climate.sourceTime}`
     : climate?.retrievedAt?`Lecture AC2M : ${new Date(climate.retrievedAt).toLocaleString("fr-FR")}`:"Source AC2M";
-  return <div className="header-status-bar no-print" style={{height:40,minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"stretch",
-    background:C.surface,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,overflowX:"auto",overflowY:"hidden",color:C.text}}>
+  return <div className="header-status-bar no-print" style={{height:40,minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"stretch",position:"relative",
+    background:C.surface,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,color:C.text}}>
+    <button type="button" aria-expanded={showOtherZones} aria-controls="climate-other-zones" title={showOtherZones?"Masquer les autres locaux":"Afficher les autres locaux"}
+      onClick={()=>setShowOtherZones(value=>!value)} style={{display:"flex",alignItems:"center",gap:7,padding:"0 13px",border:0,borderRight:`1px solid ${C.border}`,
+        color:status.color,background:status.color+"12",fontSize:11,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,cursor:"pointer"}}>
+      <span role="status" aria-label={status.label} style={{display:"inline-flex",alignItems:"center",gap:7}}>
+        <span aria-hidden="true" style={{width:8,height:8,borderRadius:"50%",background:status.color}}/>
+        <span>{status.label}</span>
+      </span>
+      {refreshLabel&&<span style={{color:C.muted,borderLeft:`1px solid ${C.border}`,paddingLeft:7,fontFamily:"monospace",fontWeight:700}}>↻ {refreshLabel}</span>}
+      <span aria-hidden="true" style={{color:C.muted,fontSize:12}}>{showOtherZones?"▴":"▾"}</span>
+    </button>
     <div style={{display:"flex",alignItems:"stretch",flex:"1 0 auto",minWidth:0}}>
       {zones.map(zone=>{
         const zoneColor=zone.inRange===false?C.red:climate?.ok?C.green:C.muted;
@@ -153,13 +171,25 @@ const HeaderStatusBar = () => {
         </div>;
       })}
     </div>
-    <div style={{display:"flex",alignItems:"center",padding:"0 14px",borderRight:`1px solid ${C.border}`,flexShrink:0}}><HeaderClock compact/></div>
-    <div role="status" title={sourceInfo} style={{display:"flex",alignItems:"center",gap:7,padding:"0 13px",
-      color:status.color,background:status.color+"12",fontSize:11,fontWeight:800,whiteSpace:"nowrap",flexShrink:0}}>
-      <span aria-hidden="true" style={{width:8,height:8,borderRadius:"50%",background:status.color}}/>
-      <span>{status.label}</span>
-      {refreshLabel&&<span style={{color:C.muted,borderLeft:`1px solid ${C.border}`,paddingLeft:7,fontFamily:"monospace",fontWeight:700}}>↻ {refreshLabel}</span>}
+    <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0}}><HeaderClock compact/></div>
+    {showOtherZones&&<div id="climate-other-zones" role="region" aria-label="Autres locaux surveillés" title={sourceInfo}
+      style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:180,width:520,maxWidth:"calc(100vw - 32px)",background:C.surface,
+        border:`1px solid ${C.border}`,borderRadius:4,boxShadow:"0 6px 18px #0005",overflow:"hidden"}}>
+      <div style={{padding:"7px 11px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:900,color:C.muted,textTransform:"uppercase"}}>Autres locaux surveillés</div>
+      {otherZones.map((zone,index)=>{
+        const zoneColor=zone.inRange===false?C.red:climate?.ok?C.green:C.muted;
+        return <div key={zone.id} style={{display:"grid",gridTemplateColumns:"minmax(130px,1fr) auto",alignItems:"center",gap:12,padding:"9px 11px",
+          borderBottom:index<otherZones.length-1?`1px solid ${C.border}`:0,whiteSpace:"nowrap"}}>
+          <strong style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}>
+            <span aria-hidden="true" style={{width:7,height:7,borderRadius:"50%",background:zoneColor,flexShrink:0}}/>{zone.code} {zone.label}
+          </strong>
+          <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:zone.inRange===false?C.red:C.text}}>
+            {formatClimateMetric(zone.temperatureC)} °C · {formatClimateMetric(zone.humidityPct)} % · {formatClimateMetric(zone.pressurePa,0)} Pa
+          </span>
+        </div>;
+      })}
     </div>
+    }
   </div>;
 };
 

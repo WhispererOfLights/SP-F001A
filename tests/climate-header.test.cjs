@@ -3,14 +3,19 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const ctx={React:{createElement:()=>({})},ReactDOM:{createRoot:()=>({render:()=>{}})},document:{documentElement:{style:{}},body:{style:{}},getElementById:()=>({})},localStorage:{getItem:()=>null},Blob,TextEncoder};
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.climateState=climateHeaderState;globalThis.climateMetric=formatClimateMetric;globalThis.climateRefresh=climateRefreshLabel;globalThis.climateZones=CLIMATE_ZONE_FALLBACKS;',ctx);
+vm.runInContext(fs.readFileSync('src/App.runtime.js','utf8')+';globalThis.climateState=climateHeaderState;globalThis.climateMetric=formatClimateMetric;globalThis.climateRefresh=climateRefreshLabel;globalThis.climateZones=CLIMATE_ZONE_FALLBACKS;globalThis.climateDetailZones=CLIMATE_DETAIL_FALLBACKS;',ctx);
 
 assert.deepEqual([...ctx.climateZones].map(zone=>`${zone.code} ${zone.label}`),[
   '#512 Salle blanche',
+]);
+assert.deepEqual([...ctx.climateDetailZones].map(zone=>`${zone.code} ${zone.label}`),[
+  '#512a SAS',
   '#510 Stock MA12',
 ]);
 assert.equal(ctx.climateState(null).key,'unavailable');
-assert.equal(ctx.climateState({ok:true,stale:false,alarmActive:false,outOfRange:false}).label,'Alarme inactive');
+assert.equal(ctx.climateState({ok:true,stale:false,alarmActive:false,outOfRange:false}).label,'Conditions conformes');
+assert.equal(ctx.climateState({ok:true,stale:false,alarmActive:true,outOfRange:false}).label,'Alarme climatique');
+assert.equal(ctx.climateState({ok:false}).label,'Données indisponibles');
 assert.equal(ctx.climateState({ok:true,stale:false,alarmActive:true,outOfRange:true}).key,'alarm');
 assert.equal(ctx.climateState({ok:true,stale:false,alarmActive:false,outOfRange:true}).key,'out_of_range');
 assert.equal(ctx.climateState({ok:true,stale:true,alarmActive:false,outOfRange:false}).key,'stale');
