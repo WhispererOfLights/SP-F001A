@@ -440,8 +440,9 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
               <tbody>
                 {cycleGroups.flatMap(({c,status,last,cycles},gi)=>{
                   const tone=connectorStateTone(last?.action);
+                  const commentButtonId=`comment-mating-${c.id}`;
                   return [
-                  <tr key={`${c.id}_group`} style={{background:last?.action==="Mating"?C.green+"1f":last?.action==="Demating"?C.red+"1f":C.blue+"12",borderLeft:`3px solid ${tone.stroke}`}}>
+                  <tr key={`${c.id}_group`} onContextMenu={event=>rowActions.open(event,c.nConect||"connecteur",[commentContextAction(commentButtonId)])} style={{background:last?.action==="Mating"?C.green+"1f":last?.action==="Demating"?C.red+"1f":C.blue+"12",borderLeft:`3px solid ${tone.stroke}`}}>
                     <td colSpan={9} style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}>
                       <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap"}}>
                         <span style={{fontFamily:"monospace",fontSize:13,fontWeight:900,color:C.text}}>{c.nConect||"J?"}</span>
@@ -452,12 +453,13 @@ const TabDeMating = ({data,onChange,user,perms={},header,forceShowDeleted=false,
                         <span style={{fontFamily:"monospace",fontSize:10,color:C.blue}}>
                           {snScopeLabel(c,snRowsFromHeader(header))}
                         </span>
-                        <CommentBtn comments={c.comments||[]} onChange={v=>updC(c.id,"comments",v)} user={user} disabled={!perms.canComment}/>
+                        <CommentBtn buttonId={commentButtonId} comments={c.comments||[]} onChange={v=>updC(c.id,"comments",v)} user={user} disabled={!perms.canComment}/>
                       </div>
                     </td>
                   </tr>,
                   ...cycles.map(({idx,mat,dem,empty},i)=>(
                     <tr key={`${c.id}_${idx||"empty"}_${i}`} onContextMenu={event=>rowActions.open(event,`${c.nConect||"connecteur"} · cycle ${empty?"vide":idx}`,[
+                      commentContextAction(commentButtonId),
                       mat&&canEdit(c)?{label:"Annuler l'action Mating",icon:"×",color:C.green,onSelect:()=>setDeleteEvTarget({cid:c.id,eid:mat.id})}:null,
                       dem&&canEdit(c)?{label:"Annuler l'action Demating",icon:"×",color:C.blue,onSelect:()=>setDeleteEvTarget({cid:c.id,eid:dem.id})}:null,
                     ])} style={{background:(gi+i)%2===0?"transparent":C.stripe}}>

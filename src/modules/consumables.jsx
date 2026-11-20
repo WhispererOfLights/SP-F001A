@@ -675,7 +675,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               <TH w={68}>N° échant.</TH>
               <TH w={145}>Sous vide dès</TH>
               <TH w={52} color={C.green}>Traça</TH>
-              <TH w={28}>💬</TH>
+              <TH w={42}>💬</TH>
               <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
             <tr style={{background:C.blue+"0c",borderBottom:`2px solid ${C.border}`}}>
@@ -720,6 +720,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               const editable = canEditItem(o,it);
               const locked = valid || !editable;
               const rowKey=`${oid}_${iid}`;
+              const commentButtonId=`comment-consumable-${rowKey}`;
               const contextActions=[];
               if(!rowDeleted&&!valid&&editable) contextActions.push(
                 {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateLine(oid,iid)},
@@ -732,6 +733,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
               if(!rowDeleted&&!editable&&perms.canWrite) contextActions.push(
                 {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dupLine(oid,iid)},rowHistoryAction({...o,items:[it]}));
               if(rowDeleted) contextActions.push({label:"Réactiver",icon:"↩",color:C.yellow,onSelect:()=>opDeleted?setRestoreOpTarget(oid):setRestoreItemTarget({oid,iid})});
+              if(!rowDeleted) contextActions.unshift(commentContextAction(commentButtonId));
               return [
                 <tr key={rowKey} onContextMenu={event=>rowActions.open(event,`${conso?.label||"consommable"} · ${snScopeLabel(o,snRowsFromHeader(header))}`,contextActions)} style={{background:rowDeleted?"#da363318":it.tracaOk?"#23863610":idx%2===0?"transparent":C.stripe,
                   borderLeft:`3px solid ${rowDeleted?C.red:it.tracaOk?C.green:valid?C.green:conso?catColor:C.border}`,
@@ -793,7 +795,7 @@ const TabConsommables = ({data,onChange,user,perms={},consommables,onEditList,he
                   </TD>
                   <TD center>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
-                      <CommentBtn comments={it.comments||[]} onChange={v=>updItem(oid,iid,"comments",v)} user={user} disabled={!perms.canComment}/>
+                      <CommentBtn buttonId={commentButtonId} comments={it.comments||[]} onChange={v=>updItem(oid,iid,"comments",v)} user={user} disabled={!perms.canComment}/>
                       {it.remarque&&<span title={it.remarque} style={{fontSize:10,color:C.muted,fontFamily:"monospace",maxWidth:70,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{it.remarque}</span>}
                     </div>
                   </TD>

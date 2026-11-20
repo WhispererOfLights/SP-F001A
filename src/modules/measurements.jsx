@@ -143,7 +143,7 @@ const MeasurementGridCell = ({row,unit,rowIndex,columnIndex,canWrite,canComment,
       onMouseDown={event=>event.preventDefault()} onClick={()=>{setEditing(true);requestAnimationFrame(()=>{inputRef.current?.focus();inputRef.current?.select();});}}
       style={{position:"absolute",right:2,top:3,width:21,height:21,padding:0,border:0,borderRadius:2,background:C.blue,color:"white",fontSize:11,cursor:"pointer"}}>✎</button>}
     <div title="Commentaires de ce résultat" style={{position:"absolute",left:4,bottom:-1,lineHeight:1}}>
-      <CommentBtn comments={result?.comments||[]} onChange={onCommentsChange} user={user} disabled={!canComment}/>
+      <CommentBtn comments={result?.comments||[]} onChange={onCommentsChange} user={user} disabled={!canComment} tabIndex={-1}/>
     </div>
     <span aria-hidden="true" style={{position:"absolute",right:4,bottom:2,fontSize:7,fontWeight:900,color:status.color,pointerEvents:"none"}}>
       {status.id==="conforming"?"✓":status.id==="nonconforming"||status.id==="invalid"?"×":status.id==="missing"?"○":"i"}
@@ -258,11 +258,12 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
             const nonconforming=statuses.filter(status=>status.id==="nonconforming"||status.id==="invalid").length;
             const missing=statuses.filter(status=>status.id==="missing").length;
             const editable=canWrite&&!row.deleted;
+            const commentButtonId=`comment-measurement-${row.id}`;
             const contextActions=row.deleted
               ? (isAdminManager(user)?[
                   {label:"Restaurer cette mesure",icon:"↶",color:C.green,onSelect:()=>restoreRow(row)},
                   perms?.godMode?{label:"Effacer définitivement",icon:"×",color:C.red,onSelect:()=>purgeRow(row)}:null]:[])
-              : (canWrite?[{label:perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure",icon:"×",color:C.red,onSelect:()=>removeRow(row)}]:[]);
+              : [commentContextAction(commentButtonId),...(canWrite?[{label:perms?.godMode?"Effacer définitivement cette mesure":"Annuler cette mesure",icon:"×",color:C.red,onSelect:()=>removeRow(row)}]:[])];
             return <tr key={row.id} onContextMenu={event=>rowActions.open(event,row.mesure||"mesure",contextActions)} style={{opacity:row.deleted?.55:1,background:row.deleted?C.red+"0b":index%2?C.raised+"55":"transparent"}}>
               <TD><MeasurementField value={row.fiche} readOnly={!editable} onCommit={value=>updatePlanField(row,"fiche",value,"Fiche suiveuse")} placeholder="DOC-0013405_1" style={{minWidth:110}}/></TD>
               <TD><MeasurementField value={row.etape} readOnly={!editable} onCommit={value=>updatePlanField(row,"etape",value,"Étape / OP")} placeholder="40" style={{minWidth:65}}/></TD>
@@ -280,7 +281,7 @@ const TabMeasurements = ({data={},onChange,user,perms,units=[],activeUnitId="all
                 {!!stats.minUnits.length&&<div title={stats.minUnits.join(" ; ")} style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Min : {stats.minUnits.join(" · ")}</div>}
                 {!!stats.maxUnits.length&&<div title={stats.maxUnits.join(" ; ")} style={{color:C.muted,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Max : {stats.maxUnits.join(" · ")}</div>}
               </div></TD>
-              <TD center><CommentBtn comments={row.comments||[]} onChange={comments=>updateRow(row.id,{comments})} user={user} disabled={!perms?.canComment}/></TD>
+              <TD center><CommentBtn buttonId={commentButtonId} comments={row.comments||[]} onChange={comments=>updateRow(row.id,{comments})} user={user} disabled={!perms?.canComment}/></TD>
             </tr>;
           })}</tbody>
         </table>

@@ -123,7 +123,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
               <TH w={105}>Date calib</TH>
               <TH w={95}>Statut</TH>
               <TH w={96}>Date contrôle</TH>
-              <TH w={36}>💬</TH>
+              <TH w={42}>💬</TH>
               <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
           </thead>
@@ -133,6 +133,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
               const invalid=r.dateExpiration&&!isValidCalibDate(r.dateExpiration);
               const editable = canEdit(r);
               const locked = !!r.validated || !editable;
+              const commentButtonId=`comment-test-equipment-${r.id}`;
               const contextActions=[];
               if(!r.deleted&&!r.validated&&editable) contextActions.push(
                 {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
@@ -143,6 +144,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                 {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
                 {label:"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>setDeleteTarget(r.id)});
               if(!r.deleted&&!editable&&perms.canWrite) contextActions.push({label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
+              if(!r.deleted) contextActions.unshift(commentContextAction(commentButtonId));
               return [
                 <tr key={r.id} onContextMenu={event=>rowActions.open(event,`${r.nInv||"équipement"} · ${snScopeLabel(r,snRowsFromHeader(header))}`,contextActions)} style={{background:r.deleted?"#da363318":st?.bg||(i%2===0?"transparent":C.stripe),
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
@@ -177,7 +179,7 @@ const TabTestEquip = ({data,onChange,user,perms={},header,forceShowDeleted=false
                   <TD>
                     <Input value={r.checkDate} onChange={v=>upd(r.id,"checkDate",v)} small readOnly={locked} style={locked?LOCKED_INPUT_STYLE:{}}/>
                   </TD>
-                  <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
+                  <TD center><CommentBtn buttonId={commentButtonId} comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
                   <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
                     <RowVisibleActions row={r} validated={!!r.validated} editable={editable} onValidate={()=>validateRow(r.id)} onEdit={()=>unlockRow(r.id)}
                       onDelete={()=>r.editBase?cancelEdit(r.id):del(r.id)} deleteTitle={r.editBase?"Annuler les modifications":r.validated?"Annuler la ligne":"Effacer la ligne"}/>

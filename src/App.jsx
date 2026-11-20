@@ -86,6 +86,31 @@ const CLIMATE_DETAIL_FALLBACKS = [
 const formatClimateMetric = (value,digits=1) => Number.isFinite(Number(value))
   ? Number(value).toLocaleString("fr-FR",{minimumFractionDigits:digits,maximumFractionDigits:digits})
   : "—";
+const climateMetricOutOfRange = (zone,key) => {
+  if(Array.isArray(zone?.alerts)) return zone.alerts.includes(key);
+  const value=Number(zone?.[key]);
+  const min=Number(zone?.thresholds?.[key]?.min);
+  const max=Number(zone?.thresholds?.[key]?.max);
+  return Number.isFinite(value)&&((Number.isFinite(min)&&value<min)||(Number.isFinite(max)&&value>max));
+};
+const ClimateReadings = ({zone}) => {
+  const readings=[
+    {key:"temperatureC",digits:1,unit:"°C"},
+    {key:"humidityPct",digits:1,unit:"%"},
+    {key:"pressurePa",digits:0,unit:"Pa"},
+  ];
+  return <span style={{display:"inline-flex",alignItems:"center",gap:6,fontFamily:"monospace",fontSize:12,fontWeight:700}}>
+    {readings.map((reading,index)=>{
+      const outOfRange=climateMetricOutOfRange(zone,reading.key);
+      return <React.Fragment key={reading.key}>
+        {index>0&&<span aria-hidden="true" style={{color:C.muted}}>·</span>}
+        <span title={outOfRange?"Valeur hors limites":undefined} style={{color:outOfRange?C.red:C.text,fontWeight:outOfRange?900:700}}>
+          {formatClimateMetric(zone?.[reading.key],reading.digits)} {reading.unit}
+        </span>
+      </React.Fragment>;
+    })}
+  </span>;
+};
 const climateRefreshLabel = data => {
   if(!data?.retrievedAt) return "";
   const date=new Date(data.retrievedAt);
@@ -105,10 +130,11 @@ const HeaderClock = ({compact=false}) => {
   const iso=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
   iso.setUTCDate(iso.getUTCDate()+4-(iso.getUTCDay()||7));
   const week=Math.ceil((((iso-new Date(Date.UTC(iso.getUTCFullYear(),0,1)))/86400000)+1)/7);
-  return <div aria-label="Date, heure et semaine" style={{display:"flex",alignItems:"center",gap:compact?8:12,color:C.text,whiteSpace:"nowrap",fontFamily:"monospace"}}>
-    <span style={{fontSize:compact?12:17,fontWeight:800}}>S{String(week).padStart(2,"0")}</span>
-    <span style={{fontSize:compact?12:16}}>{date.toLocaleDateString("fr-FR")}</span>
-    <time style={{fontSize:compact?16:23,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{date.toLocaleTimeString("fr-FR")}</time>
+  return <div aria-label="Date, heure et semaine" style={{display:"flex",alignItems:"center",justifyContent:"center",gap:compact?8:11,color:C.text,whiteSpace:"nowrap",fontFamily:"monospace"}}>
+    <span style={{fontSize:compact?12:13,fontWeight:800,color:C.muted}}>S{String(week).padStart(2,"0")}</span>
+    <span style={{fontSize:compact?12:16,fontWeight:compact?500:700}}>{date.toLocaleDateString("fr-FR")}</span>
+    <span aria-hidden="true" style={{width:1,height:compact?16:24,background:C.border}}/>
+    <time style={{fontSize:compact?16:27,fontWeight:900,fontVariantNumeric:"tabular-nums",lineHeight:1}}>{date.toLocaleTimeString("fr-FR")}</time>
   </div>;
 };
 const HeaderStatusBar = () => {
@@ -143,11 +169,11 @@ const HeaderStatusBar = () => {
   const sourceInfo=climate?.sourceDate&&climate?.sourceTime
     ? `Source AC2M : ${climate.sourceDate} ${climate.sourceTime}`
     : climate?.retrievedAt?`Lecture AC2M : ${new Date(climate.retrievedAt).toLocaleString("fr-FR")}`:"Source AC2M";
-  return <div className="header-status-bar no-print" style={{height:40,minHeight:40,boxSizing:"border-box",display:"flex",alignItems:"stretch",position:"relative",
+  return <div className="header-status-bar no-print" style={{height:52,minHeight:52,boxSizing:"border-box",display:"grid",gridTemplateColumns:"minmax(0,1fr) auto minmax(0,1fr)",alignItems:"stretch",position:"relative",
     background:C.surface,borderTop:`1px solid ${C.border}`,borderBottom:`1px solid ${C.border}`,color:C.text}}>
     <button type="button" aria-expanded={showOtherZones} aria-controls="climate-other-zones" title={showOtherZones?"Masquer les autres locaux":"Afficher les autres locaux"}
-      onClick={()=>setShowOtherZones(value=>!value)} style={{display:"flex",alignItems:"center",gap:7,padding:"0 13px",border:0,borderRight:`1px solid ${C.border}`,
-        color:status.color,background:status.color+"12",fontSize:11,fontWeight:800,whiteSpace:"nowrap",flexShrink:0,cursor:"pointer"}}>
+      onClick={()=>setShowOtherZones(value=>!value)} style={{display:"flex",alignItems:"center",justifySelf:"start",gap:7,padding:"0 13px",border:0,borderRight:`1px solid ${C.border}`,
+        color:status.color,background:status.color+"0D",fontSize:11,fontWeight:800,whiteSpace:"nowrap",minWidth:0,cursor:"pointer"}}>
       <span role="status" aria-label={status.label} style={{display:"inline-flex",alignItems:"center",gap:7}}>
         <span aria-hidden="true" style={{width:8,height:8,borderRadius:"50%",background:status.color}}/>
         <span>{status.label}</span>
@@ -155,23 +181,23 @@ const HeaderStatusBar = () => {
       {refreshLabel&&<span style={{color:C.muted,borderLeft:`1px solid ${C.border}`,paddingLeft:7,fontFamily:"monospace",fontWeight:700}}>↻ {refreshLabel}</span>}
       <span aria-hidden="true" style={{color:C.muted,fontSize:12}}>{showOtherZones?"▴":"▾"}</span>
     </button>
-    <div style={{display:"flex",alignItems:"stretch",flex:"1 0 auto",minWidth:0}}>
+    <div style={{gridColumn:2,gridRow:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 18px",minWidth:315}}>
+      <HeaderClock/>
+    </div>
+    <div style={{gridColumn:3,gridRow:1,display:"flex",alignItems:"stretch",justifyContent:"flex-end",minWidth:0}}>
       {zones.map(zone=>{
         const zoneColor=zone.inRange===false?C.red:climate?.ok?C.green:C.muted;
         const threshold=zone.thresholds;
         const title=threshold
           ? `${zone.code} ${zone.label}\nTempérature : ${threshold.temperatureC.min} à ${threshold.temperatureC.max} °C\nHumidité : ${threshold.humidityPct.min} à ${threshold.humidityPct.max} %\nPression : ${threshold.pressurePa.min} à ${threshold.pressurePa.max} Pa`
           : `${zone.code} ${zone.label}`;
-        return <div key={zone.id} title={title} style={{display:"flex",alignItems:"center",gap:8,minWidth:245,padding:"0 14px",boxSizing:"border-box",borderRight:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>
+        return <div key={zone.id} title={title} style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,minWidth:345,padding:"0 14px",boxSizing:"border-box",borderLeft:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>
           <span aria-hidden="true" style={{width:7,height:7,borderRadius:"50%",background:zoneColor,flexShrink:0}}/>
           <strong style={{fontSize:12}}>{zone.code} {zone.label}</strong>
-          <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:zone.inRange===false?C.red:C.text}}>
-            {formatClimateMetric(zone.temperatureC)} °C · {formatClimateMetric(zone.humidityPct)} % · {formatClimateMetric(zone.pressurePa,0)} Pa
-          </span>
+          <ClimateReadings zone={zone}/>
         </div>;
       })}
     </div>
-    <div style={{display:"flex",alignItems:"center",padding:"0 14px",flexShrink:0}}><HeaderClock compact/></div>
     {showOtherZones&&<div id="climate-other-zones" role="region" aria-label="Autres locaux surveillés" title={sourceInfo}
       style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:180,width:520,maxWidth:"calc(100vw - 32px)",background:C.surface,
         border:`1px solid ${C.border}`,borderRadius:4,boxShadow:"0 6px 18px #0005",overflow:"hidden"}}>
@@ -183,9 +209,7 @@ const HeaderStatusBar = () => {
           <strong style={{display:"flex",alignItems:"center",gap:8,fontSize:12}}>
             <span aria-hidden="true" style={{width:7,height:7,borderRadius:"50%",background:zoneColor,flexShrink:0}}/>{zone.code} {zone.label}
           </strong>
-          <span style={{fontFamily:"monospace",fontSize:12,fontWeight:700,color:zone.inRange===false?C.red:C.text}}>
-            {formatClimateMetric(zone.temperatureC)} °C · {formatClimateMetric(zone.humidityPct)} % · {formatClimateMetric(zone.pressurePa,0)} Pa
-          </span>
+          <ClimateReadings zone={zone}/>
         </div>;
       })}
     </div>
@@ -1764,7 +1788,11 @@ const TrackedSNs = ({data,onChange,onSplitLot,onLotQuantity,onConvertUnit,splitH
 
 // ─── Système de commentaires threadés ────────────────────────────────────
 // comments = [{id, dt, visa, text, replyTo}]
-const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null}) => {
+const commentContextAction = buttonId => ({
+  label:"Commentaires",icon:"💬",color:C.blue,
+  onSelect:()=>document.getElementById(buttonId)?.click(),
+});
+const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null, buttonId="", tabIndex=0}) => {
   const [open, setOpen]     = React.useState(false);
   const [draft, setDraft]   = React.useState("");
   const [replyTo, setReplyTo] = React.useState(null); // {id, visa, text}
@@ -1818,14 +1846,16 @@ const CommentBtn = ({comments, onChange, user, disabled=false, systemInfo=null})
 
   return (
     <>
-      <span onClick={openModal} title={count?`${count} commentaire${count>1?"s":""}` : systemInfo?.buttonTitle||"Ajouter un commentaire"}
+      <span id={buttonId||undefined} role="button" tabIndex={tabIndex} onClick={openModal}
+        onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openModal(e);}}}
+        title={count?`${count} commentaire${count>1?"s":""}` : systemInfo?.buttonTitle||"Ajouter un commentaire"}
         style={{cursor:"pointer",fontSize:15,opacity:(count||systemInfo)?1:.35,userSelect:"none",
-          position:"relative",display:"inline-block"}}>
+          position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center",width:30,height:24}}>
         💬
         {systemInfo&&<span aria-label={systemInfo.ariaLabel} title={systemInfo.buttonTitle}
           style={{position:"absolute",left:-1,bottom:0,width:6,height:6,borderRadius:"50%",
             background:systemInfo.color||C.blue,border:`1px solid ${C.surface}`}}/>}
-        {count>0&&<span style={{position:"absolute",top:-5,right:-7,
+        {count>0&&<span style={{position:"absolute",top:-2,right:-1,
           background:C.accent,color:"#fff",borderRadius:10,fontSize:8,fontWeight:700,
           padding:"1px 4px",minWidth:14,textAlign:"center",lineHeight:"14px"}}>
           {count>9?"9+":count}
@@ -3329,7 +3359,7 @@ export default function App(){
       />}
       {/* Tabs */}
       <div className="sticky-tabs" style={{background:C.surface,borderBottom:`1px solid ${C.border}`,
-        display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:"calc(108px + var(--instance-banner-height, 0px))",zIndex:95}}>
+        display:"flex",overflowX:"auto",padding:"0 12px",position:"sticky",top:"calc(120px + var(--instance-banner-height, 0px))",zIndex:95}}>
         {TABS.map(t=>{
           const active=activeTab===t.id;
           const dot=(t.id==="faits"&&(faitsOpen>0||ows>0))||(t.id==="testequip"&&horsCalib>0);

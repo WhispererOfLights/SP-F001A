@@ -471,6 +471,10 @@ const otherEntry={id:'other-of',of:'100OTHER',status:'en_cours',codeArticle:'250
     await importedMain.getByTitle('1 commentaire',{exact:true}).click();
     await page.getByText('Montage demandé par le BE',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Fermer les commentaires',exact:true}).click();
+    await importedMain.click({button:'right',position:{x:120,y:12}});
+    await page.getByRole('menuitem',{name:/Commentaires/}).click();
+    await page.getByText('Montage demandé par le BE',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Fermer les commentaires',exact:true}).click();
     await importedMain.locator('[data-entry-field="valeur"]').fill('12K');
     await importedMain.getByLabel('Importé, modifié',{exact:true}).waitFor();
     await importedMain.getByRole('button',{name:'Valider la ligne',exact:true}).click();

@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v355
+**Version documentée :** v356
 **Date :** 20 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -31,7 +31,7 @@ Une instance pilote isolée est disponible sur le port 5182 avec sa propre base 
 - Les lignes validées conservent le visa et la date de l'auteur.
 - Les annulations, suppressions et corrections restent traçables. Les Admin et Manager disposent d'outils supplémentaires encadrés.
 - Les actions principales restent visibles à droite de chaque ligne : valider ou modifier, consulter l'historique et annuler ou supprimer. Le nombre de modifications est affiché comme une notification sur l'historique.
-- Les actions secondaires restent accessibles par clic droit afin de garder les tableaux lisibles sans masquer les commandes essentielles.
+- Les actions secondaires restent accessibles par clic droit afin de garder les tableaux lisibles sans masquer les commandes essentielles; les commentaires de chaque ligne restent accessibles à la fois par la bulle et par ce menu dans tous les onglets métier.
 - La duplication utilise deux étapes : paramétrage puis vérification obligatoire. Avant confirmation, l'interface récapitule les lignes sources, la règle de copie, chaque destination et le nombre exact de lignes qui seront créées. Aucune ligne existante n'est remplacée.
 
 ## 4. Profils et droits
@@ -76,11 +76,11 @@ L'accueil donne une vue opérationnelle des OF et sert de point de départ aux a
 
 ### 5.3 Environnement des salles
 
-- Bandeau climatique commun à l'accueil et aux dossiers, avec semaine, date et heure.
+- Bandeau climatique commun à l'accueil et aux dossiers, avec semaine, date et heure mises en évidence au centre.
 - Lecture en temps réel de la page AC2M référencée par la page réseau historique fournie par l'atelier.
 - Affichage permanent limité à `#512 Salle blanche`.
 - État climatique cliquable à gauche : il ouvre les détails de `#512a SAS` et `#510 Stock MA12` sans agrandir le bandeau principal.
-- Température, humidité relative et pression affichées séparément pour chaque lieu.
+- Température, humidité relative et pression affichées séparément pour chaque lieu; lorsqu'un seuil est dépassé, seule la mesure concernée passe en rouge.
 - État climatique lisible (`Conditions conformes`, `Alarme climatique`, valeur hors limites ou données indisponibles).
 - Heure de la dernière actualisation affichée à côté de l'état pour confirmer visuellement la fraîcheur des données.
 - Conservation temporaire de la dernière lecture en cas d'indisponibilité brève; l'interface indique alors clairement que les données sont anciennes ou indisponibles.

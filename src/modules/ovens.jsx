@@ -169,7 +169,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
               <TH w={70}>Four N°</TH><TH w={58}>Durée [H]</TH><TH w={58}>Temp [°C]</TH>
               <TH w={112}>▶ Entrée</TH><TH w={138}>Date/Heure entrée</TH>
               <TH w={96}>■ Sortie</TH><TH w={122}>Date/Heure sortie</TH>
-              <TH w={34}>💬</TH>
+              <TH w={42}>💬</TH>
               <TH w={82} style={{position:"sticky",right:0,zIndex:3,textAlign:"center",borderLeft:`1px solid ${C.border}`}}>Actions</TH>
             </tr>
           </thead>
@@ -179,6 +179,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
               const vacuumExit=isVacuumExit(r);
               const editable = canEdit(r);
               const locked = !!r.validated || !editable;
+              const commentButtonId=`comment-oven-${r.id}`;
               const fourVal=String(r.fourN||"").trim().toLowerCase();
               const fourOk=!r.fourN||fours.some(t=>
                 (t.nInv||"").trim().toLowerCase()===fourVal ||
@@ -201,6 +202,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                 {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
                 {label:r.editBase?"Annuler les modifications":"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>r.editBase?cancelEdit(r.id):del(r.id)});
               if(!r.deleted&&!editable&&perms.canWrite) contextActions.push({label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
+              if(!r.deleted) contextActions.unshift(commentContextAction(commentButtonId));
               return [
                 <tr key={r.id} onContextMenu={event=>rowActions.open(event,`${vacuumExit?"Sortie vide":r.fourN||"étuvage"} · ${snScopeLabel(r,snRowsFromHeader(header))}`,contextActions)} style={{background:r.deleted?"#da363318":vacuumExit?"#23863610":outFour?"#23863610":inFour?"#1f6feb10":i%2===0?"transparent":C.stripe,
                   textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:1,
@@ -284,7 +286,7 @@ const TabEtuvage = ({data,onChange,user,perms={},allRows,tstRows,header,forceSho
                       : <span style={{fontFamily:"monospace",fontSize:11,color:outFour?C.green:C.muted}}>{r.sortieDT||"—"}</span>}
                   </TD>
                   <TD center style={{pointerEvents:"all"}}>
-                    <CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/>
+                    <CommentBtn buttonId={commentButtonId} comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/>
                   </TD>
                   <TD center style={{position:"sticky",right:0,zIndex:2,width:82,minWidth:82,maxWidth:82,background:C.panel,borderLeft:`1px solid ${C.border}`}}>
                     <RowVisibleActions row={r} validated={!!r.validated} editable={editable}

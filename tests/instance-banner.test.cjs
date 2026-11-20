@@ -14,7 +14,7 @@ assert.match(html, /BASE PRODUCTION/, "Le libellé de production doit être expl
 assert.match(html, /BASE TEST/, "Le libellé de test doit être explicite");
 
 assert.match(app, /top:"var\(--instance-banner-height, 0px\)"/, "La barre du dossier doit rester sous le bandeau");
-assert.match(app, /top:"calc\(108px \+ var\(--instance-banner-height, 0px\)\)"/, "Les onglets doivent rester sous le bandeau climatique");
+assert.match(app, /top:"calc\(120px \+ var\(--instance-banner-height, 0px\)\)"/, "Les onglets doivent rester sous le bandeau climatique");
 assert.match(app, /top:"calc\(151px \+ var\(--instance-banner-height, 0px\)\)"/, "L'entête OF doit rester sous le bandeau climatique");
 assert.match(serverStatus, /For attempt = 1 To 30/, "Le raccourci serveur doit attendre une relance lente");
 

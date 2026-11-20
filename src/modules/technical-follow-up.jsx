@@ -278,6 +278,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
             const closed_r  = isClosed(r);
             const editable = canEdit(r);
             const locked = !!r.validated || !editable;
+            const commentButtonId=`comment-technical-${r.id}`;
             const contextActions=[];
             if(!r.deleted&&!r.validated&&editable) contextActions.push(
               {label:"Valider",icon:"✓",color:C.green,onSelect:()=>validateRow(r.id)},
@@ -288,6 +289,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
               {label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r),
               {label:"Annuler la ligne",icon:"×",color:C.red,onSelect:()=>del(r.id)});
             if(!r.deleted&&!editable&&perms.canWrite) contextActions.push({label:"Dupliquer",icon:"⧉",color:C.blue,onSelect:()=>dup(r.id)},rowHistoryAction(r));
+            if(!r.deleted) contextActions.unshift(commentContextAction(commentButtonId));
             return [
               <tr key={r.id} onContextMenu={event=>rowActions.open(event,`${r.type||"fait"} ${r.numero||""} · ${snScopeLabel(r,snRowsFromHeader(header))}`,contextActions)} style={{background:r.deleted?"#da363318":closed_r?"#23863612":i%2===0?"transparent":C.stripe,
                 textDecoration:r.deleted?"line-through":undefined,opacity:r.deleted?.6:closed_r?.85:1,
@@ -349,7 +351,7 @@ const TabFaits = ({data,onChange,user,perms={},faitTypes,onEditTypes,header,forc
                     style={{...(editable?{}:LOCKED_INPUT_STYLE),background:closed_r?"#23863620":undefined,color:closed_r?C.green:undefined,fontWeight:closed_r?700:400}}/>
                 </TD>
 
-                <TD center><CommentBtn comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
+                <TD center><CommentBtn buttonId={commentButtonId} comments={r.comments||[]} onChange={v=>upd(r.id,"comments",v)} user={user} disabled={!perms.canComment}/></TD>
 
                 {/* Action */}
                 <TD center>
