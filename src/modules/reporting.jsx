@@ -347,10 +347,12 @@ const buildComponentLabelPdf = ({ofData,row,selectedUnitIds=null}) => {
 };
 
 const OPERATIONAL_LABEL_TYPES = [
+  {id:"identification",label:"Identification"},
   {id:"kitting",label:"Kitting"},
   {id:"binder",label:"Log fab"},
   {id:"stock",label:"Mise en stock"},
   {id:"bonding",label:"Collage / coating"},
+  {id:"vacuum",label:"Mise sous vide"},
   {id:"facts",label:"Info suivi technique"},
 ];
 
@@ -392,8 +394,8 @@ const operationalLabelFacts = ({ofData,unit}) => {
 };
 const operationalLabelAvailability = ({type,ofData,selectedUnitIds=null,consommables=[]}) => {
   const units=operationalLabelUnits(ofData,selectedUnitIds);
-  if(!["bonding","facts"].includes(type)) return {available:true,count:units.length,total:units.length};
-  const count=units.filter(unit=>type==="bonding"
+  if(!["bonding","vacuum","facts"].includes(type)) return {available:true,count:units.length,total:units.length};
+  const count=units.filter(unit=>["bonding","vacuum"].includes(type)
     ? !!operationalLabelPolymerization({ofData,unit,consommables})
     : operationalLabelFacts({ofData,unit}).length>0).length;
   return {available:count>0,count,total:units.length};
@@ -406,25 +408,36 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[],orientation=
   const MM=72/25.4;
   const portrait=orientation==="portrait";
   const width=(portrait?50.8:76)*MM,height=(portrait?76:50.8)*MM;
+  const safe=3*MM;
+  const contentLeft=safe,contentBottom=safe,contentRight=width-safe,contentTop=height-safe;
+  const contentWidth=contentRight-contentLeft,contentHeight=contentTop-contentBottom;
   const fit=(value,max,min,maxWidth)=>Math.max(min,Math.min(max,maxWidth/Math.max(1,pdfHelveticaTextWidth(value,1))));
   const txt=(value,x,y,size=7,bold=false,color="0.08 0.10 0.14")=>`BT /${bold?"F2":"F1"} ${size.toFixed(2)} Tf ${color} rg 1 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)} Tm (${pdfEsc(value)}) Tj ET`;
-  const centered=(value,y,max=9,min=5.3,bold=false,color="0.08 0.10 0.14",maxWidth=width-10)=>{
+  const centered=(value,y,max=9,min=5.3,bold=false,color="0.08 0.10 0.14",maxWidth=contentWidth-8)=>{
     const text=pdfText(value||"N/A");
     const size=fit(text,max,min,maxWidth);
     return txt(text,(width-pdfHelveticaTextWidth(text,size))/2,y,size,bold,color);
   };
-  const page=({title="",footer,dividerY=0,lines=[]})=>{
-    const ops=[];
+  const centeredIn=(value,x,cellWidth,y,max=9,min=5.3,bold=false,color="0.08 0.10 0.14")=>{
+    const text=pdfText(value||"N/A");
+    const size=fit(text,max,min,cellWidth-8);
+    return txt(text,x+(cellWidth-pdfHelveticaTextWidth(text,size))/2,y,size,bold,color);
+  };
+  const hLine=y=>`q 0.08 0.10 0.14 RG .55 w ${contentLeft.toFixed(2)} ${y.toFixed(2)} m ${contentRight.toFixed(2)} ${y.toFixed(2)} l S Q`;
+  const vLine=(x,y1,y2)=>`q 0.08 0.10 0.14 RG .55 w ${x.toFixed(2)} ${y1.toFixed(2)} m ${x.toFixed(2)} ${y2.toFixed(2)} l S Q`;
+  const page=({title="",footer,dividerY=0,lines=[],raw=[]})=>{
+    const ops=[`q 0.55 0.58 0.62 RG .55 w ${contentLeft.toFixed(2)} ${contentBottom.toFixed(2)} ${contentWidth.toFixed(2)} ${contentHeight.toFixed(2)} re S Q`];
     if(title){
-      ops.push(`q 0.02 0.02 0.02 rg 0 ${(height-22).toFixed(2)} ${width.toFixed(2)} 22 re f Q`);
-      ops.push(centered(title,height-15,10,6.4,true,"1 1 1"));
+      ops.push(`q 0.02 0.02 0.02 rg ${contentLeft.toFixed(2)} ${(contentTop-22).toFixed(2)} ${contentWidth.toFixed(2)} 22 re f Q`);
+      ops.push(centered(title,contentTop-15,10,6.4,true,"1 1 1"));
     }
     if(footer){
-      ops.push(`q 0.02 0.02 0.02 rg 0 0 ${width.toFixed(2)} 15 re f Q`);
-      ops.push(centered(footer,5,7.2,5,true,"1 1 1"));
+      ops.push(`q 0.02 0.02 0.02 rg ${contentLeft.toFixed(2)} ${contentBottom.toFixed(2)} ${contentWidth.toFixed(2)} 15 re f Q`);
+      ops.push(centered(footer,contentBottom+5,7.2,5,true,"1 1 1"));
     }
-    if(dividerY) ops.push(`q 0.70 0.73 0.77 RG .45 w 8 ${dividerY.toFixed(2)} m ${(width-8).toFixed(2)} ${dividerY.toFixed(2)} l S Q`);
-    lines.forEach(line=>ops.push(centered(line.text,line.y,line.max||9,line.min||5.3,!!line.bold,line.color||"0.08 0.10 0.14",line.maxWidth||width-10)));
+    if(dividerY) ops.push(`q 0.70 0.73 0.77 RG .45 w ${(contentLeft+4).toFixed(2)} ${dividerY.toFixed(2)} m ${(contentRight-4).toFixed(2)} ${dividerY.toFixed(2)} l S Q`);
+    lines.forEach(line=>ops.push(centered(line.text,line.y,line.max||9,line.min||5.3,!!line.bold,line.color||"0.08 0.10 0.14",line.maxWidth||contentWidth-8)));
+    raw.forEach(operation=>ops.push(operation));
     return ops;
   };
   const pages=[];
@@ -437,17 +450,33 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[],orientation=
     const otp=header.otp||header.projet||"N/A";
     const units=operationalLabelUnits(ofData,entry.selectedUnitIds||null);
     const commonHeader=(identity,identityMax=10)=>portrait?[
-      {text:article,y:195,max:13,min:8.5,bold:true},
-      {text:description,y:177,max:8,min:5.2},
-      {text:identity,y:142,max:Math.max(identityMax,15),min:8,bold:true},
-      {text:`OF ${of}`,y:116,max:8,min:5.4,bold:true},
-      {text:`OTP ${otp}`,y:102,max:7.3,min:4.8,bold:true},
+      {text:article,y:contentTop-14,max:13,min:8.5,bold:true},
+      {text:description,y:contentTop-31,max:8,min:5.2},
+      {text:identity,y:contentTop-66,max:Math.max(identityMax,15),min:8,bold:true},
+      {text:`OF ${of}`,y:contentTop-92,max:8,min:5.4,bold:true},
+      {text:`OTP ${otp}`,y:contentTop-108,max:7.3,min:4.8,bold:true},
     ]:[
-      {text:article,y:128,max:10.5,bold:true},
-      {text:description,y:114,max:7.6},
-      {text:identity,y:87,max:identityMax,min:7.5,bold:true},
-      {text:`OF ${of} - OTP ${otp}`,y:67,max:7,bold:true},
+      {text:article,y:contentTop-12,max:10.5,bold:true},
+      {text:description,y:contentTop-28,max:7.6},
+      {text:identity,y:contentTop-54,max:identityMax,min:7.5,bold:true},
+      {text:`OF ${of} - OTP ${otp}`,y:contentTop-75,max:7,bold:true},
     ];
+    if(type==="identification"){
+      units.forEach(unit=>{
+        const bodyTop=contentTop-22;
+        const footerTop=contentBottom+15;
+        const middleY=footerTop+(bodyTop-footerTop)*.48;
+        const cellWidth=contentWidth/2;
+        pages.push(page({title:of,footer:otp,raw:[
+          hLine(bodyTop),hLine(middleY),hLine(footerTop),
+          vLine(width/2,middleY,bodyTop),
+          centeredIn(article,contentLeft,cellWidth,middleY+(bodyTop-middleY)/2-4,12,7,true),
+          centeredIn(operationalLabelIdentityWithQuantity(unit),width/2,cellWidth,middleY+(bodyTop-middleY)/2-4,13,7.5,true),
+          centered(description,footerTop+(middleY-footerTop)/2-4,8.5,5.2,false),
+        ]}));
+      });
+      return;
+    }
     if(type==="kitting"){
       const serials=units.filter(unit=>unit.sn).map(unit=>unit.sn);
       const lots=units.filter(unit=>unit.lot).map(unit=>unit.lot);
@@ -463,37 +492,70 @@ const buildOperationalLabelsPdf = ({type,entries=[],consommables=[],orientation=
     units.forEach(unit=>{
       const identity=operationalLabelIdentity(unit);
       if(type==="binder"){
-        pages.push(page({dividerY:portrait?0:59,lines:portrait?[
-          {text:article,y:190,max:16,min:10,bold:true},
-          {text:description,y:165,max:9,min:5.6},
-          {text:operationalLabelIdentityWithQuantity(unit),y:115,max:22,min:11,bold:true},
-          {text:`OF ${of}`,y:70,max:10,min:6,bold:true},
-          {text:`OTP ${otp}`,y:45,max:9,min:5.5,bold:true},
-        ]:commonHeader(operationalLabelIdentityWithQuantity(unit),22)}));
+        const firstDivider=contentTop-(portrait?46:31);
+        const secondDivider=contentTop-(portrait?106:75);
+        pages.push(page({raw:[hLine(firstDivider),hLine(secondDivider)],lines:portrait?[
+          {text:operationalLabelIdentityWithQuantity(unit),y:contentTop-34,max:22,min:11,bold:true},
+          {text:description,y:contentTop-70,max:10,min:5.6},
+          {text:article,y:contentTop-94,max:14,min:8,bold:true},
+          {text:`OTP ${otp}`,y:contentTop-132,max:9,min:5.5,bold:true},
+          {text:`OF ${of}`,y:contentTop-152,max:7,min:4.8},
+        ]:[
+          {text:operationalLabelIdentityWithQuantity(unit),y:contentTop-22,max:22,min:11,bold:true},
+          {text:description,y:contentTop-48,max:9,min:5.6},
+          {text:article,y:contentTop-66,max:13,min:8,bold:true},
+          {text:`OTP ${otp}`,y:contentTop-91,max:8.5,min:5.5,bold:true},
+          {text:`OF ${of}`,y:contentTop-108,max:6.5,min:4.6},
+        ]}));
       }else if(type==="stock"){
         pages.push(page({lines:portrait?[
-          {text:article,y:190,max:20,min:12,bold:true},
-          {text:description,y:168,max:9,min:5.4},
-          {text:identity,y:122,max:20,min:10,bold:true},
-          {text:`OF ${of}`,y:84,max:9,min:5.8,bold:true},
-          {text:`OTP ${otp}`,y:64,max:8,min:5.2,bold:true},
+          {text:article,y:contentTop-22,max:20,min:12,bold:true},
+          {text:description,y:contentTop-47,max:9,min:5.4},
+          {text:identity,y:contentTop-87,max:20,min:10,bold:true},
+          {text:`OF ${of}`,y:contentTop-124,max:9,min:5.8,bold:true},
+          {text:`OTP ${otp}`,y:contentTop-145,max:8,min:5.2,bold:true},
         ]:[
-          {text:article,y:116,max:18,min:12,bold:true},
-          {text:description,y:91,max:9,min:5.8},
-          {text:identity,y:54,max:17,min:9,bold:true},
-          {text:`OF ${of} - OTP ${otp}`,y:18,max:8,min:5.2,bold:true},
+          {text:article,y:contentTop-20,max:18,min:12,bold:true},
+          {text:description,y:contentTop-45,max:9,min:5.8},
+          {text:identity,y:contentTop-82,max:17,min:9,bold:true},
+          {text:`OF ${of} - OTP ${otp}`,y:contentBottom+10,max:8,min:5.2,bold:true},
         ]}));
       }else if(type==="bonding"){
         const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
         if(!polymerization) return;
         const category=String(polymerization.consumable?.cat||"").toUpperCase();
         const title=category.includes("COAT")||category.includes("VERNIS")?"COATING":"COLLAGE";
-        pages.push(page({dividerY:portrait?88:59,lines:[
-          ...commonHeader(operationalLabelIdentityWithQuantity(unit),10),
-          {text:title,y:portrait?77:48,max:9,bold:true},
-          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:portrait?59:34,max:6.8,bold:true},
-          {text:portrait?`Début : ${formatAvailabilityDT(polymerization.start)}`:`Début : ${formatAvailabilityDT(polymerization.start)}  |  Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:portrait?41:18,max:6,min:4.6,bold:true},
-          ...(portrait?[{text:`Fin : ${formatAvailabilityDT(polymerization.readyAt)}`,y:27,max:6,min:4.6,bold:true}]:[]),
+        const startLabel=formatAvailabilityDT(polymerization.start).replace(/\//g,".");
+        const endLabel=formatAvailabilityDT(polymerization.readyAt).replace(/\//g,".");
+        pages.push(page({title,footer:otp,lines:portrait?[
+          {text:article,y:contentTop-42,max:13,min:8,bold:true},
+          {text:description,y:contentTop-62,max:8,min:5.2},
+          {text:operationalLabelIdentityWithQuantity(unit),y:contentTop-88,max:15,min:8,bold:true},
+          {text:`OF ${of}`,y:contentTop-108,max:8,min:5.2,bold:true},
+          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:contentTop-137,max:7,min:4.8,bold:true},
+          {text:`Début : ${startLabel}`,y:contentTop-158,max:6.6,min:4.6,bold:true},
+          {text:`Fin : ${endLabel}`,y:contentTop-176,max:6.6,min:4.6,bold:true},
+        ]:[
+          {text:article,y:contentTop-34,max:10,min:6.5,bold:true},
+          {text:description,y:contentTop-47,max:7,min:4.9},
+          {text:`${operationalLabelIdentityWithQuantity(unit)}  |  OF ${of}`,y:contentTop-61,max:8.5,min:5.2,bold:true},
+          {text:`Produit : ${operationalLabelProduct(polymerization.consumable)}`,y:contentTop-75,max:6.5,min:4.6,bold:true},
+          {text:`Début : ${startLabel}  |  Fin : ${endLabel}`,y:contentTop-90,max:6,min:4.2,bold:true},
+        ]}));
+      }else if(type==="vacuum"){
+        const polymerization=operationalLabelPolymerization({ofData,unit,consommables});
+        if(!polymerization) return;
+        const readyDate=polymerization.readyAt instanceof Date&&!Number.isNaN(polymerization.readyAt.getTime())
+          ? polymerization.readyAt.toLocaleDateString("fr-FR").replace(/\//g,".")
+          : "N/A";
+        const visa=polymerization.item?.createdVisa||polymerization.op?.createdVisa||"N/A";
+        const bodyTop=contentTop-22;
+        const visaTop=contentBottom+(portrait?34:28);
+        pages.push(page({title:"MISE SOUS VIDE LE",raw:[
+          hLine(bodyTop),hLine(visaTop),vLine(width/2,contentBottom,visaTop),
+          centered(readyDate,visaTop+(bodyTop-visaTop)/2-(portrait?7:5),portrait?20:18,11,true),
+          centeredIn("VISA",contentLeft,contentWidth/2,contentBottom+(portrait?12:9),9,6,false),
+          centeredIn(visa,width/2,contentWidth/2,contentBottom+(portrait?12:9),10,6,true),
         ]}));
       }else if(type==="facts"){
         const facts=operationalLabelFacts({ofData,unit});
@@ -1351,7 +1413,7 @@ const LabelOptionsModal = ({snRows,defaultSelectedIds=null,ofData,consommables,o
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
         <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Type d'étiquette</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
-          {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.available;const isConditional=["bonding","facts"].includes(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
+          {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.available;const isConditional=["bonding","vacuum","facts"].includes(item.id);const unavailableTitle=item.id==="facts"?"Aucun suivi technique disponible pour la sélection":item.id==="vacuum"?"Aucune fin de polymérisation disponible pour la sélection":"Aucun collage ou coating disponible pour la sélection";return <label key={item.id} title={enabled?"":unavailableTitle} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
             <input type="checkbox" aria-label={item.label} checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
             <span>{item.label}</span>
             {isConditional&&status.total>0&&<span style={{marginLeft:"auto",fontSize:10,color:status.count===status.total?C.green:C.orange,fontWeight:700,whiteSpace:"nowrap"}}>{status.count} sur {status.total} disponible{status.count>1?"s":""}</span>}
@@ -1427,7 +1489,7 @@ const BulkLabelOptionsModal = ({entries,consommables,onCancel,onConfirm}) => {
       <fieldset style={{border:`1px solid ${C.border}`,borderRadius:4,padding:10,margin:"0 0 14px"}}>
         <legend style={{color:C.text,fontSize:12,fontWeight:700}}>Type d'étiquette</legend>
         <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}}>
-          {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.count>0;const isConditional=["bonding","facts"].includes(item.id);return <label key={item.id} title={enabled?"":item.id==="bonding"?"Aucun collage ou coating disponible pour la sélection":"Aucun suivi technique disponible pour la sélection"} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
+          {OPERATIONAL_LABEL_TYPES.map(item=>{const status=availability(item.id);const enabled=status.count>0;const isConditional=["bonding","vacuum","facts"].includes(item.id);const unavailableTitle=item.id==="facts"?"Aucun suivi technique disponible pour la sélection":item.id==="vacuum"?"Aucune fin de polymérisation disponible pour la sélection":"Aucun collage ou coating disponible pour la sélection";return <label key={item.id} title={enabled?"":unavailableTitle} style={{display:"flex",alignItems:"center",gap:7,padding:"8px 9px",border:`1px solid ${types.includes(item.id)?C.blue:C.border}`,borderRadius:4,color:enabled?C.text:C.muted,fontSize:12,cursor:enabled?"pointer":"not-allowed",background:types.includes(item.id)?C.blue+"12":"transparent",opacity:enabled?1:.45}}>
             <input type="checkbox" aria-label={item.label} checked={types.includes(item.id)} disabled={!enabled} onChange={()=>toggleType(item.id)} style={{accentColor:C.blue}}/>
             <span>{item.label}</span>
             {isConditional&&status.total>0&&<span style={{marginLeft:"auto",fontSize:10,color:status.count===status.total?C.green:C.orange,fontWeight:700,whiteSpace:"nowrap"}}>{status.count} sur {status.total} disponible{status.count>1?"s":""}</span>}

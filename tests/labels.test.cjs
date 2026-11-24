@@ -22,7 +22,7 @@ const vm = require('node:vm');
     header:{of:'16000001',codeArticle:'250001153',description:'Module test',otp:'7400-TEST'},
     units:{rows:units},
     consommables:{ops:[{
-      id:'op1',validated:true,snScope:'custom',snIds:['u1'],createdDT:'20/10/2026 08:00',
+      id:'op1',validated:true,snScope:'custom',snIds:['u1'],createdDT:'20/10/2026 08:00',createdVisa:'JGR',
       items:[
         {id:'i1',validated:true,consoId:'glue',createdDT:'20/10/2026 08:00'},
         {id:'i2',validated:true,consoId:'coating',createdDT:'21/10/2026 08:00'},
@@ -41,6 +41,8 @@ const vm = require('node:vm');
   ];
   assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u1'],consommables}),true);
   assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u2'],consommables}),false);
+  assert.equal(context.labelAvailable({type:'vacuum',ofData,selectedUnitIds:['u1'],consommables}),true);
+  assert.equal(context.labelAvailable({type:'vacuum',ofData,selectedUnitIds:['u2'],consommables}),false);
   assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u1'],consommables}),true);
   assert.equal(context.labelAvailable({type:'facts',ofData,selectedUnitIds:['u2'],consommables}),false);
   assert.equal(context.labelAvailable({type:'bonding',ofData,selectedUnitIds:['u1','u2'],consommables}),true);
@@ -48,6 +50,13 @@ const vm = require('node:vm');
   assert.deepEqual({...context.labelAvailability({type:'facts',ofData,selectedUnitIds:['u1','u2'],consommables})},{available:true,count:1,total:2});
 
   fs.mkdirSync(path.join(__dirname,'artifacts'),{recursive:true});
+  const assertLandscapeSafeMargin=(content,label)=>assert.ok(content.includes('8.50 8.50 198.43 126.99 re S'),`${label}: marge de sécurité de 3 mm`);
+  const identificationBlob=context.labels({type:'identification',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
+  const identification=await identificationBlob.text();
+  for(const expected of ['16000001','250001153','Module test','SN001','7400-TEST']) assert.ok(identification.includes(expected),`identification: ${expected}`);
+  assertLandscapeSafeMargin(identification,'identification');
+  fs.writeFileSync(path.join(__dirname,'artifacts/identification-label.pdf'),Buffer.from(await identificationBlob.arrayBuffer()));
+
   const kittingBlob=context.labels({type:'kitting',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
   const kitting=await kittingBlob.text();
   assert.ok(kitting.includes('/MediaBox [0 0 215.43 144.00]'));
@@ -55,6 +64,7 @@ const vm = require('node:vm');
   assert.ok(kitting.includes('(OF 16000001 - OTP 7400-TEST)'));
   assert.ok(kitting.includes('(SN de SN001'));
   assert.ok(kitting.includes('Qt\\351 2'));
+  assertLandscapeSafeMargin(kitting,'kitting');
   fs.writeFileSync(path.join(__dirname,'artifacts/kitting-labels.pdf'),Buffer.from(await kittingBlob.arrayBuffer()));
 
   const portraitBlob=context.labels({type:'binder',orientation:'portrait',entries:[{ofData,selectedUnitIds:['u1']}],consommables});
@@ -62,13 +72,15 @@ const vm = require('node:vm');
   assert.ok(portrait.includes('/MediaBox [0 0 144.00 215.43]'));
   for(const expected of ['250001153','Module test','SN001','OF 16000001','OTP 7400-TEST']) assert.ok(portrait.includes(expected),`portrait: ${expected}`);
   assert.ok(/\/F2 22\.00 Tf [^\n]+\(SN001\)/.test(portrait),'Le SN reste très visible en portrait');
+  assert.ok(portrait.includes('8.50 8.50 126.99 198.43 re S'),'portrait: marge de sécurité de 3 mm');
   fs.writeFileSync(path.join(__dirname,'artifacts/binder-label-portrait.pdf'),Buffer.from(await portraitBlob.arrayBuffer()));
 
   for(const type of ['binder','stock']){
     const blob=context.labels({type,entries:[{ofData,selectedUnitIds:['u1']}],consommables});
     const content=await blob.text();
-    for(const expected of ['250001153','Module test','SN001','OF 16000001 - OTP 7400-TEST']) assert.ok(content.includes(expected),`${type}: ${expected}`);
+    for(const expected of ['250001153','Module test','SN001','OF 16000001','7400-TEST']) assert.ok(content.includes(expected),`${type}: ${expected}`);
     if(type==='binder') assert.ok(!content.includes('CLASSEUR'));
+    assertLandscapeSafeMargin(content,type);
     fs.writeFileSync(path.join(__dirname,`artifacts/${type}-label.pdf`),Buffer.from(await blob.arrayBuffer()));
   }
   const stockLotBlob=context.labels({type:'stock',entries:[{ofData,selectedUnitIds:['u3']}],consommables});
@@ -83,12 +95,22 @@ const vm = require('node:vm');
   const bondingBlob=context.labels({type:'bonding',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
   const bonding=await bondingBlob.text();
   assert.ok(bonding.includes('(COATING)'));
-  for(const expected of ['250001153','Module test','SN001','OF 16000001 - OTP 7400-TEST']) assert.ok(bonding.includes(expected),`bonding: ${expected}`);
+  for(const expected of ['250001153','Module test','SN001','OF 16000001','7400-TEST']) assert.ok(bonding.includes(expected),`bonding: ${expected}`);
   assert.ok(bonding.includes('Vernis B'));
-  assert.ok(bonding.includes('(D\\351but : 21/10/2026'));
-  assert.ok(bonding.includes('Fin : 24/10/2026'));
+  assert.ok(bonding.includes('(D\\351but : 21.10.2026'));
+  assert.ok(bonding.includes('Fin : 24.10.2026'));
   assert.ok(!bonding.includes('Dur\\351e'));
+  assertLandscapeSafeMargin(bonding,'bonding');
   fs.writeFileSync(path.join(__dirname,'artifacts/bonding-label.pdf'),Buffer.from(await bondingBlob.arrayBuffer()));
+
+  const vacuumBlob=context.labels({type:'vacuum',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
+  const vacuum=await vacuumBlob.text();
+  assert.ok(vacuum.includes('(MISE SOUS VIDE LE)'));
+  assert.ok(vacuum.includes('(24.10.2026)'),'La date reprend la fin de la dernière polymérisation');
+  assert.ok(vacuum.includes('(VISA)')&&vacuum.includes('(JGR)'));
+  assert.ok(vacuum.includes('/Count 1'),'Seuls les SN avec une polymérisation produisent une étiquette de mise sous vide');
+  assertLandscapeSafeMargin(vacuum,'mise sous vide');
+  fs.writeFileSync(path.join(__dirname,'artifacts/vacuum-label.pdf'),Buffer.from(await vacuumBlob.arrayBuffer()));
 
   const factsBlob=context.labels({type:'facts',entries:[{ofData,selectedUnitIds:['u1','u2']}],consommables});
   const facts=await factsBlob.text();
@@ -97,6 +119,7 @@ const vm = require('node:vm');
   assert.equal((facts.match(/\(250001153\)/g)||[]).length,2);
   assert.equal((facts.match(/\(SN001\)/g)||[]).length,2);
   assert.ok(facts.includes('OW004'));
+  assertLandscapeSafeMargin(facts,'faits techniques');
   for(const description of ['Premier fait','Deuxieme fait','Troisieme fait','Quatrieme fait']) assert.ok(!facts.includes(description),`Le texte du fait n'est pas imprimé : ${description}`);
   fs.writeFileSync(path.join(__dirname,'artifacts/facts-labels.pdf'),Buffer.from(await factsBlob.arrayBuffer()));
   console.log('Operational labels: all tests passed.');

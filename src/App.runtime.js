@@ -3122,6 +3122,9 @@ var buildComponentLabelPdf = function buildComponentLabelPdf(_ref35) {
   });
 };
 var OPERATIONAL_LABEL_TYPES = [{
+  id: "identification",
+  label: "Identification"
+}, {
   id: "kitting",
   label: "Kitting"
 }, {
@@ -3133,6 +3136,9 @@ var OPERATIONAL_LABEL_TYPES = [{
 }, {
   id: "bonding",
   label: "Collage / coating"
+}, {
+  id: "vacuum",
+  label: "Mise sous vide"
 }, {
   id: "facts",
   label: "Info suivi technique"
@@ -3214,13 +3220,13 @@ var operationalLabelAvailability = function operationalLabelAvailability(_ref38)
     _ref38$consommables = _ref38.consommables,
     consommables = _ref38$consommables === void 0 ? [] : _ref38$consommables;
   var units = operationalLabelUnits(ofData, selectedUnitIds);
-  if (!["bonding", "facts"].includes(type)) return {
+  if (!["bonding", "vacuum", "facts"].includes(type)) return {
     available: true,
     count: units.length,
     total: units.length
   };
   var count = units.filter(function (unit) {
-    return type === "bonding" ? !!operationalLabelPolymerization({
+    return ["bonding", "vacuum"].includes(type) ? !!operationalLabelPolymerization({
       ofData: ofData,
       unit: unit,
       consommables: consommables
@@ -3254,6 +3260,13 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref39) {
   var portrait = orientation === "portrait";
   var width = (portrait ? 50.8 : 76) * MM,
     height = (portrait ? 76 : 50.8) * MM;
+  var safe = 3 * MM;
+  var contentLeft = safe,
+    contentBottom = safe,
+    contentRight = width - safe,
+    contentTop = height - safe;
+  var contentWidth = contentRight - contentLeft,
+    contentHeight = contentTop - contentBottom;
   var fit = function fit(value, max, min, maxWidth) {
     return Math.max(min, Math.min(max, maxWidth / Math.max(1, pdfHelveticaTextWidth(value, 1))));
   };
@@ -3268,10 +3281,25 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref39) {
     var min = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : 5.3;
     var bold = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : false;
     var color = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : "0.08 0.10 0.14";
-    var maxWidth = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : width - 10;
+    var maxWidth = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : contentWidth - 8;
     var text = pdfText(value || "N/A");
     var size = fit(text, max, min, maxWidth);
     return txt(text, (width - pdfHelveticaTextWidth(text, size)) / 2, y, size, bold, color);
+  };
+  var centeredIn = function centeredIn(value, x, cellWidth, y) {
+    var max = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 9;
+    var min = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 5.3;
+    var bold = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : false;
+    var color = arguments.length > 7 && arguments[7] !== undefined ? arguments[7] : "0.08 0.10 0.14";
+    var text = pdfText(value || "N/A");
+    var size = fit(text, max, min, cellWidth - 8);
+    return txt(text, x + (cellWidth - pdfHelveticaTextWidth(text, size)) / 2, y, size, bold, color);
+  };
+  var hLine = function hLine(y) {
+    return "q 0.08 0.10 0.14 RG .55 w ".concat(contentLeft.toFixed(2), " ").concat(y.toFixed(2), " m ").concat(contentRight.toFixed(2), " ").concat(y.toFixed(2), " l S Q");
+  };
+  var vLine = function vLine(x, y1, y2) {
+    return "q 0.08 0.10 0.14 RG .55 w ".concat(x.toFixed(2), " ").concat(y1.toFixed(2), " m ").concat(x.toFixed(2), " ").concat(y2.toFixed(2), " l S Q");
   };
   var page = function page(_ref40) {
     var _ref40$title = _ref40.title,
@@ -3280,19 +3308,24 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref39) {
       _ref40$dividerY = _ref40.dividerY,
       dividerY = _ref40$dividerY === void 0 ? 0 : _ref40$dividerY,
       _ref40$lines = _ref40.lines,
-      lines = _ref40$lines === void 0 ? [] : _ref40$lines;
-    var ops = [];
+      lines = _ref40$lines === void 0 ? [] : _ref40$lines,
+      _ref40$raw = _ref40.raw,
+      raw = _ref40$raw === void 0 ? [] : _ref40$raw;
+    var ops = ["q 0.55 0.58 0.62 RG .55 w ".concat(contentLeft.toFixed(2), " ").concat(contentBottom.toFixed(2), " ").concat(contentWidth.toFixed(2), " ").concat(contentHeight.toFixed(2), " re S Q")];
     if (title) {
-      ops.push("q 0.02 0.02 0.02 rg 0 ".concat((height - 22).toFixed(2), " ").concat(width.toFixed(2), " 22 re f Q"));
-      ops.push(centered(title, height - 15, 10, 6.4, true, "1 1 1"));
+      ops.push("q 0.02 0.02 0.02 rg ".concat(contentLeft.toFixed(2), " ").concat((contentTop - 22).toFixed(2), " ").concat(contentWidth.toFixed(2), " 22 re f Q"));
+      ops.push(centered(title, contentTop - 15, 10, 6.4, true, "1 1 1"));
     }
     if (footer) {
-      ops.push("q 0.02 0.02 0.02 rg 0 0 ".concat(width.toFixed(2), " 15 re f Q"));
-      ops.push(centered(footer, 5, 7.2, 5, true, "1 1 1"));
+      ops.push("q 0.02 0.02 0.02 rg ".concat(contentLeft.toFixed(2), " ").concat(contentBottom.toFixed(2), " ").concat(contentWidth.toFixed(2), " 15 re f Q"));
+      ops.push(centered(footer, contentBottom + 5, 7.2, 5, true, "1 1 1"));
     }
-    if (dividerY) ops.push("q 0.70 0.73 0.77 RG .45 w 8 ".concat(dividerY.toFixed(2), " m ").concat((width - 8).toFixed(2), " ").concat(dividerY.toFixed(2), " l S Q"));
+    if (dividerY) ops.push("q 0.70 0.73 0.77 RG .45 w ".concat((contentLeft + 4).toFixed(2), " ").concat(dividerY.toFixed(2), " m ").concat((contentRight - 4).toFixed(2), " ").concat(dividerY.toFixed(2), " l S Q"));
     lines.forEach(function (line) {
-      return ops.push(centered(line.text, line.y, line.max || 9, line.min || 5.3, !!line.bold, line.color || "0.08 0.10 0.14", line.maxWidth || width - 10));
+      return ops.push(centered(line.text, line.y, line.max || 9, line.min || 5.3, !!line.bold, line.color || "0.08 0.10 0.14", line.maxWidth || contentWidth - 8));
+    });
+    raw.forEach(function (operation) {
+      return ops.push(operation);
     });
     return ops;
   };
@@ -3309,55 +3342,69 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref39) {
       var identityMax = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 10;
       return portrait ? [{
         text: article,
-        y: 195,
+        y: contentTop - 14,
         max: 13,
         min: 8.5,
         bold: true
       }, {
         text: description,
-        y: 177,
+        y: contentTop - 31,
         max: 8,
         min: 5.2
       }, {
         text: identity,
-        y: 142,
+        y: contentTop - 66,
         max: Math.max(identityMax, 15),
         min: 8,
         bold: true
       }, {
         text: "OF ".concat(of),
-        y: 116,
+        y: contentTop - 92,
         max: 8,
         min: 5.4,
         bold: true
       }, {
         text: "OTP ".concat(otp),
-        y: 102,
+        y: contentTop - 108,
         max: 7.3,
         min: 4.8,
         bold: true
       }] : [{
         text: article,
-        y: 128,
+        y: contentTop - 12,
         max: 10.5,
         bold: true
       }, {
         text: description,
-        y: 114,
+        y: contentTop - 28,
         max: 7.6
       }, {
         text: identity,
-        y: 87,
+        y: contentTop - 54,
         max: identityMax,
         min: 7.5,
         bold: true
       }, {
         text: "OF ".concat(of, " - OTP ").concat(otp),
-        y: 67,
+        y: contentTop - 75,
         max: 7,
         bold: true
       }];
     };
+    if (type === "identification") {
+      units.forEach(function (unit) {
+        var bodyTop = contentTop - 22;
+        var footerTop = contentBottom + 15;
+        var middleY = footerTop + (bodyTop - footerTop) * .48;
+        var cellWidth = contentWidth / 2;
+        pages.push(page({
+          title: of,
+          footer: otp,
+          raw: [hLine(bodyTop), hLine(middleY), hLine(footerTop), vLine(width / 2, middleY, bodyTop), centeredIn(article, contentLeft, cellWidth, middleY + (bodyTop - middleY) / 2 - 4, 12, 7, true), centeredIn(operationalLabelIdentityWithQuantity(unit), width / 2, cellWidth, middleY + (bodyTop - middleY) / 2 - 4, 13, 7.5, true), centered(description, footerTop + (middleY - footerTop) / 2 - 4, 8.5, 5.2, false)]
+        }));
+      });
+      return;
+    }
     if (type === "kitting") {
       var serials = units.filter(function (unit) {
         return unit.sn;
@@ -3383,90 +3430,119 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref39) {
     units.forEach(function (unit) {
       var identity = operationalLabelIdentity(unit);
       if (type === "binder") {
+        var firstDivider = contentTop - (portrait ? 46 : 31);
+        var secondDivider = contentTop - (portrait ? 106 : 75);
         pages.push(page({
-          dividerY: portrait ? 0 : 59,
+          raw: [hLine(firstDivider), hLine(secondDivider)],
           lines: portrait ? [{
-            text: article,
-            y: 190,
-            max: 16,
-            min: 10,
-            bold: true
-          }, {
-            text: description,
-            y: 165,
-            max: 9,
-            min: 5.6
-          }, {
             text: operationalLabelIdentityWithQuantity(unit),
-            y: 115,
+            y: contentTop - 34,
             max: 22,
             min: 11,
             bold: true
           }, {
-            text: "OF ".concat(of),
-            y: 70,
+            text: description,
+            y: contentTop - 70,
             max: 10,
-            min: 6,
+            min: 5.6
+          }, {
+            text: article,
+            y: contentTop - 94,
+            max: 14,
+            min: 8,
             bold: true
           }, {
             text: "OTP ".concat(otp),
-            y: 45,
+            y: contentTop - 132,
             max: 9,
             min: 5.5,
             bold: true
-          }] : commonHeader(operationalLabelIdentityWithQuantity(unit), 22)
+          }, {
+            text: "OF ".concat(of),
+            y: contentTop - 152,
+            max: 7,
+            min: 4.8
+          }] : [{
+            text: operationalLabelIdentityWithQuantity(unit),
+            y: contentTop - 22,
+            max: 22,
+            min: 11,
+            bold: true
+          }, {
+            text: description,
+            y: contentTop - 48,
+            max: 9,
+            min: 5.6
+          }, {
+            text: article,
+            y: contentTop - 66,
+            max: 13,
+            min: 8,
+            bold: true
+          }, {
+            text: "OTP ".concat(otp),
+            y: contentTop - 91,
+            max: 8.5,
+            min: 5.5,
+            bold: true
+          }, {
+            text: "OF ".concat(of),
+            y: contentTop - 108,
+            max: 6.5,
+            min: 4.6
+          }]
         }));
       } else if (type === "stock") {
         pages.push(page({
           lines: portrait ? [{
             text: article,
-            y: 190,
+            y: contentTop - 22,
             max: 20,
             min: 12,
             bold: true
           }, {
             text: description,
-            y: 168,
+            y: contentTop - 47,
             max: 9,
             min: 5.4
           }, {
             text: identity,
-            y: 122,
+            y: contentTop - 87,
             max: 20,
             min: 10,
             bold: true
           }, {
             text: "OF ".concat(of),
-            y: 84,
+            y: contentTop - 124,
             max: 9,
             min: 5.8,
             bold: true
           }, {
             text: "OTP ".concat(otp),
-            y: 64,
+            y: contentTop - 145,
             max: 8,
             min: 5.2,
             bold: true
           }] : [{
             text: article,
-            y: 116,
+            y: contentTop - 20,
             max: 18,
             min: 12,
             bold: true
           }, {
             text: description,
-            y: 91,
+            y: contentTop - 45,
             max: 9,
             min: 5.8
           }, {
             text: identity,
-            y: 54,
+            y: contentTop - 82,
             max: 17,
             min: 9,
             bold: true
           }, {
             text: "OF ".concat(of, " - OTP ").concat(otp),
-            y: 18,
+            y: contentBottom + 10,
             max: 8,
             min: 5.2,
             bold: true
@@ -3482,31 +3558,98 @@ var buildOperationalLabelsPdf = function buildOperationalLabelsPdf(_ref39) {
         if (!polymerization) return;
         var category = String(((_polymerization$consu = polymerization.consumable) === null || _polymerization$consu === void 0 ? void 0 : _polymerization$consu.cat) || "").toUpperCase();
         var title = category.includes("COAT") || category.includes("VERNIS") ? "COATING" : "COLLAGE";
+        var startLabel = formatAvailabilityDT(polymerization.start).replace(/\//g, ".");
+        var endLabel = formatAvailabilityDT(polymerization.readyAt).replace(/\//g, ".");
         pages.push(page({
-          dividerY: portrait ? 88 : 59,
-          lines: [].concat(_toConsumableArray(commonHeader(operationalLabelIdentityWithQuantity(unit), 10)), [{
-            text: title,
-            y: portrait ? 77 : 48,
-            max: 9,
+          title: title,
+          footer: otp,
+          lines: portrait ? [{
+            text: article,
+            y: contentTop - 42,
+            max: 13,
+            min: 8,
+            bold: true
+          }, {
+            text: description,
+            y: contentTop - 62,
+            max: 8,
+            min: 5.2
+          }, {
+            text: operationalLabelIdentityWithQuantity(unit),
+            y: contentTop - 88,
+            max: 15,
+            min: 8,
+            bold: true
+          }, {
+            text: "OF ".concat(of),
+            y: contentTop - 108,
+            max: 8,
+            min: 5.2,
             bold: true
           }, {
             text: "Produit : ".concat(operationalLabelProduct(polymerization.consumable)),
-            y: portrait ? 59 : 34,
-            max: 6.8,
+            y: contentTop - 137,
+            max: 7,
+            min: 4.8,
             bold: true
           }, {
-            text: portrait ? "D\xE9but : ".concat(formatAvailabilityDT(polymerization.start)) : "D\xE9but : ".concat(formatAvailabilityDT(polymerization.start), "  |  Fin : ").concat(formatAvailabilityDT(polymerization.readyAt)),
-            y: portrait ? 41 : 18,
-            max: 6,
+            text: "D\xE9but : ".concat(startLabel),
+            y: contentTop - 158,
+            max: 6.6,
             min: 4.6,
             bold: true
-          }], _toConsumableArray(portrait ? [{
-            text: "Fin : ".concat(formatAvailabilityDT(polymerization.readyAt)),
-            y: 27,
-            max: 6,
+          }, {
+            text: "Fin : ".concat(endLabel),
+            y: contentTop - 176,
+            max: 6.6,
             min: 4.6,
             bold: true
-          }] : []))
+          }] : [{
+            text: article,
+            y: contentTop - 34,
+            max: 10,
+            min: 6.5,
+            bold: true
+          }, {
+            text: description,
+            y: contentTop - 47,
+            max: 7,
+            min: 4.9
+          }, {
+            text: "".concat(operationalLabelIdentityWithQuantity(unit), "  |  OF ").concat(of),
+            y: contentTop - 61,
+            max: 8.5,
+            min: 5.2,
+            bold: true
+          }, {
+            text: "Produit : ".concat(operationalLabelProduct(polymerization.consumable)),
+            y: contentTop - 75,
+            max: 6.5,
+            min: 4.6,
+            bold: true
+          }, {
+            text: "D\xE9but : ".concat(startLabel, "  |  Fin : ").concat(endLabel),
+            y: contentTop - 90,
+            max: 6,
+            min: 4.2,
+            bold: true
+          }]
+        }));
+      } else if (type === "vacuum") {
+        var _polymerization$item, _polymerization$op;
+        var _polymerization = operationalLabelPolymerization({
+          ofData: ofData,
+          unit: unit,
+          consommables: consommables
+        });
+        if (!_polymerization) return;
+        var readyDate = _polymerization.readyAt instanceof Date && !Number.isNaN(_polymerization.readyAt.getTime()) ? _polymerization.readyAt.toLocaleDateString("fr-FR").replace(/\//g, ".") : "N/A";
+        var visa = ((_polymerization$item = _polymerization.item) === null || _polymerization$item === void 0 ? void 0 : _polymerization$item.createdVisa) || ((_polymerization$op = _polymerization.op) === null || _polymerization$op === void 0 ? void 0 : _polymerization$op.createdVisa) || "N/A";
+        var bodyTop = contentTop - 22;
+        var visaTop = contentBottom + (portrait ? 34 : 28);
+        pages.push(page({
+          title: "MISE SOUS VIDE LE",
+          raw: [hLine(bodyTop), hLine(visaTop), vLine(width / 2, contentBottom, visaTop), centered(readyDate, visaTop + (bodyTop - visaTop) / 2 - (portrait ? 7 : 5), portrait ? 20 : 18, 11, true), centeredIn("VISA", contentLeft, contentWidth / 2, contentBottom + (portrait ? 12 : 9), 9, 6, false), centeredIn(visa, width / 2, contentWidth / 2, contentBottom + (portrait ? 12 : 9), 10, 6, true)]
         }));
       } else if (type === "facts") {
         var facts = operationalLabelFacts({
@@ -5064,10 +5207,11 @@ var LabelOptionsModal = function LabelOptionsModal(_ref45) {
   }, OPERATIONAL_LABEL_TYPES.map(function (item) {
     var status = availability(item.id);
     var enabled = status.available;
-    var isConditional = ["bonding", "facts"].includes(item.id);
+    var isConditional = ["bonding", "vacuum", "facts"].includes(item.id);
+    var unavailableTitle = item.id === "facts" ? "Aucun suivi technique disponible pour la sélection" : item.id === "vacuum" ? "Aucune fin de polymérisation disponible pour la sélection" : "Aucun collage ou coating disponible pour la sélection";
     return /*#__PURE__*/React.createElement("label", {
       key: item.id,
-      title: enabled ? "" : item.id === "bonding" ? "Aucun collage ou coating disponible pour la sélection" : "Aucun suivi technique disponible pour la sélection",
+      title: enabled ? "" : unavailableTitle,
       style: {
         display: "flex",
         alignItems: "center",
@@ -5389,10 +5533,11 @@ var BulkLabelOptionsModal = function BulkLabelOptionsModal(_ref46) {
   }, OPERATIONAL_LABEL_TYPES.map(function (item) {
     var status = availability(item.id);
     var enabled = status.count > 0;
-    var isConditional = ["bonding", "facts"].includes(item.id);
+    var isConditional = ["bonding", "vacuum", "facts"].includes(item.id);
+    var unavailableTitle = item.id === "facts" ? "Aucun suivi technique disponible pour la sélection" : item.id === "vacuum" ? "Aucune fin de polymérisation disponible pour la sélection" : "Aucun collage ou coating disponible pour la sélection";
     return /*#__PURE__*/React.createElement("label", {
       key: item.id,
-      title: enabled ? "" : item.id === "bonding" ? "Aucun collage ou coating disponible pour la sélection" : "Aucun suivi technique disponible pour la sélection",
+      title: enabled ? "" : unavailableTitle,
       style: {
         display: "flex",
         alignItems: "center",

@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v360
+**Version documentée :** v361
 **Date :** 24 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -198,13 +198,16 @@ Cette fonction est disponible dans le pilote, mais ses règles métier ne sont p
 
 ### 8.2 Étiquettes
 
+- Identification avec OF, article SAP, description, SN ou lot et OTP.
 - Kitting.
 - Log fab, avec SN mis en avant.
 - Mise en stock.
 - Collage ou coating avec produit, début et fin de polymérisation.
+- Mise sous vide avec la date de fin de la dernière polymérisation applicable et son visa.
 - Information de suivi technique.
 - Composants dessoudés.
 - Variantes portrait et paysage.
+- Marge d'impression de 3 mm sur les quatre côtés des modèles 76 × 50,8 mm.
 - Génération d'un lot contenant plusieurs types d'étiquettes.
 - Types indisponibles grisés; aucune étiquette vide n'est produite pour un SN non éligible.
 
