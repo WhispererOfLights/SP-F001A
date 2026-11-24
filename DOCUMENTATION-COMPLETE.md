@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v359
+**Version documentée :** v360
 **Date :** 24 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -16,7 +16,7 @@ Ce document présente ce qui est déjà disponible dans le pilote, les règles d
 
 ## 2. État actuel du pilote
 
-Le pilote est utilisé sur le réseau interne depuis un poste Windows. L'application est servie par une API Python et utilise PostgreSQL comme source de vérité. Le serveur redémarre automatiquement au démarrage de Windows, sans ouverture de session utilisateur. Les déploiements sont bloqués si les tests échouent et chaque version remplace la précédente après création d'une sauvegarde du paquet de production.
+Le pilote est utilisé sur le réseau interne depuis un poste Windows. L'application est servie par une API Python et utilise PostgreSQL comme source de vérité. Le serveur redémarre automatiquement au démarrage de Windows, sans ouverture de session utilisateur. Le raccourci de statut du bureau permet également d'ouvrir l'application ou de redémarrer uniquement le serveur web après confirmation, sans arrêter PostgreSQL. Les déploiements sont bloqués si les tests échouent et chaque version remplace la précédente après création d'une sauvegarde du paquet de production.
 
 La solution est fonctionnelle pour un usage atelier, mais l'hébergement reste provisoire. Une mise en ligne institutionnelle devra transférer l'application, PostgreSQL, les sauvegardes et la supervision vers une infrastructure administrée par l'IT, avec une adresse pérenne et HTTPS.
 

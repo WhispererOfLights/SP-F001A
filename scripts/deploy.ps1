@@ -35,7 +35,7 @@ if (Test-Path -LiteralPath $targetConfig) {
 
 $runtimeItems = @(
     "index.html", "server.py", "relational_store.py", "postgres_store.py", "postgres_relational.py", "replication_bridge.py",
-    "requirements.txt", "src", "assets", "vendor", "run-prod-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
+    "requirements.txt", "src", "assets", "vendor", "run-prod-server.ps1", "restart-server.ps1", "start-prod.bat", "start-prod-invisible.ps1",
     "start-prod-invisible.vbs", "server-status.vbs", "run-pilot-server.ps1", "start-pilot-invisible.ps1"
 )
 $obsoleteDeployItems = @(
