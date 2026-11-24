@@ -2,7 +2,7 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v358
+**Version documentée :** v359
 **Date :** 24 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
@@ -192,7 +192,7 @@ Cette fonction est disponible dans le pilote, mais ses règles métier ne sont p
 - En-tête cohérent : OTP, OF, article, description, SN ou lot et quantité si pertinente.
 - Police agrandie dans les en-têtes et les tableaux pour rester lisible en A4 paysage.
 - Colonnes d'audit regroupées sur les rapports larges afin de laisser davantage de place aux données métier.
-- Remarques associées au repère topologique concerné et conservées avec leur ligne source lorsque la pagination le permet.
+- Remarques présentées comme des sous-lignes structurées avec le repère topologique, le visa, la date et le texte, puis conservées avec leur ligne source lorsque la pagination le permet.
 - Mise en évidence des N/A utiles sans les présenter automatiquement comme des erreurs.
 - Rapport Mesures dédié avec résultats et statistiques de l'OF.
 

@@ -3982,7 +3982,10 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
           var detail = _typeof(rowObj.comments[0]) === "object" && rowObj.comments[0] !== null ? rowObj.comments[0] : {
             text: rowObj.comments[0]
           };
-          var _count = wrap(detail.text, usable - 12, type.note).slice(0, detail.maxLines || 3).length;
+          var labelWidth = detail.label ? 92 : 0;
+          var auditWidth = detail.label ? 138 : 0;
+          var bodyWidth = usable - 12 - labelWidth - auditWidth;
+          var _count = wrap(detail.text, bodyWidth, type.note).slice(0, detail.maxLines || 3).length;
           return Math.max(14, _count * 7.8 + 5);
         }
         if (includeHistory && rowObj !== null && rowObj !== void 0 && rowObj.trace) {
@@ -4038,17 +4041,33 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
           var detail = _typeof(item) === "object" && item !== null ? item : {
             text: item
           };
-          var commentLines = wrap(detail.text, usable - 12, type.note).slice(0, detail.maxLines || 3);
-          var ch = Math.max(14, commentLines.length * 7.8 + 5);
+          var labelWidth = detail.label ? 92 : 0;
+          var auditWidth = detail.label ? 138 : 0;
+          var bodyWidth = usable - 12 - labelWidth - auditWidth;
+          var commentLines = wrap(detail.text, bodyWidth, type.note).slice(0, detail.maxLines || 3);
+          var auditLines = detail.label ? wrap(detail.audit || "-", auditWidth - 8, type.note).slice(0, 2) : [];
+          var ch = Math.max(16, Math.max(commentLines.length, auditLines.length) * 7.8 + 6);
           if (page.y - ch < M + 28) {
             page = newPage();
             headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
             drawHead();
           }
           rect(M, page.y - ch, usable, ch, detail.fill || "0.90 0.95 1.00", detail.stroke || color.blue);
-          commentLines.forEach(function (ln, i) {
-            return text(ln, M + 4, page.y - 9 - i * 7.8, type.note, !!detail.bold, detail.color || color.blue);
-          });
+          if (detail.label) {
+            line(M + labelWidth, page.y, M + labelWidth, page.y - ch, detail.stroke || color.blue, .35);
+            line(M + labelWidth + auditWidth, page.y, M + labelWidth + auditWidth, page.y - ch, color.line, .35);
+            wrapped(detail.label, M + 5, page.y - 10, labelWidth - 10, type.note, 2, detail.color || color.blue, true);
+            auditLines.forEach(function (ln, i) {
+              return text(ln, M + labelWidth + 5, page.y - 10 - i * 7.8, type.note, false, color.muted);
+            });
+            commentLines.forEach(function (ln, i) {
+              return text(ln, M + labelWidth + auditWidth + 5, page.y - 10 - i * 7.8, type.note, !!detail.bold, color.ink);
+            });
+          } else {
+            commentLines.forEach(function (ln, i) {
+              return text(ln, M + 4, page.y - 9 - i * 7.8, type.note, !!detail.bold, detail.color || color.blue);
+            });
+          }
           page.y -= ch;
         });
       }
@@ -4381,16 +4400,28 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       var controlAudit = [controlVisa, pdfValue(r.dateCtrl)].join(" - ");
       var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), lotPdf, dcPdf, r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(fichePdf), operationAudit, controlAudit], r);
       var remarkPrefix = pdfValue(r.repere);
+      var remarkLabel = "".concat(r.action1 === "O" ? "OBSERVATION" : "REMARQUE", " ").concat(remarkPrefix);
       var remark = String(r.remarques || "").trim() ? [{
-        text: "".concat(remarkPrefix, " - ").concat(r.action1 === "O" ? "Observation" : "Remarque", " : ").concat(r.remarques),
+        label: remarkLabel,
+        audit: [r.createdVisa || "-", r.createdDT || "-"].join(" - "),
+        text: r.remarques,
         maxLines: 18,
-        bold: true,
         fill: "0.94 0.96 0.99",
-        color: color.ink,
+        color: color.blue,
         stroke: color.blue
       }] : [];
-      var rowComments = base.comments.map(function (comment) {
-        return "".concat(remarkPrefix, " - ").concat(comment);
+      var rowComments = (r.comments || []).filter(function (comment) {
+        return String((comment === null || comment === void 0 ? void 0 : comment.text) || "").trim();
+      }).map(function (comment) {
+        return {
+          label: "REMARQUE ".concat(remarkPrefix),
+          audit: [comment.visa || "-", comment.dt || "-"].join(" - "),
+          text: comment.text,
+          maxLines: 18,
+          fill: "0.94 0.96 0.99",
+          color: color.blue,
+          stroke: color.blue
+        };
       });
       return _objectSpread(_objectSpread({}, base), {}, {
         comments: [].concat(remark, _toConsumableArray(rowComments)),

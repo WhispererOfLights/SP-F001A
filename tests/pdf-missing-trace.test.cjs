@@ -32,8 +32,8 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   assert.ok(!raw.includes('OTHER_SN'));
   const fills=raw.split("0.99 0.91 0.91 rg").length-1;
   assert.ok(fills>=6,'Missing LOT/DC cells on applicable live rows get red fills');
-  assert.ok(raw.includes('(R181 - Remarque : Valeur mesur'),'The main Adjust/Rework remark includes the TOPO reference');
-  assert.ok(raw.includes('(R181 - JGR - 06/11/2026 16:04 - Mauvaise valeur dans la NC)'),'Adjust/Rework comments include the TOPO reference');
+  assert.ok(raw.includes('(REMARQUE R181)')&&raw.includes('(Valeur mesur'),'The main Adjust/Rework remark is attached to its TOPO reference');
+  assert.ok(raw.includes('(JGR - 06/11/2026 16:04)')&&raw.includes('(Mauvaise valeur dans la NC)'),'Adjust/Rework comments separate author, date and content');
   assert.ok(raw.includes('(MANQUANT)'),'Required empty LOT/DC cells are explicitly labelled as missing');
   assert.ok(/\/F2 7\.1 Tf 0\.95 0\.56 0\.00 rg[^\n]+\(N\/A\)/.test(raw),'N/A LOT/DC cells are highlighted in yellow');
   assert.ok(/\/F2 7\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(0101\)/.test(raw),'Expired DC remains red and bold');

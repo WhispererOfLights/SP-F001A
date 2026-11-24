@@ -759,7 +759,10 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         }
         if(rowObj?.comments?.length){
           const detail=typeof rowObj.comments[0]==="object"&&rowObj.comments[0]!==null?rowObj.comments[0]:{text:rowObj.comments[0]};
-          const count=wrap(detail.text,usable-12,type.note).slice(0,detail.maxLines||3).length;
+          const labelWidth=detail.label?92:0;
+          const auditWidth=detail.label?138:0;
+          const bodyWidth=usable-12-labelWidth-auditWidth;
+          const count=wrap(detail.text,bodyWidth,type.note).slice(0,detail.maxLines||3).length;
           return Math.max(14,count*7.8+5);
         }
         if(includeHistory&&rowObj?.trace){
@@ -801,11 +804,23 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       if(rowObj?.comments?.length){
         rowObj.comments.slice(0,8).forEach(item=>{
           const detail=typeof item==="object"&&item!==null?item:{text:item};
-          const commentLines=wrap(detail.text,usable-12,type.note).slice(0,detail.maxLines||3);
-          const ch=Math.max(14,commentLines.length*7.8+5);
+          const labelWidth=detail.label?92:0;
+          const auditWidth=detail.label?138:0;
+          const bodyWidth=usable-12-labelWidth-auditWidth;
+          const commentLines=wrap(detail.text,bodyWidth,type.note).slice(0,detail.maxLines||3);
+          const auditLines=detail.label?wrap(detail.audit||"-",auditWidth-8,type.note).slice(0,2):[];
+          const ch=Math.max(16,Math.max(commentLines.length,auditLines.length)*7.8+6);
           if(page.y-ch<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
           rect(M,page.y-ch,usable,ch,detail.fill||"0.90 0.95 1.00",detail.stroke||color.blue);
-          commentLines.forEach((ln,i)=>text(ln,M+4,page.y-9-i*7.8,type.note,!!detail.bold,detail.color||color.blue));
+          if(detail.label){
+            line(M+labelWidth,page.y,M+labelWidth,page.y-ch,detail.stroke||color.blue,.35);
+            line(M+labelWidth+auditWidth,page.y,M+labelWidth+auditWidth,page.y-ch,color.line,.35);
+            wrapped(detail.label,M+5,page.y-10,labelWidth-10,type.note,2,detail.color||color.blue,true);
+            auditLines.forEach((ln,i)=>text(ln,M+labelWidth+5,page.y-10-i*7.8,type.note,false,color.muted));
+            commentLines.forEach((ln,i)=>text(ln,M+labelWidth+auditWidth+5,page.y-10-i*7.8,type.note,!!detail.bold,color.ink));
+          }else{
+            commentLines.forEach((ln,i)=>text(ln,M+4,page.y-9-i*7.8,type.note,!!detail.bold,detail.color||color.blue));
+          }
           page.y-=ch;
         });
       }
@@ -1016,10 +1031,13 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const controlAudit=[controlVisa,pdfValue(r.dateCtrl)].join(" - ");
         const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(fichePdf),operationAudit,controlAudit],r);
         const remarkPrefix=pdfValue(r.repere);
+        const remarkLabel=`${r.action1==="O"?"OBSERVATION":"REMARQUE"} ${remarkPrefix}`;
         const remark=String(r.remarques||"").trim()
-          ? [{text:`${remarkPrefix} - ${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
+          ? [{label:remarkLabel,audit:[r.createdVisa||"-",r.createdDT||"-"].join(" - "),text:r.remarques,maxLines:18,fill:"0.94 0.96 0.99",color:color.blue,stroke:color.blue}]
           : [];
-        const rowComments=base.comments.map(comment=>`${remarkPrefix} - ${comment}`);
+        const rowComments=(r.comments||[])
+          .filter(comment=>String(comment?.text||"").trim())
+          .map(comment=>({label:`REMARQUE ${remarkPrefix}`,audit:[comment.visa||"-",comment.dt||"-"].join(" - "),text:comment.text,maxLines:18,fill:"0.94 0.96 0.99",color:color.blue,stroke:color.blue}));
         return {...base,comments:[...remark,...rowComments],
         cellStyles:{
           ...(hdArticles.some(hd=>hd.id===r.id)?{6:{color:color.red,bold:true}}:{}),
