@@ -585,6 +585,14 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
   const newPage=()=>{const p={ops:[],y:H-M,context:"",section:""};pages.push(p);return p;};
   let page=newPage();
   const color={ink:"0.07 0.09 0.13",muted:"0.31 0.35 0.41",line:"0.78 0.82 0.87",head:"0.90 0.92 0.95",soft:"0.96 0.97 0.98",orange:"0.12 0.43 0.92",blue:"0.00 0.27 0.57",green:"0.14 0.45 0.21",red:"0.85 0.21 0.20",warn:"0.95 0.56 0.00"};
+  const type={
+    section:15,
+    metaLabel:8.2,
+    metaValue:11.2,
+    tableHead:6.8,
+    tableBody:7.1,
+    note:6.6,
+  };
   const PDF_CONFIDENTIALITY = "Document confidentiel - diffusion limitee aux personnes autorisees.";
   const PDF_LOGO_WIDTH_PT = 113.39; // 40 mm
   const setFill=c=>`${c} rg`;
@@ -610,14 +618,14 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     if(cur) lines.push(cur);
     return lines.length?lines:["-"];
   };
-  const wrapped=(txt,x,y,w,size=6.4,maxLines=4,c=color.ink,bold=false)=>{
+  const wrapped=(txt,x,y,w,size=7.1,maxLines=4,c=color.ink,bold=false)=>{
     wrap(txt,w,size).slice(0,maxLines).forEach((ln,i)=>text(ln,x,y-i*(size+1.3),size,bold,c));
   };
   const textW=(txt,size=7,bold=false)=>pdfText(txt).length*size*(bold ? .54 : .48);
-  const wrappedRight=(txt,x,y,w,size=6.4,maxLines=4,c=color.ink,bold=false)=>{
+  const wrappedRight=(txt,x,y,w,size=7.1,maxLines=4,c=color.ink,bold=false)=>{
     wrap(txt,w,size).slice(0,maxLines).forEach((ln,i)=>text(ln,x+w-textW(ln,size,bold),y-i*(size+1.3),size,bold,c));
   };
-  const wrappedCenter=(txt,x,y,w,size=6.4,maxLines=4,c=color.ink,bold=false)=>{
+  const wrappedCenter=(txt,x,y,w,size=7.1,maxLines=4,c=color.ink,bold=false)=>{
     wrap(txt,w,size).slice(0,maxLines).forEach((ln,i)=>text(ln,x+(w-textW(ln,size,bold))/2,y-i*(size+1.3),size,bold,c));
   };
   const statusLabel=s=>STATUTS?.[s]?.label||UNIT_STATUTS?.[s]?.label||s||"-";
@@ -654,6 +662,8 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
   const commentsForPdf = r => (r?.comments||[])
     .filter(c=>String(c?.text||"").trim())
     .map(c=>`${c.visa||"-"} - ${c.dt||"-"} - ${c.text||""}`);
+  let compactOpenSummary=[];
+  let compactSummaryDrawn=false;
   const headerBlock=(title,unit=null,sectionName=title)=>{
     page.context=title;
     page.section=sectionName;
@@ -662,17 +672,17 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       : 20;
     const top=page.y;
     const sectionTitle=pdfText(REPORT_SECTIONS.find(section=>String(title).includes(section.title))?.title||String(title).replace(/ - suite$/,""));
-    const sectionSize=14;
+    const sectionSize=type.section;
     if(logoImage){
       image("Logo",M,top-logoH+2,PDF_LOGO_WIDTH_PT,logoH);
     }else{
       rect(M,top-29,PDF_LOGO_WIDTH_PT,22,null,color.line);
-      text("LOGO",M+PDF_LOGO_WIDTH_PT/2-10,top-21,7,true,color.muted);
+      text("LOGO",M+PDF_LOGO_WIDTH_PT/2-11,top-21,8,true,color.muted);
     }
     text(sectionTitle,(W-textW(sectionTitle,sectionSize,true))/2,top-7,sectionSize,true,color.orange);
     const exportText=pdfAscii(`${exportedAt} - ${exportedBy}`);
-    text("SP-F001A",W-M-textW("SP-F001A",7,true),top-8,7,true,color.blue);
-    text(exportText,W-M-textW(exportText,6),top-20,6,false,color.muted);
+    text("SP-F001A",W-M-textW("SP-F001A",8,true),top-8,8,true,color.blue);
+    text(exportText,W-M-textW(exportText,6.8),top-21,6.8,false,color.muted);
     const lineY=top-34;
     line(M,lineY,W-M,lineY,color.orange,.6);
     const article=h.codeArticle||h.articleNo||"-";
@@ -695,86 +705,118 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const cw=usable*m.weight/totalWeight;
       const contentWidth=cw-8;
       if(m.align==="right"){
-        wrappedRight(m.label,metaX,lineY-10,contentWidth,7,1,color.muted,true);
-        wrappedRight(m.value,metaX,lineY-24,contentWidth,10.5,2,color.ink,true);
+        wrappedRight(m.label,metaX,lineY-11,contentWidth,type.metaLabel,1,color.muted,true);
+        wrappedRight(m.value,metaX,lineY-27,contentWidth,type.metaValue,2,color.ink,true);
       }else if(m.align==="center"){
-        wrappedCenter(m.label,metaX,lineY-10,contentWidth,7,1,color.muted,true);
-        wrappedCenter(m.value,metaX,lineY-24,contentWidth,10.5,2,color.ink,true);
+        wrappedCenter(m.label,metaX,lineY-11,contentWidth,type.metaLabel,1,color.muted,true);
+        wrappedCenter(m.value,metaX,lineY-27,contentWidth,type.metaValue,2,color.ink,true);
       }else{
-        wrapped(m.label,metaX,lineY-10,contentWidth,7,1,color.muted,true);
-        wrapped(m.value,metaX,lineY-24,contentWidth,10.5,2,color.ink,true);
+        wrapped(m.label,metaX,lineY-11,contentWidth,type.metaLabel,1,color.muted,true);
+        wrapped(m.value,metaX,lineY-27,contentWidth,type.metaValue,2,color.ink,true);
       }
       metaX+=cw;
     });
-    page.y=lineY-45;
+    page.y=lineY-49;
+    if(sectionName!=="Synthèse"&&!compactSummaryDrawn&&compactOpenSummary.length&&!String(title).includes(" - suite")){
+      const lines=compactOpenSummary.flatMap(item=>wrap(item,usable-18,type.note).slice(0,2));
+      const blockHeight=Math.max(24,lines.length*8.1+18);
+      rect(M,page.y-blockHeight,usable,blockHeight,"1.00 0.96 0.84",color.warn);
+      text("POINTS OUVERTS",M+6,page.y-11,7.4,true,color.warn);
+      lines.forEach((item,index)=>text(item,M+12,page.y-21-index*8.1,type.note,false,color.warn));
+      page.y-=blockHeight+8;
+      compactSummaryDrawn=true;
+    }
   };
   const table=(headers,rows,widths,sectionTitle,unit=null)=>{
     const tableLine="0.18 0.20 0.22";
     const sum=widths.reduce((a,b)=>a+b,0);
     widths=widths.map(w=>w/sum*usable);
     const drawHead=()=>{
-      let x=M; rect(x,page.y-19,usable,19,color.head,tableLine,.22);
-      headers.forEach((hd,i)=>{wrapped(hd,x+2,page.y-9,widths[i]-4,5.6,2,color.ink,true); x+=widths[i]; if(i) line(x-widths[i],page.y,x-widths[i],page.y-19,tableLine,.22);});
-      page.y-=19;
+      const headerHeight=22;
+      let x=M; rect(x,page.y-headerHeight,usable,headerHeight,color.head,tableLine,.22);
+      headers.forEach((hd,i)=>{wrapped(hd,x+2,page.y-9,widths[i]-4,type.tableHead,2,color.ink,true); x+=widths[i]; if(i) line(x-widths[i],page.y,x-widths[i],page.y-headerHeight,tableLine,.22);});
+      page.y-=headerHeight;
     };
     drawHead();
     rows.forEach((row,rowIndex)=>{
       const rowObj=Array.isArray(row)?{cells:row}:row;
       if(rowObj?.fullText){
-        const fullLines=wrap(rowObj.fullText,usable-8,6.4).slice(0,2);
-        const rh=Math.max(15,fullLines.length*7.8+6);
+        const fullLines=wrap(rowObj.fullText,usable-8,type.tableBody).slice(0,2);
+        const rh=Math.max(17,fullLines.length*8.7+6);
         if(page.y-rh<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
         rect(M,page.y-rh,usable,rh,rowObj.fill||"0.90 0.93 0.97",rowObj.stroke||color.line);
-        fullLines.forEach((ln,i)=>text(ln,M+4,page.y-9-i*7.8,6.4,true,rowObj.color||color.blue));
+        fullLines.forEach((ln,i)=>text(ln,M+4,page.y-10-i*8.7,type.tableBody,true,rowObj.color||color.blue));
         page.y-=rh;
         return;
       }
       const cells=headers.map((_,i)=>rowObj?.cells?.[i]??"");
-      const lineCounts=cells.map((cell,i)=>wrap(cell,widths[i]-4,6.1).slice(0,5).length);
-      const rh=Math.max(13,Math.max(...lineCounts)*7.5+5);
-      if(page.y-rh<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
+      const lineCounts=cells.map((cell,i)=>wrap(cell,widths[i]-4,type.tableBody).slice(0,5).length);
+      const rh=Math.max(16,Math.max(...lineCounts)*8.6+5);
+      const firstAttachmentHeight=(()=>{
+        if(rowObj?.deleted&&rowObj?.deleteText){
+          const count=wrap(rowObj.deleteText,usable-12,type.note).slice(0,3).length;
+          return Math.max(14,count*7.8+5);
+        }
+        if(rowObj?.comments?.length){
+          const detail=typeof rowObj.comments[0]==="object"&&rowObj.comments[0]!==null?rowObj.comments[0]:{text:rowObj.comments[0]};
+          const count=wrap(detail.text,usable-12,type.note).slice(0,detail.maxLines||3).length;
+          return Math.max(14,count*7.8+5);
+        }
+        if(includeHistory&&rowObj?.trace){
+          const first=String(rowObj.trace).split(" | ").filter(Boolean)[0]||"";
+          const count=wrap(first,usable-12,type.note).slice(0,3).length;
+          return count?Math.max(14,count*7.8+5):0;
+        }
+        return 0;
+      })();
+      const keepTogether=rh+firstAttachmentHeight;
+      if(firstAttachmentHeight&&page.y-keepTogether<M+28&&keepTogether<330){
+        page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead();
+      }else if(page.y-rh<M+28){
+        page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead();
+      }
       let x=M; rect(x,page.y-rh,usable,rh,rowIndex%2===1?"0.94 0.95 0.96":null,tableLine,.22);
       const rowColor=rowObj?.deleted?color.red:color.ink;
       cells.forEach((cell,i)=>{
         const style=rowObj?.cellStyles?.[i];
         if(style?.fill) rect(x,page.y-rh,widths[i],rh,style.fill,tableLine,.22);
-        const cellLines=wrap(cell,widths[i]-4,6.1).slice(0,5);
+        const cellLines=wrap(cell,widths[i]-4,type.tableBody).slice(0,5);
         cellLines.forEach((cellLine,lineIndex)=>{
-          const baseline=page.y-8-lineIndex*7.4;
-          text(cellLine,x+2,baseline,6.1,!!style?.bold,style?.color||rowColor);
-          if(rowObj?.deleted) line(x+2,baseline+2,x+2+Math.min(widths[i]-4,textW(cellLine,6.1,!!style?.bold)),baseline+2,color.red,.55);
+          const baseline=page.y-10-lineIndex*8.5;
+          text(cellLine,x+2,baseline,type.tableBody,!!style?.bold,style?.color||rowColor);
+          if(rowObj?.deleted) line(x+2,baseline+2,x+2+Math.min(widths[i]-4,textW(cellLine,type.tableBody,!!style?.bold)),baseline+2,color.red,.55);
         });
         x+=widths[i];
         if(i) line(x-widths[i],page.y,x-widths[i],page.y-rh,tableLine,.22);
       });
       page.y-=rh;
       if(rowObj?.deleted&&rowObj?.deleteText){
-        const reasonLines=wrap(rowObj.deleteText,usable-12,5.8).slice(0,3);
-        const dh=Math.max(11,reasonLines.length*6.5+5);
+        const reasonLines=wrap(rowObj.deleteText,usable-12,type.note).slice(0,3);
+        const dh=Math.max(14,reasonLines.length*7.8+5);
         if(page.y-dh<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
         rect(M,page.y-dh,usable,dh,"0.99 0.91 0.91",color.red);
-        reasonLines.forEach((ln,i)=>text(ln,M+4,page.y-8-i*6.5,5.8,true,color.red));
+        reasonLines.forEach((ln,i)=>text(ln,M+4,page.y-9-i*7.8,type.note,true,color.red));
         page.y-=dh;
       }
       if(rowObj?.comments?.length){
         rowObj.comments.slice(0,8).forEach(item=>{
           const detail=typeof item==="object"&&item!==null?item:{text:item};
-          const commentLines=wrap(detail.text,usable-12,5.8).slice(0,detail.maxLines||3);
-          const ch=Math.max(11,commentLines.length*6.5+5);
+          const commentLines=wrap(detail.text,usable-12,type.note).slice(0,detail.maxLines||3);
+          const ch=Math.max(14,commentLines.length*7.8+5);
           if(page.y-ch<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
           rect(M,page.y-ch,usable,ch,detail.fill||"0.90 0.95 1.00",detail.stroke||color.blue);
-          commentLines.forEach((ln,i)=>text(ln,M+4,page.y-8-i*6.5,5.8,!!detail.bold,detail.color||color.blue));
+          commentLines.forEach((ln,i)=>text(ln,M+4,page.y-9-i*7.8,type.note,!!detail.bold,detail.color||color.blue));
           page.y-=ch;
         });
       }
       if(includeHistory&&rowObj?.trace){
         const items=String(rowObj.trace||"").split(" | ").filter(Boolean).slice(0,6);
         items.forEach(item=>{
-          const traceLines=wrap(item,usable-12,5.8).slice(0,3);
-          const th=Math.max(11,traceLines.length*6.5+5);
+          const traceLines=wrap(item,usable-12,type.note).slice(0,3);
+          const th=Math.max(14,traceLines.length*7.8+5);
           if(page.y-th<M+28){ page=newPage(); headerBlock(`${sectionTitle} - suite`,unit,sectionTitle); drawHead(); }
           rect(M,page.y-th,usable,th,"0.91 0.93 0.96",color.line);
-          traceLines.forEach((ln,i)=>text(ln,M+4,page.y-8-i*6.5,5.8,false,color.muted));
+          traceLines.forEach((ln,i)=>text(ln,M+4,page.y-9-i*7.8,type.note,false,color.muted));
           page.y-=th;
         });
       }
@@ -793,15 +835,15 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     if(!items.length) return;
     const c=tone==="red"?color.red:color.warn;
     const fill=tone==="red"?"0.99 0.91 0.91":"1.00 0.96 0.84";
-    const lines=items.flatMap(item=>wrap(item,usable-18,6.1).slice(0,2));
+    const lines=items.flatMap(item=>wrap(item,usable-18,type.note).slice(0,2));
     while(lines.length){
-      let capacity=Math.floor((page.y-M-28-25)/7);
-      if(capacity<1){page=newPage();headerBlock(`${sectionTitle} - suite`,unit,sectionTitle);capacity=Math.floor((page.y-M-28-25)/7);}
+      let capacity=Math.floor((page.y-M-28-27)/8.1);
+      if(capacity<1){page=newPage();headerBlock(`${sectionTitle} - suite`,unit,sectionTitle);capacity=Math.floor((page.y-M-28-27)/8.1);}
       const chunk=lines.splice(0,capacity);
-      const h=Math.max(20,chunk.length*7+17);
+      const h=Math.max(23,chunk.length*8.1+18);
       rect(M,page.y-h,usable,h,fill,c);
-      text(title,M+6,page.y-10,6.6,true,c);
-      chunk.forEach((ln,i)=>text(ln,M+12,page.y-19-i*7,6.1,false,c));
+      text(title,M+6,page.y-11,7.4,true,c);
+      chunk.forEach((ln,i)=>text(ln,M+12,page.y-21-i*8.1,type.note,false,c));
       page.y-=h+8;
     }
   };
@@ -810,8 +852,8 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     pairs.forEach((m,i)=>{
       const px=x+(i%2)*col;
       const py=y-Math.floor(i/2)*22;
-      text(m[0],px,py,6,false,color.muted);
-      wrapped(m[1],px,py-8,col-12,7.2,2,color.ink);
+      text(m[0],px,py,7,false,color.muted);
+      wrapped(m[1],px,py-9,col-12,8.2,2,color.ink);
     });
   };
 
@@ -901,16 +943,13 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       current.open.forEach(item=>result.open.push(`${prefix}${item}`));
       return result;
     },{alerts:[],open:[]});
+    if(!summary.alerts.length){
+      compactOpenSummary=summary.open;
+      return;
+    }
     const sectionTitle="Synthèse";
     page=newPage();
     headerBlock("Synthèse des points ouverts",null,sectionTitle);
-    if(!summary.alerts.length&&!summary.open.length){
-      const h=27;
-      rect(M,page.y-h,usable,h,"0.91 0.97 0.92",color.green);
-      text("Aucun point ouvert ni alerte détecté.",M+8,page.y-17,7.2,true,color.green);
-      page.y-=h+8;
-      return;
-    }
     warningBlock("ALERTES",summary.alerts,"red",sectionTitle,null);
     warningBlock("POINTS OUVERTS",summary.open,"yellow",sectionTitle,null);
   };
@@ -972,8 +1011,10 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
         const substitutionRef=r.changeReason
           ? [r.changeReason,r.changeFactNumber].filter(Boolean).join(" ")
           : "";
-        const fichePdf=[r.fiche,substitutionRef&&`Justif. ${substitutionRef}`].filter(Boolean).join(" / ");
-        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(fichePdf),pdfValue(r.etape),pdfValue(r.createdVisa),pdfValue(r.createdDT),controlVisa,pdfValue(r.dateCtrl)],r);
+        const fichePdf=[r.fiche,substitutionRef&&`Justif. ${substitutionRef}`,r.etape&&`OP ${r.etape}`].filter(Boolean).join(" / ");
+        const operationAudit=[pdfValue(r.createdVisa),pdfValue(r.createdDT)].join(" - ");
+        const controlAudit=[controlVisa,pdfValue(r.dateCtrl)].join(" - ");
+        const base=rowPdf([repere,r.action1==="O"?"N/A":r.isAdjust?"Oui":"Non",pdfValue(r.action1),r.action1==="O"?"N/A":pdfValue(r.codeERP),r.action1==="O"?"N/A":pdfValue(r.valeur),lotPdf,dcPdf,r.action1==="O"?"N/A":pdfValue(r.sn),pdfValue(fichePdf),operationAudit,controlAudit],r);
         const remarkPrefix=pdfValue(r.repere);
         const remark=String(r.remarques||"").trim()
           ? [{text:`${remarkPrefix} - ${r.action1==="O"?"Observation":"Remarque"} : ${r.remarques}`,maxLines:18,bold:true,fill:"0.94 0.96 0.99",color:color.ink,stroke:color.blue}]
@@ -992,7 +1033,7 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
             : !r.deleted&&missingTrace.includes("DC")
               ? {6:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}
               : {}),
-          ...(controlRequired&&!r.visaCtrl?{12:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{})
+          ...(controlRequired&&!r.visaCtrl?{10:{fill:"0.99 0.91 0.91",color:color.red,bold:true}}:{})
         }};
       });
     if(includeSection("Adjust / Rework")&&(!skipEmptyReports||rework.length||warningRows.length)){
@@ -1001,12 +1042,12 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       page=newPage();
       headerBlock(displayTitle,unit,displayTitle);
       if(warningRows.length){
-        text("Points à vérifier",M,page.y-1,7.2,true,color.red);
-        page.y-=10;
+        text("Points à vérifier",M,page.y-1,8.2,true,color.red);
+        page.y-=12;
         table(["Repère TOPO","Problème","Opérateur","Date / heure"],warningRows,[19,70,18,27],displayTitle,unit);
         page.y-=8;
       }
-      table(["Repère TOPO","ADJ","Act.","Code article","Valeur - description","LOT","Date code","SN composant","Fiche suiveuse / fait","N° OP","VISA","Date","CTRL","CTRL le"],rework.length?rework:[["N/A"]],[22,9,9,27,55,19,17,17,39,11,15,24,36,24],displayTitle,unit);
+      table(["Repère TOPO","ADJ","Act.","Code article","Valeur - description","LOT","Date code","SN composant","Fiche suiveuse / OP","Opération Visa / date","Contrôle Visa / date"],rework.length?rework:[["N/A"]],[23,9,9,28,58,20,18,19,44,34,38],displayTitle,unit);
     }
 
     const cons=(ofData?.consommables?.ops||[])
@@ -1094,8 +1135,8 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
       const observed=`${measurementDisplayNumber(stats.min)} / ${measurementDisplayAverage(stats.average)} / ${measurementDisplayNumber(stats.max)}`;
       const concerned=[...new Set([...(stats.minUnits||[]),...(stats.maxUnits||[])])].join(" ; ")||"-";
       const base=rowPdfWithComments([
-        row.fiche||"N/A",row.etape||"N/A",row.mesure||"N/A",row.unite||"-",row.min||"-",
-        result?.value||"MANQUANT",row.max||"-",status.label,observed,concerned,result?.visa||"-",result?.dt||"-",
+        [row.fiche||"N/A",row.etape&&`OP ${row.etape}`].filter(Boolean).join(" / "),row.mesure||"N/A",row.unite||"-",row.min||"-",
+        result?.value||"MANQUANT",row.max||"-",status.label,observed,concerned,[result?.visa||"-",result?.dt||"-"].join(" - "),
       ],row,commentsForPdf(result));
       const statusStyle=status.id==="nonconforming"||status.id==="invalid"
         ? {fill:"0.99 0.91 0.91",color:color.red,bold:true}
@@ -1104,9 +1145,9 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
           : status.id==="conforming"
             ? {fill:"0.88 0.96 0.90",color:color.green,bold:true}
             : {fill:"0.90 0.93 0.97",color:color.muted,bold:true};
-      return {...base,cellStyles:{5:statusStyle,7:statusStyle}};
+      return {...base,cellStyles:{4:statusStyle,6:statusStyle}};
     });
-    section("Mesures",["Fiche suiveuse","Etape / OP","Mesure","Unite","Min attendu","Valeur SN","Max attendu","Statut","OF min / moy. / max","SN extremes","Visa","Date"],measurementRows,[25,15,40,12,16,18,16,20,33,38,13,24],unit);
+    section("Mesures",["Fiche suiveuse / OP","Mesure","Unité","Min attendu","Valeur SN","Max attendu","Statut","OF min / moy. / max","SN extrêmes","Visa / date"],measurementRows,[38,48,14,19,22,19,24,38,44,37],unit);
 
   });
 
@@ -1136,9 +1177,9 @@ const buildDirectReportPdf = ({ofData, lists, exportedAt, exportedBy, includeHis
     const showActionLegend=String(p.section||p.context||"").includes("Adjust / Rework");
     const pageText=`Page ${sectionSeen[sectionKey]} / ${sectionCounts[sectionKey]}`;
     p.ops.push(`q ${setStroke(color.blue)} .55 w ${M.toFixed(2)} 28 m ${(W-M).toFixed(2)} 28 l S Q`);
-    if(showActionLegend) p.ops.push(`BT /F1 5.8 Tf ${setFill(color.muted)} 1 0 0 1 ${M.toFixed(2)} ${footerY} Tm (${pdfEsc(actionLegend)}) Tj ET`);
-    p.ops.push(`BT /F1 5.8 Tf ${setFill(color.muted)} 1 0 0 1 ${((W-textW(PDF_CONFIDENTIALITY,5.8))/2).toFixed(2)} ${footerY} Tm (${pdfEsc(PDF_CONFIDENTIALITY)}) Tj ET`);
-    p.ops.push(`BT /F2 7 Tf ${setFill(color.muted)} 1 0 0 1 ${(W-M-textW(pageText,7,true)).toFixed(2)} ${footerY} Tm (${pdfEsc(pageText)}) Tj ET`);
+    if(showActionLegend) p.ops.push(`BT /F1 6.2 Tf ${setFill(color.muted)} 1 0 0 1 ${M.toFixed(2)} ${footerY} Tm (${pdfEsc(actionLegend)}) Tj ET`);
+    p.ops.push(`BT /F1 6.2 Tf ${setFill(color.muted)} 1 0 0 1 ${((W-textW(PDF_CONFIDENTIALITY,6.2))/2).toFixed(2)} ${footerY} Tm (${pdfEsc(PDF_CONFIDENTIALITY)}) Tj ET`);
+    p.ops.push(`BT /F2 7.5 Tf ${setFill(color.muted)} 1 0 0 1 ${(W-M-textW(pageText,7.5,true)).toFixed(2)} ${footerY} Tm (${pdfEsc(pageText)}) Tj ET`);
     const stream=p.ops.join("\n");
     const contentId=objects.length+2;
     const pageId=objects.length+1;

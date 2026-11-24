@@ -3688,6 +3688,14 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     red: "0.85 0.21 0.20",
     warn: "0.95 0.56 0.00"
   };
+  var type = {
+    section: 15,
+    metaLabel: 8.2,
+    metaValue: 11.2,
+    tableHead: 6.8,
+    tableBody: 7.1,
+    note: 6.6
+  };
   var PDF_CONFIDENTIALITY = "Document confidentiel - diffusion limitee aux personnes autorisees.";
   var PDF_LOGO_WIDTH_PT = 113.39; // 40 mm
   var setFill = function setFill(c) {
@@ -3732,7 +3740,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     return lines.length ? lines : ["-"];
   };
   var wrapped = function wrapped(txt, x, y, w) {
-    var size = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 6.4;
+    var size = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 7.1;
     var maxLines = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 4;
     var c = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : color.ink;
     var bold = arguments.length > 7 && arguments[7] !== undefined ? arguments[7] : false;
@@ -3746,7 +3754,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     return pdfText(txt).length * size * (bold ? .54 : .48);
   };
   var wrappedRight = function wrappedRight(txt, x, y, w) {
-    var size = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 6.4;
+    var size = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 7.1;
     var maxLines = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 4;
     var c = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : color.ink;
     var bold = arguments.length > 7 && arguments[7] !== undefined ? arguments[7] : false;
@@ -3755,7 +3763,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     });
   };
   var wrappedCenter = function wrappedCenter(txt, x, y, w) {
-    var size = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 6.4;
+    var size = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 7.1;
     var maxLines = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 4;
     var c = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : color.ink;
     var bold = arguments.length > 7 && arguments[7] !== undefined ? arguments[7] : false;
@@ -3821,6 +3829,8 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       return "".concat(c.visa || "-", " - ").concat(c.dt || "-", " - ").concat(c.text || "");
     });
   };
+  var compactOpenSummary = [];
+  var compactSummaryDrawn = false;
   var headerBlock = function headerBlock(title) {
     var _REPORT_SECTIONS$find;
     var unit = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : null;
@@ -3832,17 +3842,17 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     var sectionTitle = pdfText(((_REPORT_SECTIONS$find = REPORT_SECTIONS.find(function (section) {
       return String(title).includes(section.title);
     })) === null || _REPORT_SECTIONS$find === void 0 ? void 0 : _REPORT_SECTIONS$find.title) || String(title).replace(/ - suite$/, ""));
-    var sectionSize = 14;
+    var sectionSize = type.section;
     if (logoImage) {
       image("Logo", M, top - logoH + 2, PDF_LOGO_WIDTH_PT, logoH);
     } else {
       rect(M, top - 29, PDF_LOGO_WIDTH_PT, 22, null, color.line);
-      text("LOGO", M + PDF_LOGO_WIDTH_PT / 2 - 10, top - 21, 7, true, color.muted);
+      text("LOGO", M + PDF_LOGO_WIDTH_PT / 2 - 11, top - 21, 8, true, color.muted);
     }
     text(sectionTitle, (W - textW(sectionTitle, sectionSize, true)) / 2, top - 7, sectionSize, true, color.orange);
     var exportText = pdfAscii("".concat(exportedAt, " - ").concat(exportedBy));
-    text("SP-F001A", W - M - textW("SP-F001A", 7, true), top - 8, 7, true, color.blue);
-    text(exportText, W - M - textW(exportText, 6), top - 20, 6, false, color.muted);
+    text("SP-F001A", W - M - textW("SP-F001A", 8, true), top - 8, 8, true, color.blue);
+    text(exportText, W - M - textW(exportText, 6.8), top - 21, 6.8, false, color.muted);
     var lineY = top - 34;
     line(M, lineY, W - M, lineY, color.orange, .6);
     var article = h.codeArticle || h.articleNo || "-";
@@ -3888,18 +3898,31 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       var cw = usable * m.weight / totalWeight;
       var contentWidth = cw - 8;
       if (m.align === "right") {
-        wrappedRight(m.label, metaX, lineY - 10, contentWidth, 7, 1, color.muted, true);
-        wrappedRight(m.value, metaX, lineY - 24, contentWidth, 10.5, 2, color.ink, true);
+        wrappedRight(m.label, metaX, lineY - 11, contentWidth, type.metaLabel, 1, color.muted, true);
+        wrappedRight(m.value, metaX, lineY - 27, contentWidth, type.metaValue, 2, color.ink, true);
       } else if (m.align === "center") {
-        wrappedCenter(m.label, metaX, lineY - 10, contentWidth, 7, 1, color.muted, true);
-        wrappedCenter(m.value, metaX, lineY - 24, contentWidth, 10.5, 2, color.ink, true);
+        wrappedCenter(m.label, metaX, lineY - 11, contentWidth, type.metaLabel, 1, color.muted, true);
+        wrappedCenter(m.value, metaX, lineY - 27, contentWidth, type.metaValue, 2, color.ink, true);
       } else {
-        wrapped(m.label, metaX, lineY - 10, contentWidth, 7, 1, color.muted, true);
-        wrapped(m.value, metaX, lineY - 24, contentWidth, 10.5, 2, color.ink, true);
+        wrapped(m.label, metaX, lineY - 11, contentWidth, type.metaLabel, 1, color.muted, true);
+        wrapped(m.value, metaX, lineY - 27, contentWidth, type.metaValue, 2, color.ink, true);
       }
       metaX += cw;
     });
-    page.y = lineY - 45;
+    page.y = lineY - 49;
+    if (sectionName !== "Synthèse" && !compactSummaryDrawn && compactOpenSummary.length && !String(title).includes(" - suite")) {
+      var lines = compactOpenSummary.flatMap(function (item) {
+        return wrap(item, usable - 18, type.note).slice(0, 2);
+      });
+      var blockHeight = Math.max(24, lines.length * 8.1 + 18);
+      rect(M, page.y - blockHeight, usable, blockHeight, "1.00 0.96 0.84", color.warn);
+      text("POINTS OUVERTS", M + 6, page.y - 11, 7.4, true, color.warn);
+      lines.forEach(function (item, index) {
+        return text(item, M + 12, page.y - 21 - index * 8.1, type.note, false, color.warn);
+      });
+      page.y -= blockHeight + 8;
+      compactSummaryDrawn = true;
+    }
   };
   var table = function table(headers, rows, widths, sectionTitle) {
     var unit = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : null;
@@ -3911,24 +3934,25 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       return w / sum * usable;
     });
     var drawHead = function drawHead() {
+      var headerHeight = 22;
       var x = M;
-      rect(x, page.y - 19, usable, 19, color.head, tableLine, .22);
+      rect(x, page.y - headerHeight, usable, headerHeight, color.head, tableLine, .22);
       headers.forEach(function (hd, i) {
-        wrapped(hd, x + 2, page.y - 9, widths[i] - 4, 5.6, 2, color.ink, true);
+        wrapped(hd, x + 2, page.y - 9, widths[i] - 4, type.tableHead, 2, color.ink, true);
         x += widths[i];
-        if (i) line(x - widths[i], page.y, x - widths[i], page.y - 19, tableLine, .22);
+        if (i) line(x - widths[i], page.y, x - widths[i], page.y - headerHeight, tableLine, .22);
       });
-      page.y -= 19;
+      page.y -= headerHeight;
     };
     drawHead();
     rows.forEach(function (row, rowIndex) {
-      var _rowObj$comments;
+      var _rowObj$comments2;
       var rowObj = Array.isArray(row) ? {
         cells: row
       } : row;
       if (rowObj !== null && rowObj !== void 0 && rowObj.fullText) {
-        var fullLines = wrap(rowObj.fullText, usable - 8, 6.4).slice(0, 2);
-        var _rh = Math.max(15, fullLines.length * 7.8 + 6);
+        var fullLines = wrap(rowObj.fullText, usable - 8, type.tableBody).slice(0, 2);
+        var _rh = Math.max(17, fullLines.length * 8.7 + 6);
         if (page.y - _rh < M + 28) {
           page = newPage();
           headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
@@ -3936,7 +3960,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
         }
         rect(M, page.y - _rh, usable, _rh, rowObj.fill || "0.90 0.93 0.97", rowObj.stroke || color.line);
         fullLines.forEach(function (ln, i) {
-          return text(ln, M + 4, page.y - 9 - i * 7.8, 6.4, true, rowObj.color || color.blue);
+          return text(ln, M + 4, page.y - 10 - i * 8.7, type.tableBody, true, rowObj.color || color.blue);
         });
         page.y -= _rh;
         return;
@@ -3946,10 +3970,34 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
         return (_rowObj$cells$i = rowObj === null || rowObj === void 0 || (_rowObj$cells = rowObj.cells) === null || _rowObj$cells === void 0 ? void 0 : _rowObj$cells[i]) !== null && _rowObj$cells$i !== void 0 ? _rowObj$cells$i : "";
       });
       var lineCounts = cells.map(function (cell, i) {
-        return wrap(cell, widths[i] - 4, 6.1).slice(0, 5).length;
+        return wrap(cell, widths[i] - 4, type.tableBody).slice(0, 5).length;
       });
-      var rh = Math.max(13, Math.max.apply(Math, _toConsumableArray(lineCounts)) * 7.5 + 5);
-      if (page.y - rh < M + 28) {
+      var rh = Math.max(16, Math.max.apply(Math, _toConsumableArray(lineCounts)) * 8.6 + 5);
+      var firstAttachmentHeight = function (_rowObj$comments) {
+        if (rowObj !== null && rowObj !== void 0 && rowObj.deleted && rowObj !== null && rowObj !== void 0 && rowObj.deleteText) {
+          var count = wrap(rowObj.deleteText, usable - 12, type.note).slice(0, 3).length;
+          return Math.max(14, count * 7.8 + 5);
+        }
+        if (rowObj !== null && rowObj !== void 0 && (_rowObj$comments = rowObj.comments) !== null && _rowObj$comments !== void 0 && _rowObj$comments.length) {
+          var detail = _typeof(rowObj.comments[0]) === "object" && rowObj.comments[0] !== null ? rowObj.comments[0] : {
+            text: rowObj.comments[0]
+          };
+          var _count = wrap(detail.text, usable - 12, type.note).slice(0, detail.maxLines || 3).length;
+          return Math.max(14, _count * 7.8 + 5);
+        }
+        if (includeHistory && rowObj !== null && rowObj !== void 0 && rowObj.trace) {
+          var first = String(rowObj.trace).split(" | ").filter(Boolean)[0] || "";
+          var _count2 = wrap(first, usable - 12, type.note).slice(0, 3).length;
+          return _count2 ? Math.max(14, _count2 * 7.8 + 5) : 0;
+        }
+        return 0;
+      }();
+      var keepTogether = rh + firstAttachmentHeight;
+      if (firstAttachmentHeight && page.y - keepTogether < M + 28 && keepTogether < 330) {
+        page = newPage();
+        headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
+        drawHead();
+      } else if (page.y - rh < M + 28) {
         page = newPage();
         headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
         drawHead();
@@ -3961,19 +4009,19 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
         var _rowObj$cellStyles;
         var style = rowObj === null || rowObj === void 0 || (_rowObj$cellStyles = rowObj.cellStyles) === null || _rowObj$cellStyles === void 0 ? void 0 : _rowObj$cellStyles[i];
         if (style !== null && style !== void 0 && style.fill) rect(x, page.y - rh, widths[i], rh, style.fill, tableLine, .22);
-        var cellLines = wrap(cell, widths[i] - 4, 6.1).slice(0, 5);
+        var cellLines = wrap(cell, widths[i] - 4, type.tableBody).slice(0, 5);
         cellLines.forEach(function (cellLine, lineIndex) {
-          var baseline = page.y - 8 - lineIndex * 7.4;
-          text(cellLine, x + 2, baseline, 6.1, !!(style !== null && style !== void 0 && style.bold), (style === null || style === void 0 ? void 0 : style.color) || rowColor);
-          if (rowObj !== null && rowObj !== void 0 && rowObj.deleted) line(x + 2, baseline + 2, x + 2 + Math.min(widths[i] - 4, textW(cellLine, 6.1, !!(style !== null && style !== void 0 && style.bold))), baseline + 2, color.red, .55);
+          var baseline = page.y - 10 - lineIndex * 8.5;
+          text(cellLine, x + 2, baseline, type.tableBody, !!(style !== null && style !== void 0 && style.bold), (style === null || style === void 0 ? void 0 : style.color) || rowColor);
+          if (rowObj !== null && rowObj !== void 0 && rowObj.deleted) line(x + 2, baseline + 2, x + 2 + Math.min(widths[i] - 4, textW(cellLine, type.tableBody, !!(style !== null && style !== void 0 && style.bold))), baseline + 2, color.red, .55);
         });
         x += widths[i];
         if (i) line(x - widths[i], page.y, x - widths[i], page.y - rh, tableLine, .22);
       });
       page.y -= rh;
       if (rowObj !== null && rowObj !== void 0 && rowObj.deleted && rowObj !== null && rowObj !== void 0 && rowObj.deleteText) {
-        var reasonLines = wrap(rowObj.deleteText, usable - 12, 5.8).slice(0, 3);
-        var dh = Math.max(11, reasonLines.length * 6.5 + 5);
+        var reasonLines = wrap(rowObj.deleteText, usable - 12, type.note).slice(0, 3);
+        var dh = Math.max(14, reasonLines.length * 7.8 + 5);
         if (page.y - dh < M + 28) {
           page = newPage();
           headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
@@ -3981,17 +4029,17 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
         }
         rect(M, page.y - dh, usable, dh, "0.99 0.91 0.91", color.red);
         reasonLines.forEach(function (ln, i) {
-          return text(ln, M + 4, page.y - 8 - i * 6.5, 5.8, true, color.red);
+          return text(ln, M + 4, page.y - 9 - i * 7.8, type.note, true, color.red);
         });
         page.y -= dh;
       }
-      if (rowObj !== null && rowObj !== void 0 && (_rowObj$comments = rowObj.comments) !== null && _rowObj$comments !== void 0 && _rowObj$comments.length) {
+      if (rowObj !== null && rowObj !== void 0 && (_rowObj$comments2 = rowObj.comments) !== null && _rowObj$comments2 !== void 0 && _rowObj$comments2.length) {
         rowObj.comments.slice(0, 8).forEach(function (item) {
           var detail = _typeof(item) === "object" && item !== null ? item : {
             text: item
           };
-          var commentLines = wrap(detail.text, usable - 12, 5.8).slice(0, detail.maxLines || 3);
-          var ch = Math.max(11, commentLines.length * 6.5 + 5);
+          var commentLines = wrap(detail.text, usable - 12, type.note).slice(0, detail.maxLines || 3);
+          var ch = Math.max(14, commentLines.length * 7.8 + 5);
           if (page.y - ch < M + 28) {
             page = newPage();
             headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
@@ -3999,7 +4047,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
           }
           rect(M, page.y - ch, usable, ch, detail.fill || "0.90 0.95 1.00", detail.stroke || color.blue);
           commentLines.forEach(function (ln, i) {
-            return text(ln, M + 4, page.y - 8 - i * 6.5, 5.8, !!detail.bold, detail.color || color.blue);
+            return text(ln, M + 4, page.y - 9 - i * 7.8, type.note, !!detail.bold, detail.color || color.blue);
           });
           page.y -= ch;
         });
@@ -4007,8 +4055,8 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       if (includeHistory && rowObj !== null && rowObj !== void 0 && rowObj.trace) {
         var items = String(rowObj.trace || "").split(" | ").filter(Boolean).slice(0, 6);
         items.forEach(function (item) {
-          var traceLines = wrap(item, usable - 12, 5.8).slice(0, 3);
-          var th = Math.max(11, traceLines.length * 6.5 + 5);
+          var traceLines = wrap(item, usable - 12, type.note).slice(0, 3);
+          var th = Math.max(14, traceLines.length * 7.8 + 5);
           if (page.y - th < M + 28) {
             page = newPage();
             headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
@@ -4016,7 +4064,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
           }
           rect(M, page.y - th, usable, th, "0.91 0.93 0.96", color.line);
           traceLines.forEach(function (ln, i) {
-            return text(ln, M + 4, page.y - 8 - i * 6.5, 5.8, false, color.muted);
+            return text(ln, M + 4, page.y - 9 - i * 7.8, type.note, false, color.muted);
           });
           page.y -= th;
         });
@@ -4039,21 +4087,21 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     var c = tone === "red" ? color.red : color.warn;
     var fill = tone === "red" ? "0.99 0.91 0.91" : "1.00 0.96 0.84";
     var lines = items.flatMap(function (item) {
-      return wrap(item, usable - 18, 6.1).slice(0, 2);
+      return wrap(item, usable - 18, type.note).slice(0, 2);
     });
     while (lines.length) {
-      var capacity = Math.floor((page.y - M - 28 - 25) / 7);
+      var capacity = Math.floor((page.y - M - 28 - 27) / 8.1);
       if (capacity < 1) {
         page = newPage();
         headerBlock("".concat(sectionTitle, " - suite"), unit, sectionTitle);
-        capacity = Math.floor((page.y - M - 28 - 25) / 7);
+        capacity = Math.floor((page.y - M - 28 - 27) / 8.1);
       }
       var chunk = lines.splice(0, capacity);
-      var _h = Math.max(20, chunk.length * 7 + 17);
+      var _h = Math.max(23, chunk.length * 8.1 + 18);
       rect(M, page.y - _h, usable, _h, fill, c);
-      text(title, M + 6, page.y - 10, 6.6, true, c);
+      text(title, M + 6, page.y - 11, 7.4, true, c);
       chunk.forEach(function (ln, i) {
-        return text(ln, M + 12, page.y - 19 - i * 7, 6.1, false, c);
+        return text(ln, M + 12, page.y - 21 - i * 8.1, type.note, false, c);
       });
       page.y -= _h + 8;
     }
@@ -4063,8 +4111,8 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     pairs.forEach(function (m, i) {
       var px = x + i % 2 * col;
       var py = y - Math.floor(i / 2) * 22;
-      text(m[0], px, py, 6, false, color.muted);
-      wrapped(m[1], px, py - 8, col - 12, 7.2, 2, color.ink);
+      text(m[0], px, py, 7, false, color.muted);
+      wrapped(m[1], px, py - 9, col - 12, 8.2, 2, color.ink);
     });
   };
   var consoById = Object.fromEntries(((lists === null || lists === void 0 ? void 0 : lists.consommables) || []).map(function (c) {
@@ -4199,16 +4247,13 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       alerts: [],
       open: []
     });
+    if (!summary.alerts.length) {
+      compactOpenSummary = summary.open;
+      return;
+    }
     var sectionTitle = "Synthèse";
     page = newPage();
     headerBlock("Synthèse des points ouverts", null, sectionTitle);
-    if (!summary.alerts.length && !summary.open.length) {
-      var _h2 = 27;
-      rect(M, page.y - _h2, usable, _h2, "0.91 0.97 0.92", color.green);
-      text("Aucun point ouvert ni alerte détecté.", M + 8, page.y - 17, 7.2, true, color.green);
-      page.y -= _h2 + 8;
-      return;
-    }
     warningBlock("ALERTES", summary.alerts, "red", sectionTitle, null);
     warningBlock("POINTS OUVERTS", summary.open, "yellow", sectionTitle, null);
   };
@@ -4331,8 +4376,10 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       var lotPdf = r.action1 === "O" ? "N/A" : tracePdfValue(r.lot, "LOT");
       var dcPdf = r.action1 === "O" ? "N/A" : tracePdfValue(r.dc, "DC");
       var substitutionRef = r.changeReason ? [r.changeReason, r.changeFactNumber].filter(Boolean).join(" ") : "";
-      var fichePdf = [r.fiche, substitutionRef && "Justif. ".concat(substitutionRef)].filter(Boolean).join(" / ");
-      var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), lotPdf, dcPdf, r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(fichePdf), pdfValue(r.etape), pdfValue(r.createdVisa), pdfValue(r.createdDT), controlVisa, pdfValue(r.dateCtrl)], r);
+      var fichePdf = [r.fiche, substitutionRef && "Justif. ".concat(substitutionRef), r.etape && "OP ".concat(r.etape)].filter(Boolean).join(" / ");
+      var operationAudit = [pdfValue(r.createdVisa), pdfValue(r.createdDT)].join(" - ");
+      var controlAudit = [controlVisa, pdfValue(r.dateCtrl)].join(" - ");
+      var base = rowPdf([repere, r.action1 === "O" ? "N/A" : r.isAdjust ? "Oui" : "Non", pdfValue(r.action1), r.action1 === "O" ? "N/A" : pdfValue(r.codeERP), r.action1 === "O" ? "N/A" : pdfValue(r.valeur), lotPdf, dcPdf, r.action1 === "O" ? "N/A" : pdfValue(r.sn), pdfValue(fichePdf), operationAudit, controlAudit], r);
       var remarkPrefix = pdfValue(r.repere);
       var remark = String(r.remarques || "").trim() ? [{
         text: "".concat(remarkPrefix, " - ").concat(r.action1 === "O" ? "Observation" : "Remarque", " : ").concat(r.remarques),
@@ -4379,7 +4426,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
             bold: true
           }
         } : {}), controlRequired && !r.visaCtrl ? {
-          12: {
+          10: {
             fill: "0.99 0.91 0.91",
             color: color.red,
             bold: true
@@ -4393,12 +4440,12 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       page = newPage();
       headerBlock(displayTitle, unit, displayTitle);
       if (warningRows.length) {
-        text("Points à vérifier", M, page.y - 1, 7.2, true, color.red);
-        page.y -= 10;
+        text("Points à vérifier", M, page.y - 1, 8.2, true, color.red);
+        page.y -= 12;
         table(["Repère TOPO", "Problème", "Opérateur", "Date / heure"], warningRows, [19, 70, 18, 27], displayTitle, unit);
         page.y -= 8;
       }
-      table(["Repère TOPO", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "Date code", "SN composant", "Fiche suiveuse / fait", "N° OP", "VISA", "Date", "CTRL", "CTRL le"], rework.length ? rework : [["N/A"]], [22, 9, 9, 27, 55, 19, 17, 17, 39, 11, 15, 24, 36, 24], displayTitle, unit);
+      table(["Repère TOPO", "ADJ", "Act.", "Code article", "Valeur - description", "LOT", "Date code", "SN composant", "Fiche suiveuse / OP", "Opération Visa / date", "Contrôle Visa / date"], rework.length ? rework : [["N/A"]], [23, 9, 9, 28, 58, 20, 18, 19, 44, 34, 38], displayTitle, unit);
     }
     var cons = (((_ofData8 = ofData) === null || _ofData8 === void 0 || (_ofData8 = _ofData8.consommables) === null || _ofData8 === void 0 ? void 0 : _ofData8.ops) || []).filter(inUnit).flatMap(function (op) {
       return (op.items || [{}]).filter(function (it) {
@@ -4506,7 +4553,7 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       var stats = measurementStats(row, activeUnits);
       var observed = "".concat(measurementDisplayNumber(stats.min), " / ").concat(measurementDisplayAverage(stats.average), " / ").concat(measurementDisplayNumber(stats.max));
       var concerned = _toConsumableArray(new Set([].concat(_toConsumableArray(stats.minUnits || []), _toConsumableArray(stats.maxUnits || [])))).join(" ; ") || "-";
-      var base = rowPdfWithComments([row.fiche || "N/A", row.etape || "N/A", row.mesure || "N/A", row.unite || "-", row.min || "-", (result === null || result === void 0 ? void 0 : result.value) || "MANQUANT", row.max || "-", status.label, observed, concerned, (result === null || result === void 0 ? void 0 : result.visa) || "-", (result === null || result === void 0 ? void 0 : result.dt) || "-"], row, commentsForPdf(result));
+      var base = rowPdfWithComments([[row.fiche || "N/A", row.etape && "OP ".concat(row.etape)].filter(Boolean).join(" / "), row.mesure || "N/A", row.unite || "-", row.min || "-", (result === null || result === void 0 ? void 0 : result.value) || "MANQUANT", row.max || "-", status.label, observed, concerned, [(result === null || result === void 0 ? void 0 : result.visa) || "-", (result === null || result === void 0 ? void 0 : result.dt) || "-"].join(" - ")], row, commentsForPdf(result));
       var statusStyle = status.id === "nonconforming" || status.id === "invalid" ? {
         fill: "0.99 0.91 0.91",
         color: color.red,
@@ -4526,12 +4573,12 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
       };
       return _objectSpread(_objectSpread({}, base), {}, {
         cellStyles: {
-          5: statusStyle,
-          7: statusStyle
+          4: statusStyle,
+          6: statusStyle
         }
       });
     });
-    section("Mesures", ["Fiche suiveuse", "Etape / OP", "Mesure", "Unite", "Min attendu", "Valeur SN", "Max attendu", "Statut", "OF min / moy. / max", "SN extremes", "Visa", "Date"], measurementRows, [25, 15, 40, 12, 16, 18, 16, 20, 33, 38, 13, 24], unit);
+    section("Mesures", ["Fiche suiveuse / OP", "Mesure", "Unité", "Min attendu", "Valeur SN", "Max attendu", "Statut", "OF min / moy. / max", "SN extrêmes", "Visa / date"], measurementRows, [38, 48, 14, 19, 22, 19, 24, 38, 44, 37], unit);
   });
   var printablePages = pages.filter(function (p) {
     return p.ops.length;
@@ -4562,9 +4609,9 @@ var buildDirectReportPdf = function buildDirectReportPdf(_ref42) {
     var showActionLegend = String(p.section || p.context || "").includes("Adjust / Rework");
     var pageText = "Page ".concat(sectionSeen[sectionKey], " / ").concat(sectionCounts[sectionKey]);
     p.ops.push("q ".concat(setStroke(color.blue), " .55 w ").concat(M.toFixed(2), " 28 m ").concat((W - M).toFixed(2), " 28 l S Q"));
-    if (showActionLegend) p.ops.push("BT /F1 5.8 Tf ".concat(setFill(color.muted), " 1 0 0 1 ").concat(M.toFixed(2), " ").concat(footerY, " Tm (").concat(pdfEsc(actionLegend), ") Tj ET"));
-    p.ops.push("BT /F1 5.8 Tf ".concat(setFill(color.muted), " 1 0 0 1 ").concat(((W - textW(PDF_CONFIDENTIALITY, 5.8)) / 2).toFixed(2), " ").concat(footerY, " Tm (").concat(pdfEsc(PDF_CONFIDENTIALITY), ") Tj ET"));
-    p.ops.push("BT /F2 7 Tf ".concat(setFill(color.muted), " 1 0 0 1 ").concat((W - M - textW(pageText, 7, true)).toFixed(2), " ").concat(footerY, " Tm (").concat(pdfEsc(pageText), ") Tj ET"));
+    if (showActionLegend) p.ops.push("BT /F1 6.2 Tf ".concat(setFill(color.muted), " 1 0 0 1 ").concat(M.toFixed(2), " ").concat(footerY, " Tm (").concat(pdfEsc(actionLegend), ") Tj ET"));
+    p.ops.push("BT /F1 6.2 Tf ".concat(setFill(color.muted), " 1 0 0 1 ").concat(((W - textW(PDF_CONFIDENTIALITY, 6.2)) / 2).toFixed(2), " ").concat(footerY, " Tm (").concat(pdfEsc(PDF_CONFIDENTIALITY), ") Tj ET"));
+    p.ops.push("BT /F2 7.5 Tf ".concat(setFill(color.muted), " 1 0 0 1 ").concat((W - M - textW(pageText, 7.5, true)).toFixed(2), " ").concat(footerY, " Tm (").concat(pdfEsc(pageText), ") Tj ET"));
     var stream = p.ops.join("\n");
     var contentId = objects.length + 2;
     var pageId = objects.length + 1;

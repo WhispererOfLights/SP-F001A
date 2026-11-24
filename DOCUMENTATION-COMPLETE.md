@@ -2,8 +2,8 @@
 
 ## Documentation fonctionnelle et technique
 
-**Version documentée :** v357
-**Date :** 20 novembre 2026
+**Version documentée :** v358
+**Date :** 24 novembre 2026
 **Public visé :** responsables d'atelier, méthodes, qualité, logistique et IT
 
 ## 1. Objet du document
@@ -187,9 +187,12 @@ Cette fonction est disponible dans le pilote, mais ses règles métier ne sont p
 
 - Rapport complet ou sélection d'onglets.
 - Sélection d'un ou plusieurs SN ou lots.
-- Page de garde avec points ouverts et alertes pour le périmètre sélectionné.
+- Page de garde complète uniquement lorsqu'une alerte importante est présente dans le périmètre sélectionné.
+- Lorsqu'il n'existe que des points ouverts non bloquants, résumé compact au début du premier rapport; lorsqu'il n'y a rien à signaler, aucune page ni zone de synthèse n'est ajoutée.
 - En-tête cohérent : OTP, OF, article, description, SN ou lot et quantité si pertinente.
-- Remarques associées au repère topologique concerné.
+- Police agrandie dans les en-têtes et les tableaux pour rester lisible en A4 paysage.
+- Colonnes d'audit regroupées sur les rapports larges afin de laisser davantage de place aux données métier.
+- Remarques associées au repère topologique concerné et conservées avec leur ligne source lorsque la pagination le permet.
 - Mise en évidence des N/A utiles sans les présenter automatiquement comme des erreurs.
 - Rapport Mesures dédié avec résultats et statistiques de l'OF.
 

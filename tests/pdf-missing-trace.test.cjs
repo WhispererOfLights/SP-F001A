@@ -22,9 +22,11 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   for(const label of ['(OTP)','(Article)','(SN ou LOT)']) assert.ok(raw.includes(label),`PDF header includes ${label}`);
   assert.ok(raw.includes('(N\\260 OF)'),'PDF header includes N° OF');
   assert.ok(raw.includes('(Qt\\351)'),'PDF header includes Qté');
-  assert.ok(/\/F2 7 Tf [^\n]+\(OTP\)/.test(raw),'PDF metadata labels use a readable font size');
+  assert.ok(/\/F2 8\.2 Tf [^\n]+\(OTP\)/.test(raw),'PDF metadata labels use a readable font size');
   assert.ok(raw.includes('(Synth\\350se des points ouverts)'),'A dedicated summary cover is generated');
   assert.ok(raw.indexOf('(Synth\\350se des points ouverts)')<raw.indexOf('(Adjust / Rework)'),'The summary cover comes before report sections');
+  assert.ok((raw.match(/\(N\\260 OF\)/g)||[]).length>=2,'The complete OF header is repeated on report pages');
+  assert.ok(raw.includes('(Op\\351ration Visa / date)')&&raw.includes('(Contr\\364le Visa / date)'),'Wide audit columns are grouped for readability');
   assert.ok(!raw.includes('Tracabilite a completer - LOT / DC manquants'),'Missing LOT/DC is shown by red cells without a duplicate warning block');
   for(const id of ['BOTH','DC_ONLY','LOT_ONLY','POINTED']) assert.ok(raw.includes(id));
   assert.ok(!raw.includes('OTHER_SN'));
@@ -33,10 +35,16 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
   assert.ok(raw.includes('(R181 - Remarque : Valeur mesur'),'The main Adjust/Rework remark includes the TOPO reference');
   assert.ok(raw.includes('(R181 - JGR - 06/11/2026 16:04 - Mauvaise valeur dans la NC)'),'Adjust/Rework comments include the TOPO reference');
   assert.ok(raw.includes('(MANQUANT)'),'Required empty LOT/DC cells are explicitly labelled as missing');
-  assert.ok(/\/F2 6\.1 Tf 0\.95 0\.56 0\.00 rg[^\n]+\(N\/A\)/.test(raw),'N/A LOT/DC cells are highlighted in yellow');
-  assert.ok(/\/F2 6\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(0101\)/.test(raw),'Expired DC remains red and bold');
+  assert.ok(/\/F2 7\.1 Tf 0\.95 0\.56 0\.00 rg[^\n]+\(N\/A\)/.test(raw),'N/A LOT/DC cells are highlighted in yellow');
+  assert.ok(/\/F2 7\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(0101\)/.test(raw),'Expired DC remains red and bold');
   const complete=await build([row('COMPLETE','S','0000020516','N/A')]).text();
   assert.ok(!complete.includes('LOT / DC manquants'));
+  assert.ok(!complete.includes('(Synth\\350se des points ouverts)')&&!complete.includes('(POINTS OUVERTS)'),'A clean report has no summary page or empty status block');
+  const openOnly=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
+    units:{rows:units},faits:{rows:[{id:'fact-open',createdDT:'18/09/2026 08:00',createdVisa:'JGR',type:'NC',numero:'NC-OPEN',date:'18/09/2026',commentaires:'Point ouvert',snIds:['u1']}]}} ,
+    lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['faits']}).text();
+  assert.ok(!openOnly.includes('(Synth\\350se des points ouverts)'),'Open points alone do not create a dedicated cover page');
+  assert.ok(openOnly.includes('(POINTS OUVERTS)')&&openOnly.includes('Suivis techniques ouverts'),'Open points alone appear in a compact block on the first report page');
   const consoPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},consommables:{ops:[{id:'op1',createdDT:'18/09/2026 08:00',createdVisa:'JGR',fiche:'DOC',op:'10',snIds:['u1'],items:[
       {id:'expired',createdDT:'18/09/2026 08:01',createdVisa:'JGR',consoId:'c1',lot:'0000020516',dp:'17.09.26',validated:true},
@@ -70,13 +78,14 @@ const build=rows=>context.pdf({ofData:{header:{of:'100TEST',codeArticle:'2500004
     ]}},lists:{},exportedAt:'18/09/2026 08:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['testequip']}).text();
   assert.ok(equipmentPdf.includes('(ALERTES)')&&equipmentPdf.includes('Appareils hors calibration'),'Expired equipment appears in the summary');
   assert.ok(equipmentPdf.includes('INV-HS')&&!equipmentPdf.includes('INV-OTHER'),'Summary and table respect the selected SN');
-  assert.ok(/\/F2 6\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(2025-06\)/.test(equipmentPdf),'Expired calibration date is red and bold');
+  assert.ok(/\/F2 7\.1 Tf 0\.85 0\.21 0\.20 rg[^\n]+\(2025-06\)/.test(equipmentPdf),'Expired calibration date is red and bold');
   const measurementsPdf=await context.pdf({ofData:{header:{of:'100TEST',codeArticle:'250000465',description:'Verification PDF',otp:'7400-TEST'},
     units:{rows:units},mesures:{rows:[{id:'measure-1',fiche:'DOC-TEST_1',etape:'50',mesure:'Tension TP1',unite:'V',min:'4.8',max:'5.2',results:[
       {id:'mr1',unitId:'u1',value:'6.2',visa:'JGR',dt:'18/09/2026 09:00'},
       {id:'mr2',unitId:'u2',value:'5.0',visa:'JMA',dt:'18/09/2026 09:01'},
     ]}]}} ,lists:{},exportedAt:'18/09/2026 09:15',exportedBy:'JGR',selectedSnIds:['u1'],selectedSections:['mesures']}).text();
   assert.ok(measurementsPdf.includes('(Mesures)')&&measurementsPdf.includes('Tension TP1'),'Measurements have a dedicated PDF section');
+  assert.ok(measurementsPdf.includes('(Fiche suiveuse / OP)')&&measurementsPdf.includes('(Visa / date)'),'Measurement audit columns are grouped for readability');
   assert.ok(measurementsPdf.includes('(Non conforme)')&&measurementsPdf.includes('(ALERTES)'),'A nonconforming measurement is red-flagged on the summary cover');
   assert.ok(measurementsPdf.includes('5,6'),'The PDF reports the OF average across both SN values');
   assert.ok(measurementsPdf.includes('SN1')&&measurementsPdf.includes('SN2'),'The PDF identifies the SN carrying the observed extrema');
